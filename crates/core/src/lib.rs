@@ -15,10 +15,12 @@ pub mod account;
 pub mod error;
 pub mod ledger;
 pub mod money;
+pub mod pricebook;
 pub mod state;
 
 pub use account::Balances;
 pub use error::CoreError;
 pub use ledger::{DepositReceipt, JobSnapshot, Ledger, RefundReceipt, Reservation, Settlement};
 pub use money::{parse_decimal, Amount, SETTLEMENT_DECIMALS};
+pub use pricebook::{PriceBook, SCAN_SKU};
 pub use state::{JobId, JobState, ReportHash};
