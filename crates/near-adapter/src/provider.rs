@@ -234,8 +234,14 @@ impl NearProvider {
             .get_mut(intent_id)
             .ok_or_else(|| ProviderError::UnknownIntent(intent_id.to_string()))?;
         if entry.observation.is_some() {
+            // Re-submitting the SAME hint is an idempotent replay (the
+            // final observation is returned unchanged); a DIFFERENT hint
+            // cannot change a final observation.
+            if entry.hint.as_ref() == Some(&hint) {
+                return Ok(());
+            }
             return Err(ProviderError::Validation(
-                "the intent already has a final observation; a new hint cannot change it"
+                "the intent already has a final observation; a different hint cannot change it"
                     .to_string(),
             ));
         }

@@ -174,6 +174,9 @@ impl NearRpc {
         let response = self
             .agent
             .post(&self.url)
+            // NEAR's RPC answers 415 unless the body is declared as JSON;
+            // ureq's send_string defaults to text/plain.
+            .set("Content-Type", "application/json")
             .send_string(&body.to_string())
             .map_err(|err| RpcError::Transport(err.to_string()))?;
         let text = response
