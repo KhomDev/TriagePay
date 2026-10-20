@@ -212,7 +212,7 @@ fn conservation_holds_under_random_operation_sequences() {
     for step in 0..2000u32 {
         let pick = rng.next() % 100;
         let acct = accounts[(rng.next() % 3) as usize];
-        let amt = usd(1 + (rng.next() % 3) as u64);
+        let amt = usd(1 + rng.next() % 3);
         if pick < 30 {
             let key = format!("d{}", step);
             let _ = ledger.deposit("fuzz", acct, amt, &key);
