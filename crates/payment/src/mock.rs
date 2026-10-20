@@ -127,6 +127,15 @@ impl MockProvider {
         &mut self.clock
     }
 
+    /// Advance the internal clock to the given unix time. Never moves
+    /// backward. The gateway calls this before each provider operation so
+    /// the mock provider tracks wall time without sleeps.
+    pub fn sync_clock(&mut self, now: u64) {
+        if now > self.clock.now {
+            self.clock.now = now;
+        }
+    }
+
     fn intent_mut(&mut self, intent_id: &IntentId) -> Result<&mut MockIntent, ProviderError> {
         self.intents
             .get_mut(intent_id)

@@ -69,6 +69,24 @@ impl ApiError {
         )
     }
 
+    /// 404: no payment intent with this id exists.
+    pub(crate) fn unknown_intent(intent: &str) -> Self {
+        Self::new(
+            StatusCode::NOT_FOUND,
+            "unknown_intent",
+            format!("unknown payment intent: {intent}"),
+        )
+    }
+
+    /// 503: an external dependency is temporarily unavailable.
+    pub(crate) fn service_unavailable(message: impl Into<String>) -> Self {
+        Self::new(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "provider_unavailable",
+            message,
+        )
+    }
+
     /// 409: the request conflicts with recorded state.
     pub(crate) fn conflict(code: &'static str, message: impl Into<String>) -> Self {
         Self::new(StatusCode::CONFLICT, code, message)

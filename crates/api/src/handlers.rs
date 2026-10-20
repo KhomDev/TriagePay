@@ -44,7 +44,7 @@ pub async fn deposit(
     Path(account_id): Path<String>,
     body: Result<Json<DepositRequest>, JsonRejection>,
 ) -> Result<(StatusCode, Json<DepositReceiptJson>), ApiError> {
-    let Json(request) = body.map_err(rejected)?;
+    let Json(request) = body.map_err(rejected_json)?;
     let amount = parse_amount_atomic(&request.amount_atomic)?;
     let mut ledger = state.write_ledger().await;
     let receipt = ledger.deposit(
@@ -62,7 +62,7 @@ pub async fn deposit(
 }
 
 /// Map axum's JSON rejection to the standard 400 error shape.
-fn rejected(rejection: JsonRejection) -> ApiError {
+pub(crate) fn rejected_json(rejection: JsonRejection) -> ApiError {
     ApiError::validation(format!(
         "request body must be strict JSON: {}",
         rejection.body_text()
@@ -84,7 +84,7 @@ pub async fn create_reservation(
     State(state): State<AppState>,
     body: Result<Json<ReservationRequest>, JsonRejection>,
 ) -> Result<(StatusCode, Json<ReservationJson>), ApiError> {
-    let Json(request) = body.map_err(rejected)?;
+    let Json(request) = body.map_err(rejected_json)?;
     let amount = parse_amount_atomic(&request.amount_atomic)?;
     let mut ledger = state.write_ledger().await;
     let reservation = ledger.reserve(
@@ -143,7 +143,7 @@ pub async fn settle_job(
     Path(job_id): Path<String>,
     body: Result<Json<SettlementRequest>, JsonRejection>,
 ) -> Result<(StatusCode, Json<SettlementJson>), ApiError> {
-    let Json(request) = body.map_err(rejected)?;
+    let Json(request) = body.map_err(rejected_json)?;
     // Validate the hash before resolving the job: bad input outranks
     // unknown references.
     let report_hash = ReportHash::from_hex(&request.report_hash_hex)?;
@@ -167,7 +167,7 @@ pub async fn refund_job(
     Path(job_id): Path<String>,
     body: Result<Json<RefundRequest>, JsonRejection>,
 ) -> Result<Json<RefundReceiptJson>, ApiError> {
-    let Json(request) = body.map_err(rejected)?;
+    let Json(request) = body.map_err(rejected_json)?;
     let job_id = known_job(&state, &job_id)?;
     let mut ledger = state.write_ledger().await;
     let receipt = ledger.refund(&job_id, &request.reason)?;

@@ -17,6 +17,7 @@
 mod dto;
 mod error;
 mod handlers;
+mod payment;
 mod scan;
 pub mod scanbridge;
 
@@ -24,6 +25,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use aps_core::{JobId, Ledger};
+use aps_payment::{MockClock, MockProvider};
 
 pub use error::ApiError;
 
@@ -52,6 +54,10 @@ pub struct AppState {
     caller: String,
     /// Scanner subprocess launcher (see `scanbridge`).
     scan: Arc<scanbridge::ScanLauncher>,
+    /// Payment provider (mock). Single-writer behind an async mutex.
+    payment: Arc<tokio::sync::Mutex<MockProvider>>,
+    /// Gateway-level link from payment intent to the account it funds.
+    intent_accounts: payment::IntentAccounts,
 }
 
 impl AppState {
@@ -68,6 +74,10 @@ impl AppState {
             job_ids: Arc::new(RwLock::new(HashMap::new())),
             caller: caller.into(),
             scan: Arc::new(scanbridge::ScanLauncher::discover()),
+            payment: Arc::new(tokio::sync::Mutex::new(MockProvider::new(MockClock::new(
+                unix_now(),
+            )))),
+            intent_accounts: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -79,6 +89,10 @@ impl AppState {
             job_ids: Arc::new(RwLock::new(HashMap::new())),
             caller: caller.into(),
             scan: Arc::new(launcher),
+            payment: Arc::new(tokio::sync::Mutex::new(MockProvider::new(MockClock::new(
+                unix_now(),
+            )))),
+            intent_accounts: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -90,6 +104,34 @@ impl AppState {
     /// The scanner subprocess launcher.
     pub(crate) fn scan_launcher(&self) -> &scanbridge::ScanLauncher {
         &self.scan
+    }
+
+    /// The payment provider behind its single-writer mutex.
+    pub(crate) fn payment(&self) -> &Arc<tokio::sync::Mutex<MockProvider>> {
+        &self.payment
+    }
+
+    /// Record which account a payment intent funds.
+    pub(crate) fn register_intent(
+        &self,
+        intent_id: &aps_payment::IntentId,
+        account_id: &str,
+    ) -> Result<(), ApiError> {
+        self.intent_accounts
+            .write()
+            .map_err(|_| ApiError::internal("intent registry is unavailable"))?
+            .insert(intent_id.to_string(), account_id.to_string());
+        Ok(())
+    }
+
+    /// Look up the account a payment intent funds, 404 when unknown.
+    pub(crate) fn intent_account(&self, intent_id: &str) -> Result<String, ApiError> {
+        self.intent_accounts
+            .read()
+            .map_err(|_| ApiError::internal("intent registry is unavailable"))?
+            .get(intent_id)
+            .cloned()
+            .ok_or_else(|| ApiError::unknown_intent(intent_id))
     }
 
     /// Read lock on the ledger for query handlers. Tokio's async
@@ -127,6 +169,13 @@ impl AppState {
     }
 }
 
+fn unix_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
 impl Default for AppState {
     fn default() -> Self {
         Self::new()
@@ -145,6 +194,16 @@ pub fn router(state: AppState) -> axum::Router {
         .route("/jobs/{job_id}", get(handlers::get_job))
         .route("/jobs/{job_id}/start", post(handlers::start_job))
         .route("/jobs/{job_id}/scan", post(scan::scan_job))
+        .route("/payment/intents", post(payment::create_intent))
+        .route("/payment/intents/{intent_id}", get(payment::get_intent))
+        .route(
+            "/payment/intents/{intent_id}/observations",
+            post(payment::observe_intent),
+        )
+        .route(
+            "/payment/intents/{intent_id}/refunds",
+            post(payment::refund_intent),
+        )
         .route("/jobs/{job_id}/settlements", post(handlers::settle_job))
         .route("/jobs/{job_id}/refunds", post(handlers::refund_job))
         .with_state(state)
