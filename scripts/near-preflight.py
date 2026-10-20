@@ -86,6 +86,24 @@ def main():
         "https://rpc.testnet.near.org" if args.network == "testnet"
         else "https://rpc.mainnet.near.org"
     )
+    if not url.startswith("http"):
+        url = "https://" + url
+
+    # Some privacy endpoints (for example 1RPC) do not expose the NEAR
+    # JSON-RPC surface even though they proxy other chains. Probe first;
+    # fall back to the official public endpoint with a clear notice.
+    official = (
+        "https://rpc.testnet.near.org" if args.network == "testnet"
+        else "https://rpc.mainnet.near.org"
+    )
+    try:
+        probe = rpc_call(url, "status", [])
+        print(f"[ok] RPC endpoint answered (chain_id={probe['chain_id']})")
+    except Exception:  # noqa: BLE001
+        if url != official:
+            print(f"[warn] configured endpoint did not answer the NEAR JSON-RPC "
+                  f"status call; falling back to the official public endpoint")
+            url = official
     failures = []
 
     try:

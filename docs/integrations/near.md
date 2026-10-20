@@ -152,3 +152,56 @@ README names Intents as the adapter target):
    metadata.
 3. Execute the mainnet E2E (scripts/near-demo) with an explicit approval
    of the single on-chain transfer it requests.
+
+
+---
+
+## Operator wallet state (verified read-only, 2026-10-20)
+
+Account **hlpok1lad.tg** on mainnet:
+
+| Fact | Value |
+|---|---|
+| Account exists | yes (created via a delegate-action flow from the tg/HOT wallet) |
+| Access key | the configured ed25519 keypair is registered with **FullAccess** (can sign transfers) |
+| Liquid NEAR | **0** (below the ~0.05 gas floor) |
+| Tokens held | 0.01 HOT (game.hot.tg); **0 USDC on NEAR** |
+| intents.near balance | 0 (the one intents.near tx in history left no parked balance) |
+| The 1 USDC | lives on **Base** (per the operator), not on NEAR yet |
+
+Consequences for the demo flow:
+
+1. The account needs a small amount of NEAR for gas before the wallet can
+   send the deposit ft_transfer (most wallets can attach gas paid from
+   the deposit intent's transfer; if the USDC arrives via a swap that
+   delivers NEAR-side tokens, a ~0.05 NEAR top-up is still recommended).
+2. The settlement asset contract is set to USDC.e; once the swap lands,
+   run scripts/near-wait-for-deposit.py to detect the actual contract the
+   funds arrive in, then set NEAR_ASSET_CONTRACT to match.
+
+## Operator guide: moving the 1 USDC from Base to NEAR (your step)
+
+The agent does not hold (and must never hold) the Base-side key, so this
+step belongs to the operator. Two supported routes:
+
+**Route A - NEAR Intents (recommended, and it exercises our v2 target):**
+1. Open the NEAR Intents flow (https://intents.near.org or a 1Click-integrated
+   frontend) and sign in with **hlpok1lad.tg** (the HOT/.tg wallet can
+   authenticate it).
+2. Request a quote: swap Base USDC -> NEAR-side USDC, exact input 1 USDC.
+   The UI returns a deposit address on Base (with a memo) plus the quote.
+3. Send the 1 USDC from the Base wallet to that address with the memo.
+4. When the intent settles, the USDC (USDC.e or the current canonical
+   USDC token on NEAR) lands under the intents account; withdraw to
+   hlpok1lad.tg if the UI holds it in intents (the mt_batch_balance_of
+   view on intents.near shows parked balances).
+5. Run: python scripts/near-wait-for-deposit.py --account hlpok1lad.tg
+   It prints the contract id to set as NEAR_ASSET_CONTRACT.
+
+**Route B - an exchange that supports NEAR withdrawals:** withdraw USDC
+on the NEAR network directly to hlpok1lad.tg, then run the same waiter
+script. Verify the token contract it reports before setting
+NEAR_ASSET_CONTRACT.
+
+After either route: python scripts/near-preflight.py must print READY,
+then scripts/near-demo.ps1 walks the verified end-to-end deposit.
