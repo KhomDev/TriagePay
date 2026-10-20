@@ -8,7 +8,7 @@ license.workspace = true
 [dependencies]
 aps-core = { path = "../core" }
 axum = "0.8"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "process", "io-util", "time"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

@@ -17,6 +17,8 @@
 mod dto;
 mod error;
 mod handlers;
+mod scan;
+pub mod scanbridge;
 
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -48,6 +50,8 @@ pub struct AppState {
     /// this field disappear.
     job_ids: Arc<RwLock<HashMap<String, JobId>>>,
     caller: String,
+    /// Scanner subprocess launcher (see `scanbridge`).
+    scan: Arc<scanbridge::ScanLauncher>,
 }
 
 impl AppState {
@@ -63,12 +67,29 @@ impl AppState {
             ledger: Arc::new(tokio::sync::RwLock::new(Ledger::new())),
             job_ids: Arc::new(RwLock::new(HashMap::new())),
             caller: caller.into(),
+            scan: Arc::new(scanbridge::ScanLauncher::discover()),
+        }
+    }
+
+    /// State with an explicit scanner launcher, for tests and controlled
+    /// environments.
+    pub fn with_launcher(caller: impl Into<String>, launcher: scanbridge::ScanLauncher) -> Self {
+        Self {
+            ledger: Arc::new(tokio::sync::RwLock::new(Ledger::new())),
+            job_ids: Arc::new(RwLock::new(HashMap::new())),
+            caller: caller.into(),
+            scan: Arc::new(launcher),
         }
     }
 
     /// The caller identity every request acts under.
     pub fn caller(&self) -> &str {
         &self.caller
+    }
+
+    /// The scanner subprocess launcher.
+    pub(crate) fn scan_launcher(&self) -> &scanbridge::ScanLauncher {
+        &self.scan
     }
 
     /// Read lock on the ledger for query handlers. Tokio's async
@@ -123,6 +144,7 @@ pub fn router(state: AppState) -> axum::Router {
         .route("/reservations", post(handlers::create_reservation))
         .route("/jobs/{job_id}", get(handlers::get_job))
         .route("/jobs/{job_id}/start", post(handlers::start_job))
+        .route("/jobs/{job_id}/scan", post(scan::scan_job))
         .route("/jobs/{job_id}/settlements", post(handlers::settle_job))
         .route("/jobs/{job_id}/refunds", post(handlers::refund_job))
         .with_state(state)

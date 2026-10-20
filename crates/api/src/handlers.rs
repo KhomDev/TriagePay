@@ -70,7 +70,7 @@ fn rejected(rejection: JsonRejection) -> ApiError {
 }
 
 /// Resolve a wire job id to the canonical core `JobId`, 404 if unknown.
-fn known_job(state: &AppState, wire_id: &str) -> Result<JobId, ApiError> {
+pub(crate) fn known_job(state: &AppState, wire_id: &str) -> Result<JobId, ApiError> {
     state
         .resolve_job(wire_id)?
         .ok_or_else(|| ApiError::unknown_job(wire_id))
