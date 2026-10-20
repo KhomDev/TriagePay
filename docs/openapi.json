@@ -1,0 +1,942 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AgentPay Sentinel API",
+    "version": "0.1.0",
+    "description": "Prepaid, policy-guarded payment rails for AI agent tools. All money crosses the wire as u128 atomic units encoded as JSON strings plus a display-only decimal. Every money-moving request carries a caller-scoped idempotency key. One error shape everywhere: {\"error\":{\"code\",\"message\"}}.",
+    "license": {
+      "name": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8080",
+      "description": "loopback only"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Liveness probe",
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/accounts/{account_id}": {
+      "get": {
+        "summary": "Current balances, or 404",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AccountId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "balances",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Balances"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/accounts/{account_id}/deposits": {
+      "post": {
+        "summary": "Idempotent credit deposit (201 new, 200 replay)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AccountId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DepositRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "deposit receipt (replay)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "receipt payload (see the README wire examples)"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "deposit receipt (new)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "receipt payload (see the README wire examples)"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reservations": {
+      "post": {
+        "summary": "Lock available credit for a job (201 new, 200 replay)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReservationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "reservation (replay)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "receipt payload (see the README wire examples)"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "reservation (new)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "receipt payload (see the README wire examples)"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}": {
+      "get": {
+        "summary": "Job snapshot, or 404",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/JobId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "job snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "receipt payload (see the README wire examples)"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}/start": {
+      "post": {
+        "summary": "Move a Reserved job to Running (idempotent)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/JobId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "job state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "receipt payload (see the README wire examples)"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}/settlements": {
+      "post": {
+        "summary": "Settle against a 64-hex report hash (201 new, 200 replay, 409 different hash)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/JobId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettlementRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "settlement (replay)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "receipt payload (see the README wire examples)"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "settlement (new)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "receipt payload (see the README wire examples)"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}/scan": {
+      "post": {
+        "summary": "Run the scanner subprocess and settle against the report hash; payment covers the scan, not the verdict",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/JobId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "The finding envelope; the scanner is the schema authority"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "settlement + report (replay)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "receipt payload (see the README wire examples)"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "settlement + report (new)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "receipt payload (see the README wire examples)"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "envelope failed validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "job not running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "scanner infrastructure failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}/refunds": {
+      "post": {
+        "summary": "Return reserved credit to available exactly once",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/JobId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefundRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "refund receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "receipt payload (see the README wire examples)"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payment/intents": {
+      "post": {
+        "summary": "Create a deposit intent (funding instructions; credit is NOT granted here)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateIntentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "intent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "receipt payload (see the README wire examples)"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payment/intents/{intent_id}": {
+      "get": {
+        "summary": "Intent status and deposit instructions",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IntentId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "intent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "receipt payload (see the README wire examples)"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payment/intents/{intent_id}/observations": {
+      "post": {
+        "summary": "Observe an intent and reconcile; funds the account only on an exactly matching provider-observed confirmation. Near provider requires a transaction hint body {signer_id, tx_hash}; the mock provider takes no body",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IntentId"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ObserveHintRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "observation + reconciliation outcome (+deposit receipt when funded)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "receipt payload (see the README wire examples)"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payment/intents/{intent_id}/refunds": {
+      "post": {
+        "summary": "Provider refund of a confirmed intent (near provider: proposal only)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IntentId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntentRefundRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "refund receipt/proposal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "receipt payload (see the README wire examples)"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "AccountId": {
+        "name": "account_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "JobId": {
+        "name": "job_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "IntentId": {
+        "name": "intent_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "schemas": {
+      "Health": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          }
+        }
+      },
+      "AmountJson": {
+        "type": "object",
+        "required": [
+          "atomic",
+          "decimal"
+        ],
+        "properties": {
+          "atomic": {
+            "type": "string",
+            "description": "u128 atomic units as a decimal string"
+          },
+          "decimal": {
+            "type": "string",
+            "description": "display-only decimal at 6 places"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Balances": {
+        "type": "object",
+        "required": [
+          "available",
+          "reserved",
+          "settled_total",
+          "refunded_total",
+          "deposited_total"
+        ],
+        "properties": {
+          "available": {
+            "$ref": "#/components/schemas/AmountJson"
+          },
+          "reserved": {
+            "$ref": "#/components/schemas/AmountJson"
+          },
+          "settled_total": {
+            "$ref": "#/components/schemas/AmountJson"
+          },
+          "refunded_total": {
+            "$ref": "#/components/schemas/AmountJson"
+          },
+          "deposited_total": {
+            "$ref": "#/components/schemas/AmountJson"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DepositRequest": {
+        "type": "object",
+        "required": [
+          "amount_atomic",
+          "idempotency_key"
+        ],
+        "properties": {
+          "amount_atomic": {
+            "type": "string"
+          },
+          "idempotency_key": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReservationRequest": {
+        "type": "object",
+        "required": [
+          "account_id",
+          "sku",
+          "amount_atomic",
+          "idempotency_key"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "amount_atomic": {
+            "type": "string"
+          },
+          "idempotency_key": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SettlementRequest": {
+        "type": "object",
+        "required": [
+          "report_hash_hex"
+        ],
+        "properties": {
+          "report_hash_hex": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RefundRequest": {
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateIntentRequest": {
+        "type": "object",
+        "required": [
+          "account_id",
+          "asset_id",
+          "amount_atomic",
+          "expires_in_secs"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "asset_id": {
+            "type": "string"
+          },
+          "amount_atomic": {
+            "type": "string"
+          },
+          "expires_in_secs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "mock_scenario": {
+            "type": "object",
+            "description": "mock-only behavior script; rejected by the near provider"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ObserveHintRequest": {
+        "type": "object",
+        "required": [
+          "signer_id",
+          "tx_hash"
+        ],
+        "properties": {
+          "signer_id": {
+            "type": "string"
+          },
+          "tx_hash": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "IntentRefundRequest": {
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ErrorBody": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

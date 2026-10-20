@@ -16,6 +16,7 @@ dependencies = [
  "aps-near",
  "aps-payment",
  "axum",
+ "base64",
  "http-body-util",
  "serde",
  "serde_json",
