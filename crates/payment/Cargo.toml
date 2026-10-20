@@ -1,0 +1,13 @@
+[package]
+name = "aps-payment"
+description = "AgentPay Sentinel payment provider trait with a deterministic mock provider"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+aps-core = { path = "../core" }
+
+# Intentionally no external dependencies: provider semantics must stay
+# deterministic and testable offline. Real adapters live in separate
+# integration crates and depend on this trait, never the reverse.
