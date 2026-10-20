@@ -123,7 +123,11 @@ def compile_ruleset(source_dir, ruleset_id, version, timestamp=0):
 
     provenance = []
     for label, path, _document in sources:
-        provenance.append({"label": label, "sha256": sha256_hex(path.read_bytes())})
+        # Hash the canonical re-serialization, not the raw file bytes:
+        # raw bytes change with line endings (CRLF vs LF checkouts) and
+        # would break the byte-stable --check gate across platforms.
+        source_doc = json.loads(path.read_text(encoding="utf-8"))
+        provenance.append({"label": label, "sha256": sha256_hex(canonical(source_doc))})
 
     findings = leakage.scan_for_leakage(gates, migrations, provenance)
     if findings:
