@@ -1,0 +1,17 @@
+{
+  "title": "Rounding drain in vault share accounting",
+  "claimed_impact": "Permanent loss of user funds via inflated share ratio",
+  "mechanism": "First depositor inflates the share price before the pool opens",
+  "attacker_capability": "Any external address with collateral",
+  "preconditions": "Vault freshly deployed with empty reserves",
+  "component_class": "vault",
+  "scope_statement": "Vault deposit and mint path is in scope for this review",
+  "deployed_state_evidence": "Vault live at 0x1234567890abcdef since block 5100",
+  "public_rules_snapshot": "https://archive.example.org/rules/v1",
+  "known_issue_declaration": null,
+  "reproduction_summary": "Step 1: mint one share. Step 2: donate collateral. Step 3: redeem.",
+  "evidence_refs": [
+    "https://example.test/issue-family-1"
+  ],
+  "code_excerpt": "function mint() external returns (uint256) { ... }"
+}
