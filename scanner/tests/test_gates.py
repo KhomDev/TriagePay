@@ -76,16 +76,10 @@ def test_impact_sink_branches():
 
 def test_reproduction_non_tautological_branches():
     passed = gate_reproduction_non_tautological(
-        norm(
-            reproduction_summary=(
-                "1. Call settle() with amount 1. 2. Observe the balance drop."
-            )
-        )
+        norm(reproduction_summary=("1. Call settle() with amount 1. 2. Observe the balance drop."))
     )
     assert passed.status is GateStatus.PASS
-    failed = gate_reproduction_non_tautological(
-        norm(reproduction_summary="call settle twice")
-    )
+    failed = gate_reproduction_non_tautological(norm(reproduction_summary="call settle twice"))
     assert failed.status is GateStatus.FAIL
     needs = gate_reproduction_non_tautological(
         norm(
@@ -116,9 +110,7 @@ def test_deployed_state_evidence_branches():
         norm(deployed_state_evidence="the vault is live per the deployment log")
     )
     assert weak.status is GateStatus.NEEDS_EVIDENCE
-    short_hex = gate_deployed_state_evidence(
-        norm(deployed_state_evidence="seen at 0x1234 only")
-    )
+    short_hex = gate_deployed_state_evidence(norm(deployed_state_evidence="seen at 0x1234 only"))
     assert short_hex.status is GateStatus.NEEDS_EVIDENCE
 
 
@@ -161,9 +153,7 @@ def test_no_loss_concession_branches():
     failed = gate_no_loss_concession(
         norm(
             claimed_impact="causes fund loss to stakers",
-            reproduction_summary=(
-                "1. Replay the call. Note that no funds are lost in this flow."
-            ),
+            reproduction_summary=("1. Replay the call. Note that no funds are lost in this flow."),
         )
     )
     assert failed.status is GateStatus.FAIL

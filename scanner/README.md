@@ -11,13 +11,15 @@ never echoes the submitted envelope back.
 
 ## Layout
 
-- `pyproject.toml` - package metadata and pytest configuration
+- `pyproject.toml` - package metadata, pytest and ruff configuration
 - `aps_scanner/schema.py` - `FindingEnvelope` dataclass and validation
 - `aps_scanner/normalize.py` - normalization and injection flagging
-- `aps_scanner/gates.py` - the nine deterministic gates
+- `aps_scanner/ruleset.py` - compiled-ruleset loading and data-driven evaluation (fail closed)
+- `aps_scanner/gates.py` - the nine deterministic gates, executed from the ruleset
 - `aps_scanner/engine.py` - pipeline and decision matrix
 - `aps_scanner/report.py` - `ScanReport` and public JSON serialization
-- `tests/` - pytest suite (schema, injection corpus, gates, golden cases)
+- `rulesets/` - the committed sample ruleset artifact (compiled, hash-addressed)
+- `tests/` - pytest suite (schema, injection corpus, gates, ruleset, golden cases)
 
 Runtime is stdlib-only. No network, no side effects, fully deterministic:
 the same envelope always produces the same report and the same content hash.
@@ -45,9 +47,9 @@ envelope = FindingEnvelope(
     reproduction_summary="1. Call settle() with amount 1. 2. Observe the drop.",
 )
 report = scan(envelope)
-print(report.decision)                  # supported / needs_evidence / held / rejected
-print(report.confidence_band)           # high / medium / low
-print(report.to_public_json_string())   # the public response body
+print(report.decision)  # supported / needs_evidence / held / rejected
+print(report.confidence_band)  # high / medium / low
+print(report.to_public_json_string())  # the public response body
 ```
 
 Invalid envelopes raise `ScanInputError` carrying the list of validation
@@ -66,6 +68,9 @@ Confidence bands: `high` when supported with both deployed-state evidence and
 a public rules snapshot; `medium` when supported with fewer or when the
 decision is `needs_evidence`; `low` for `rejected` and `held`.
 
-The report carries the ruleset version (default `rules-v0.synthetic.1`) and a
-content hash: the sha256 of the canonical JSON of the normalized envelope, so
-identical submissions are bit-stable across replays.
+The report carries the ruleset version, the ruleset payload hash (the
+sha256 of the compiled gates artifact, produced by aps-knowledge-compiler
+in ../knowledge-compiler), and a content hash: the sha256 of the canonical
+JSON of the normalized envelope, so identical submissions are bit-stable
+across replays. A ruleset referencing an unknown evaluator or carrying a
+tampered hash fails closed: the scan refuses to run rather than passing.

@@ -84,11 +84,23 @@ Each gate takes the normalized envelope and returns GateResult(status, reason). 
 
 ## Report: ScanReport
 
-Fields: decision, confidence_band, missing_evidence (list of gate names), failed_gates (list of gate names), gate_results (list of GateResult), ruleset_version, content_hash, contains_embedded_instructions.
+Fields: decision, confidence_band, missing_evidence (list of gate names), failed_gates (list of gate names), gate_results (list of GateResult), ruleset_version, ruleset_hash, content_hash, contains_embedded_instructions.
 
-content_hash: sha256 hex of canonical JSON of the normalized envelope dict: json.dumps with sort_keys True, separators without spaces, ensure_ascii True, encoded utf-8.
+content_hash: sha256 hex of canonical JSON of the normalized envelope dict: json.dumps with sort_keys True, separators without spaces, ensure_ascii True, encoded utf-8. ruleset_hash: sha256 hex of the canonical JSON of the compiled ruleset's gates array, pinning the exact ruleset behind every decision.
 
 to_public_json() returns a dict with exactly those fields; to_public_json_string() returns the JSON string. No raw envelope echo, no private markers.
+
+## Rulesets
+
+The nine gates are not hardcoded: they are records in a compiled ruleset
+artifact (scanner/rulesets/rules-v0.synthetic.1.json) produced by
+aps-knowledge-compiler (../knowledge-compiler) from a knowledge source.
+ap-scanner executes the artifact data-driven and fails closed: an
+artifact referencing an unknown evaluator, a malformed branch, a
+duplicate gate id, or a payload hash mismatch raises RulesetError and the
+scan refuses to run. The public repository must always build and test
+with the committed sample ruleset; replacing it with real private
+knowledge is a compiler-side, leakage-scanned operation.
 
 ## Tests (pytest, at least 30 assertions total, deterministic, no network)
 

@@ -25,19 +25,13 @@ def golden_envelope(protocol: str = PROTOCOL_TOKEN) -> FindingEnvelope:
             "the buffer."
         ),
         attacker_capability=(
-            "Any external caller with a funded "
-            + protocol
-            + " account; no special role is needed."
+            "Any external caller with a funded " + protocol + " account; no special role is needed."
         ),
-        preconditions=(
-            "The " + protocol + " path is permissionless and the buffer is warm."
-        ),
+        preconditions=("The " + protocol + " path is permissionless and the buffer is warm."),
         component_class="settlement",
         scope_statement=protocol + "/contracts/settlement/*.rs in the scope tree",
         deployed_state_evidence=(
-            protocol
-            + " settlement vault live at 0x1a2b3c4d5e6f7089 confirmed on "
-            "block 19387002."
+            protocol + " settlement vault live at 0x1a2b3c4d5e6f7089 confirmed on block 19387002."
         ),
         public_rules_snapshot="https://archive.example.org/rules/2026-10-20",
         known_issue_declaration=None,
@@ -164,10 +158,13 @@ def test_public_json_exposes_exactly_the_spec_fields():
         "failed_gates",
         "gate_results",
         "ruleset_version",
+        "ruleset_hash",
         "content_hash",
         "contains_embedded_instructions",
     }
     assert payload["ruleset_version"] == "rules-v0.synthetic.1"
+    # The ruleset hash pins the exact compiled ruleset behind the report.
+    assert len(payload["ruleset_hash"]) == 64
     assert payload["gate_results"][0]["gate"] == "scope_statement_present"
     assert payload["gate_results"][0]["status"] == "Pass"
     assert set(payload["gate_results"][0]) == {"gate", "status", "reason"}

@@ -3,6 +3,8 @@
 from .gates import GateStatus, run_gates
 from .normalize import normalize_envelope
 from .report import ScanReport, compute_content_hash
+from .ruleset import default_ruleset
+from .ruleset import payload_hash as ruleset_payload_hash
 from .schema import FindingEnvelope
 
 DEFAULT_RULESET_VERSION = "rules-v0.synthetic.1"
@@ -30,23 +32,30 @@ class ScanInputError(ValueError):
 
 def scan(
     envelope: FindingEnvelope,
-    ruleset_version: str = DEFAULT_RULESET_VERSION,
+    ruleset_version: str = None,
+    ruleset: dict = None,
 ) -> ScanReport:
-    """Scan one finding envelope deterministically. Same input, same report."""
+    """Scan one finding envelope deterministically. Same input, same report.
+
+    The gates execute from the compiled ruleset (the bundled default
+    unless one is passed); the report stamps the ruleset id and the
+    payload hash so every decision is reproducible against the exact
+    ruleset that produced it.
+    """
     errors = envelope.validate()
     if errors:
         raise ScanInputError(errors)
 
-    normalized = normalize_envelope(envelope)
-    gate_results = run_gates(normalized)
+    if ruleset is None:
+        ruleset = default_ruleset()
+    effective_version = ruleset_version or ruleset.get("ruleset_id", DEFAULT_RULESET_VERSION)
 
-    failed_gates = [
-        result.gate for result in gate_results if result.status is GateStatus.FAIL
-    ]
+    normalized = normalize_envelope(envelope)
+    gate_results = run_gates(normalized, ruleset)
+
+    failed_gates = [result.gate for result in gate_results if result.status is GateStatus.FAIL]
     missing_evidence = [
-        result.gate
-        for result in gate_results
-        if result.status is GateStatus.NEEDS_EVIDENCE
+        result.gate for result in gate_results if result.status is GateStatus.NEEDS_EVIDENCE
     ]
 
     if failed_gates:
@@ -75,7 +84,8 @@ def scan(
         missing_evidence=missing_evidence,
         failed_gates=failed_gates,
         gate_results=gate_results,
-        ruleset_version=ruleset_version,
+        ruleset_version=effective_version,
+        ruleset_hash=ruleset_payload_hash(ruleset),
         content_hash=compute_content_hash(normalized),
         contains_embedded_instructions=normalized.contains_embedded_instructions,
     )

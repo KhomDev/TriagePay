@@ -59,9 +59,7 @@ class FindingEnvelope:
                 errors.append(f"{name} must be a string")
                 continue
             if len(value) > max_length:
-                errors.append(
-                    f"{name} length {len(value)} exceeds the maximum of {max_length}"
-                )
+                errors.append(f"{name} length {len(value)} exceeds the maximum of {max_length}")
         refs = self.evidence_refs
         if not isinstance(refs, list):
             errors.append("evidence_refs must be a list of strings")

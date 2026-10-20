@@ -21,6 +21,8 @@ from .engine import (
 from .gates import GATES, GateResult, GateStatus, run_gates
 from .normalize import NormalizedEnvelope, normalize_envelope
 from .report import ScanReport, compute_content_hash
+from .ruleset import RulesetError, load_ruleset
+from .ruleset import payload_hash as ruleset_payload_hash
 from .schema import FindingEnvelope
 
 __version__ = "0.1.0"
@@ -37,6 +39,9 @@ __all__ = [
     "ScanInputError",
     "ScanReport",
     "compute_content_hash",
+    "RulesetError",
+    "load_ruleset",
+    "ruleset_payload_hash",
     "DEFAULT_RULESET_VERSION",
     "DECISION_SUPPORTED",
     "DECISION_NEEDS_EVIDENCE",

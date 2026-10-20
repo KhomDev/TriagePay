@@ -50,9 +50,7 @@ def _load_envelope(raw: str) -> FindingEnvelope:
     if unknown:
         # The count is safe to report; the field names themselves are
         # attacker-chosen strings and must never be echoed back.
-        raise ValueError(
-            "the envelope contains unknown fields: " + str(len(unknown))
-        )
+        raise ValueError("the envelope contains unknown fields: " + str(len(unknown)))
     refs = payload.get("evidence_refs", [])
     if not isinstance(refs, list) or not all(isinstance(r, str) for r in refs):
         raise ValueError("evidence_refs must be a list of strings")
@@ -99,4 +97,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

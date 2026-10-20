@@ -4,16 +4,13 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass, field
 
-from .gates import GateResult
 from .normalize import NormalizedEnvelope
 
 
 def compute_content_hash(normalized_envelope: NormalizedEnvelope) -> str:
     """sha256 hex of the canonical JSON of the normalized envelope dict."""
     payload = asdict(normalized_envelope)
-    canonical = json.dumps(
-        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True
-    )
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
@@ -27,11 +24,12 @@ class ScanReport:
     failed_gates: list = field(default_factory=list)
     gate_results: list = field(default_factory=list)
     ruleset_version: str = ""
+    ruleset_hash: str = ""
     content_hash: str = ""
     contains_embedded_instructions: bool = False
 
     def to_public_json(self) -> dict:
-        """Return exactly the eight public report fields."""
+        """Return exactly the nine public report fields."""
         return {
             "decision": self.decision,
             "confidence_band": self.confidence_band,
@@ -46,6 +44,7 @@ class ScanReport:
                 for result in self.gate_results
             ],
             "ruleset_version": self.ruleset_version,
+            "ruleset_hash": self.ruleset_hash,
             "content_hash": self.content_hash,
             "contains_embedded_instructions": self.contains_embedded_instructions,
         }

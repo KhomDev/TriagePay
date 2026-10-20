@@ -64,14 +64,14 @@ def test_optional_fields_default_to_none_and_validate():
 
 def test_evidence_refs_accepts_sixteen():
     envelope = FindingEnvelope(
-        evidence_refs=["ref-%d" % i for i in range(EVIDENCE_REFS_MAX_COUNT)]
+        evidence_refs=[f"ref-{i}" for i in range(EVIDENCE_REFS_MAX_COUNT)]
     )
     assert envelope.validate() == []
 
 
 def test_evidence_refs_rejects_seventeen():
     envelope = FindingEnvelope(
-        evidence_refs=["ref-%d" % i for i in range(EVIDENCE_REFS_MAX_COUNT + 1)]
+        evidence_refs=[f"ref-{i}" for i in range(EVIDENCE_REFS_MAX_COUNT + 1)]
     )
     errors = envelope.validate()
     assert len(errors) == 1
@@ -80,9 +80,7 @@ def test_evidence_refs_rejects_seventeen():
 
 def test_evidence_ref_length_boundaries():
     assert FindingEnvelope(evidence_refs=["r" * EVIDENCE_REF_MAX_LENGTH]).validate() == []
-    errors = FindingEnvelope(
-        evidence_refs=["r" * (EVIDENCE_REF_MAX_LENGTH + 1)]
-    ).validate()
+    errors = FindingEnvelope(evidence_refs=["r" * (EVIDENCE_REF_MAX_LENGTH + 1)]).validate()
     assert len(errors) == 1
     assert "evidence_refs[0]" in errors[0]
 

@@ -19,21 +19,15 @@ def strong_envelope() -> FindingEnvelope:
             "buffer, causing direct fund loss to stakers."
         ),
         mechanism=(
-            "Rounding in the settlement step lets a caller skim dust per "
-            "call and drain the buffer."
+            "Rounding in the settlement step lets a caller skim dust per call and drain the buffer."
         ),
         attacker_capability=(
-            "Any external caller with a funded account; no special role "
-            "is needed."
+            "Any external caller with a funded account; no special role is needed."
         ),
-        preconditions=(
-            "The path is permissionless and the buffer holds a balance."
-        ),
+        preconditions=("The path is permissionless and the buffer holds a balance."),
         component_class="settlement",
         scope_statement="contracts/settlement/*.rs inside the published scope tree",
-        deployed_state_evidence=(
-            "Vault live at 0x1a2b3c4d5e6f7089 confirmed on block 19387002."
-        ),
+        deployed_state_evidence=("Vault live at 0x1a2b3c4d5e6f7089 confirmed on block 19387002."),
         public_rules_snapshot="https://archive.example.org/rules/2026-10-20",
         known_issue_declaration=None,
         reproduction_summary=(
@@ -51,16 +45,12 @@ def test_nfc_folds_decomposed_e_acute():
 
 
 def test_control_characters_replaced():
-    normalized = normalize_envelope(
-        FindingEnvelope(title="a\u0000b\u001fc\u0085d")
-    )
+    normalized = normalize_envelope(FindingEnvelope(title="a\u0000b\u001fc\u0085d"))
     assert normalized.title == "a\ufffdb\ufffdc\ufffdd"
 
 
 def test_zero_width_characters_removed():
-    normalized = normalize_envelope(
-        FindingEnvelope(title="a\u200bb\u200cc\u200dd\ufeffe")
-    )
+    normalized = normalize_envelope(FindingEnvelope(title="a\u200bb\u200cc\u200dd\ufeffe"))
     assert normalized.title == "abcde"
 
 
@@ -82,9 +72,7 @@ def test_nbsp_runs_collapse_to_a_single_space():
 
 
 def test_code_excerpt_controls_replaced_and_zero_width_removed():
-    normalized = normalize_envelope(
-        FindingEnvelope(code_excerpt="a\u0007b\u200bc")
-    )
+    normalized = normalize_envelope(FindingEnvelope(code_excerpt="a\u0007b\u200bc"))
     assert normalized.code_excerpt == "a\ufffdbc"
 
 

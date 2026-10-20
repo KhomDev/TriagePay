@@ -34,9 +34,7 @@ FENCED_SYSTEM_PATTERN = re.compile(r"```[^`\n]*system", re.IGNORECASE)
 
 def _replace_controls(text: str) -> str:
     # C0 (U+0000-U+001F) and C1 (U+007F-U+009F) share Unicode category Cc.
-    return "".join(
-        REPLACEMENT if unicodedata.category(ch) == "Cc" else ch for ch in text
-    )
+    return "".join(REPLACEMENT if unicodedata.category(ch) == "Cc" else ch for ch in text)
 
 
 def _strip_zero_width(text: str) -> str:
@@ -110,9 +108,7 @@ def normalize_envelope(envelope: FindingEnvelope) -> NormalizedEnvelope:
         ),
         evidence_refs=[_scrub_text(ref) for ref in refs],
         code_excerpt=(
-            _scrub_code(envelope.code_excerpt)
-            if envelope.code_excerpt is not None
-            else None
+            _scrub_code(envelope.code_excerpt) if envelope.code_excerpt is not None else None
         ),
     )
 

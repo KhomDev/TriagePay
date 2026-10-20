@@ -1,14 +1,18 @@
-"""The nine deterministic gates.
+"""The deterministic gates, executed from the compiled ruleset.
 
-Every gate takes a NormalizedEnvelope and returns a GateResult. Reasons are
-short public strings: no private taxonomy, no host paths, no protocol names.
+Each gate_* function keeps its historical name and signature (a
+NormalizedEnvelope in, a GateResult out) so tests and callers are stable;
+the logic itself is data-driven: the record comes from the bundled ruleset
+artifact and is evaluated by aps_scanner.ruleset. Fail-closed: a missing
+gate record or an unknown evaluator raises RulesetError and the scan
+refuses to run.
 """
 
-import re
 from dataclasses import dataclass
 from enum import Enum
 
 from .normalize import NormalizedEnvelope
+from .ruleset import RulesetError, default_ruleset, evaluate_gate
 
 
 class GateStatus(Enum):
@@ -24,6 +28,8 @@ class GateResult:
     gate: str = ""
 
 
+# Stable public gate ids (the ruleset's gate ids; kept as module constants
+# for callers that reference gates by name).
 GATE_SCOPE_STATEMENT_PRESENT = "scope_statement_present"
 GATE_ATTACKER_MODEL_PRESENT = "attacker_model_present"
 GATE_PERMISSIONLESS_REACHABILITY = "permissionless_reachability"
@@ -34,207 +40,84 @@ GATE_PUBLIC_RULES_SNAPSHOT = "public_rules_snapshot"
 GATE_KNOWN_ISSUE_DECLARATION = "known_issue_declaration"
 GATE_NO_LOSS_CONCESSION = "no_loss_concession"
 
-PRIVILEGED_TERMS = (
-    "admin",
-    "owner",
-    "operator",
-    "privileged",
-    "multisig signer",
-    "only owner",
-)
-# The escape hatch is the spec phrase "permissionless or unprivileged
-# alternative", matched as the keywords "permissionless" / "unprivileged".
-PERMISSIONLESS_TERMS = ("permissionless", "unprivileged")
-IMPACT_TERMS = ("fund", "asset", "value", "loss", "theft", "drain", "mint", "freeze")
-REPRODUCTION_TERMS = ("step", "call", "transaction", "reproduce", "1.", "2.")
-CONCESSION_PHRASES = (
-    "no funds are lost",
-    "no fund loss",
-    "no value is extracted",
-)
-CONCESSION_IMPACT_TERMS = ("fund", "loss", "theft", "drain")
 
-_HEX_RUN = re.compile(r"0x[0-9a-f]{8,}", re.IGNORECASE)
-_BLOCK_NUMBER = re.compile(r"\bblock\s*[0-9]")
+_RECORDS = {}
+
+
+def _record(gate_id: str):
+    """The gate record for a stable public gate id (fail closed)."""
+    if not _RECORDS:
+        for record in default_ruleset()["gates"]:
+            _RECORDS[record["id"]] = record
+    if gate_id not in _RECORDS:
+        raise RulesetError(f"gate '{gate_id}' is not in the loaded ruleset")
+    return _RECORDS[gate_id]
+
+
+def _run(gate_id: str, envelope: NormalizedEnvelope) -> GateResult:
+    status, reason = evaluate_gate(_record(gate_id), envelope)
+    return GateResult(GateStatus(status), reason, gate_id)
 
 
 def gate_scope_statement_present(env: NormalizedEnvelope) -> GateResult:
-    if not env.scope_statement:
-        return GateResult(
-            GateStatus.FAIL,
-            "scope statement is missing",
-            GATE_SCOPE_STATEMENT_PRESENT,
-        )
-    return GateResult(
-        GateStatus.PASS, "scope statement provided", GATE_SCOPE_STATEMENT_PRESENT
-    )
+    return _run("scope_statement_present", env)
 
 
 def gate_attacker_model_present(env: NormalizedEnvelope) -> GateResult:
-    if not env.attacker_capability:
-        return GateResult(
-            GateStatus.NEEDS_EVIDENCE,
-            "attacker capability not provided",
-            GATE_ATTACKER_MODEL_PRESENT,
-        )
-    return GateResult(
-        GateStatus.PASS, "attacker capability provided", GATE_ATTACKER_MODEL_PRESENT
-    )
+    return _run("attacker_model_present", env)
 
 
 def gate_permissionless_reachability(env: NormalizedEnvelope) -> GateResult:
-    combined = (env.attacker_capability + env.preconditions).lower()
-    escape = any(
-        term in env.preconditions.lower() for term in PERMISSIONLESS_TERMS
-    )
-    if any(term in combined for term in PRIVILEGED_TERMS) and not escape:
-        return GateResult(
-            GateStatus.FAIL,
-            "attacker path depends on a privileged role without a "
-            "permissionless alternative",
-            GATE_PERMISSIONLESS_REACHABILITY,
-        )
-    if not env.attacker_capability:
-        return GateResult(
-            GateStatus.NEEDS_EVIDENCE,
-            "attacker capability not provided",
-            GATE_PERMISSIONLESS_REACHABILITY,
-        )
-    return GateResult(
-        GateStatus.PASS,
-        "attacker path is reachable without privileged roles",
-        GATE_PERMISSIONLESS_REACHABILITY,
-    )
+    return _run("permissionless_reachability", env)
 
 
 def gate_impact_sink(env: NormalizedEnvelope) -> GateResult:
-    impact = env.claimed_impact
-    if not impact:
-        return GateResult(
-            GateStatus.FAIL, "claimed impact is empty", GATE_IMPACT_SINK
-        )
-    lowered = impact.lower()
-    if not any(term in lowered for term in IMPACT_TERMS):
-        return GateResult(
-            GateStatus.NEEDS_EVIDENCE,
-            "claimed impact does not name a value impact",
-            GATE_IMPACT_SINK,
-        )
-    return GateResult(
-        GateStatus.PASS, "claimed impact names a value impact", GATE_IMPACT_SINK
-    )
+    return _run("impact_sink", env)
 
 
 def gate_reproduction_non_tautological(env: NormalizedEnvelope) -> GateResult:
-    reproduction = env.reproduction_summary
-    if len(reproduction) < 40:
-        return GateResult(
-            GateStatus.FAIL,
-            "reproduction summary is empty or too short",
-            GATE_REPRODUCTION_NON_TAUTOLOGICAL,
-        )
-    lowered = reproduction.lower()
-    if not any(term in lowered for term in REPRODUCTION_TERMS):
-        return GateResult(
-            GateStatus.NEEDS_EVIDENCE,
-            "reproduction summary lacks concrete steps",
-            GATE_REPRODUCTION_NON_TAUTOLOGICAL,
-        )
-    return GateResult(
-        GateStatus.PASS,
-        "reproduction summary describes concrete steps",
-        GATE_REPRODUCTION_NON_TAUTOLOGICAL,
-    )
+    return _run("reproduction_non_tautological", env)
 
 
 def gate_deployed_state_evidence(env: NormalizedEnvelope) -> GateResult:
-    evidence = env.deployed_state_evidence
-    if not evidence:
-        return GateResult(
-            GateStatus.NEEDS_EVIDENCE,
-            "deployed-state evidence is empty",
-            GATE_DEPLOYED_STATE_EVIDENCE,
-        )
-    if _HEX_RUN.search(evidence) or _BLOCK_NUMBER.search(evidence):
-        return GateResult(
-            GateStatus.PASS,
-            "deployed-state evidence cites on-chain data",
-            GATE_DEPLOYED_STATE_EVIDENCE,
-        )
-    return GateResult(
-        GateStatus.NEEDS_EVIDENCE,
-        "deployed-state evidence lacks an on-chain reference",
-        GATE_DEPLOYED_STATE_EVIDENCE,
-    )
+    return _run("deployed_state_evidence", env)
 
 
 def gate_public_rules_snapshot(env: NormalizedEnvelope) -> GateResult:
-    snapshot = env.public_rules_snapshot
-    if not snapshot:
-        return GateResult(
-            GateStatus.NEEDS_EVIDENCE,
-            "public rules snapshot is empty",
-            GATE_PUBLIC_RULES_SNAPSHOT,
-        )
-    if snapshot.startswith("http://") or snapshot.startswith("https://"):
-        return GateResult(
-            GateStatus.PASS,
-            "public rules snapshot is a web link",
-            GATE_PUBLIC_RULES_SNAPSHOT,
-        )
-    return GateResult(
-        GateStatus.NEEDS_EVIDENCE,
-        "public rules snapshot is not a web link",
-        GATE_PUBLIC_RULES_SNAPSHOT,
-    )
+    return _run("public_rules_snapshot", env)
 
 
 def gate_known_issue_declaration(env: NormalizedEnvelope) -> GateResult:
-    if env.known_issue_declaration:
-        return GateResult(
-            GateStatus.PASS,
-            "known-issue declaration provided; handled by the decision matrix",
-            GATE_KNOWN_ISSUE_DECLARATION,
-        )
-    return GateResult(
-        GateStatus.PASS,
-        "no known-issue declaration",
-        GATE_KNOWN_ISSUE_DECLARATION,
-    )
+    return _run("known_issue_declaration", env)
 
 
 def gate_no_loss_concession(env: NormalizedEnvelope) -> GateResult:
-    combined = (env.reproduction_summary + env.claimed_impact).lower()
-    conceded = any(phrase in combined for phrase in CONCESSION_PHRASES)
-    impact_claimed = any(
-        term in env.claimed_impact.lower() for term in CONCESSION_IMPACT_TERMS
-    )
-    if conceded and impact_claimed:
-        return GateResult(
-            GateStatus.FAIL,
-            "a no-loss concession contradicts the claimed impact",
-            GATE_NO_LOSS_CONCESSION,
-        )
-    return GateResult(
-        GateStatus.PASS,
-        "no contradicting no-loss concession",
-        GATE_NO_LOSS_CONCESSION,
-    )
+    return _run("no_loss_concession", env)
 
 
 GATES = (
-    (GATE_SCOPE_STATEMENT_PRESENT, gate_scope_statement_present),
-    (GATE_ATTACKER_MODEL_PRESENT, gate_attacker_model_present),
-    (GATE_PERMISSIONLESS_REACHABILITY, gate_permissionless_reachability),
-    (GATE_IMPACT_SINK, gate_impact_sink),
-    (GATE_REPRODUCTION_NON_TAUTOLOGICAL, gate_reproduction_non_tautological),
-    (GATE_DEPLOYED_STATE_EVIDENCE, gate_deployed_state_evidence),
-    (GATE_PUBLIC_RULES_SNAPSHOT, gate_public_rules_snapshot),
-    (GATE_KNOWN_ISSUE_DECLARATION, gate_known_issue_declaration),
-    (GATE_NO_LOSS_CONCESSION, gate_no_loss_concession),
+    ("scope_statement_present", gate_scope_statement_present),
+    ("attacker_model_present", gate_attacker_model_present),
+    ("permissionless_reachability", gate_permissionless_reachability),
+    ("impact_sink", gate_impact_sink),
+    ("reproduction_non_tautological", gate_reproduction_non_tautological),
+    ("deployed_state_evidence", gate_deployed_state_evidence),
+    ("public_rules_snapshot", gate_public_rules_snapshot),
+    ("known_issue_declaration", gate_known_issue_declaration),
+    ("no_loss_concession", gate_no_loss_concession),
 )
 
 
-def run_gates(env: NormalizedEnvelope) -> list:
-    """Run all nine gates in spec order and return their results in order."""
-    return [gate(env) for _, gate in GATES]
+def run_gates(env: NormalizedEnvelope, ruleset: dict = None) -> list:
+    """Run the ruleset's gates, in its order, against the envelope.
+
+    Fully data-driven: the records come from the passed ruleset (the
+    bundled default when absent); every result is built from the record
+    itself, so a custom ruleset changes both execution and outcomes.
+    """
+    active = ruleset if ruleset is not None else default_ruleset()
+    results = []
+    for record in active["gates"]:
+        status, reason = evaluate_gate(record, env)
+        results.append(GateResult(GateStatus(status), reason, record["id"]))
+    return results
