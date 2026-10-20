@@ -89,12 +89,12 @@ async fn confirmation_funds_the_account_exactly_once() {
     )
     .await;
     assert_eq!(first["reconciled"].as_str().unwrap(), "fund");
-    assert_eq!(first["funded"].as_bool().unwrap(), true);
+    assert!(first["funded"].as_bool().unwrap());
     assert_eq!(
         first["deposit"]["credited"]["atomic"].as_str().unwrap(),
         "5000000"
     );
-    assert_eq!(first["deposit"]["replayed"].as_bool().unwrap(), false);
+    assert!(!first["deposit"]["replayed"].as_bool().unwrap());
 
     let account =
         body_json(send(app.clone(), "GET", "/accounts/acct-1".to_string(), None).await).await;
@@ -115,8 +115,8 @@ async fn confirmation_funds_the_account_exactly_once() {
         .await,
     )
     .await;
-    assert_eq!(second["funded"].as_bool().unwrap(), true);
-    assert_eq!(second["deposit"]["replayed"].as_bool().unwrap(), true);
+    assert!(second["funded"].as_bool().unwrap());
+    assert!(second["deposit"]["replayed"].as_bool().unwrap());
     let account_again =
         body_json(send(app, "GET", "/accounts/acct-1".to_string(), None).await).await;
     assert_eq!(
@@ -149,7 +149,7 @@ async fn mismatched_payment_never_funds() {
     )
     .await;
     assert_eq!(observation["reconciled"].as_str().unwrap(), "mismatch");
-    assert_eq!(observation["funded"].as_bool().unwrap(), false);
+    assert!(!observation["funded"].as_bool().unwrap());
     assert_eq!(
         observation["mismatch"]["expected_amount"]["atomic"]
             .as_str()
@@ -192,7 +192,7 @@ async fn unconfirmed_intent_stays_pending_without_funding() {
     )
     .await;
     assert_eq!(observation["reconciled"].as_str().unwrap(), "still_pending");
-    assert_eq!(observation["funded"].as_bool().unwrap(), false);
+    assert!(!observation["funded"].as_bool().unwrap());
 
     let missing = send(app, "GET", "/accounts/acct-3".to_string(), None).await;
     assert_eq!(missing.status(), StatusCode::NOT_FOUND);
