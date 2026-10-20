@@ -5,8 +5,7 @@ members = ["crates/core", "crates/api", "crates/payment"]
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/agentpay-sentinel/agentpay-sentinel"
+license = "MIT"
 
 [profile.release]
 lto = "thin"
