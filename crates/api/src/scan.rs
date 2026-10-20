@@ -50,7 +50,7 @@ pub async fn scan_job(
         let ledger = state.read_ledger().await;
         match ledger.job_state(&job) {
             Err(err) => return Err(ApiError::from(err)),
-            Ok(job_state) if job_state == JobState::Running => {}
+            Ok(JobState::Running) => {}
             Ok(other) => {
                 return Err(ApiError::conflict(
                     "illegal_transition",
