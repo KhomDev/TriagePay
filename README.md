@@ -19,7 +19,7 @@ payment processing.
 ## Quickstart
 
 ```sh
-# Rust core, payment, and API (44 tests)
+# Rust core, payment, and API (50 tests)
 cargo test --workspace
 
 # Python scanner (61 tests)
