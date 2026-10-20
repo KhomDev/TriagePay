@@ -333,6 +333,7 @@ async fn successful_scan_report_is_canary_free_and_public_shaped() {
             "failed_gates",
             "gate_results",
             "missing_evidence",
+            "ruleset_hash",
             "ruleset_version",
         ],
         "the report is limited to its public fields: {body}"
