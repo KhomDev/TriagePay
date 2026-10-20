@@ -18,9 +18,10 @@ mod dto;
 mod error;
 mod handlers;
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
-use aps_core::Ledger;
+use aps_core::{JobId, Ledger};
 
 pub use error::ApiError;
 
@@ -36,6 +37,16 @@ pub const DEV_CALLER: &str = "dev-agent";
 #[derive(Clone)]
 pub struct AppState {
     ledger: Arc<tokio::sync::RwLock<Ledger>>,
+    /// Wire job id to the canonical core `JobId`.
+    ///
+    /// `aps-core` creates job ids only inside `reserve` and keeps `JobId`
+    /// construction crate-private, so the API records the mapping when a
+    /// reservation first returns it. The registry is therefore exactly the
+    /// set of jobs the ledger knows: a wire id that was never returned by
+    /// `reserve` is answered `unknown_job` at 404, matching the ledger's
+    /// own view. A public `FromStr` for `JobId` in the core would let
+    /// this field disappear.
+    job_ids: Arc<RwLock<HashMap<String, JobId>>>,
     caller: String,
 }
 
@@ -50,6 +61,7 @@ impl AppState {
     pub fn with_caller(caller: impl Into<String>) -> Self {
         Self {
             ledger: Arc::new(tokio::sync::RwLock::new(Ledger::new())),
+            job_ids: Arc::new(RwLock::new(HashMap::new())),
             caller: caller.into(),
         }
     }
@@ -69,6 +81,29 @@ impl AppState {
     pub(crate) async fn write_ledger(&self) -> tokio::sync::RwLockWriteGuard<'_, Ledger> {
         self.ledger.write().await
     }
+
+    /// Record a job id returned by a successful reservation.
+    ///
+    /// Called with the ledger lock held. The registry lock is a brief,
+    /// synchronous critical section that never awaits and is never held
+    /// while acquiring the ledger, so no lock cycle can form.
+    pub(crate) fn register_job(&self, job_id: &JobId) -> Result<(), ApiError> {
+        self.job_ids
+            .write()
+            .map_err(|_| ApiError::internal("job registry is unavailable"))?
+            .insert(job_id.to_string(), job_id.clone());
+        Ok(())
+    }
+
+    /// Look up the canonical `JobId` for a wire job id string.
+    pub(crate) fn resolve_job(&self, wire_id: &str) -> Result<Option<JobId>, ApiError> {
+        Ok(self
+            .job_ids
+            .read()
+            .map_err(|_| ApiError::internal("job registry is unavailable"))?
+            .get(wire_id)
+            .cloned())
+    }
 }
 
 impl Default for AppState {
@@ -85,5 +120,10 @@ pub fn router(state: AppState) -> axum::Router {
         .route("/health", get(handlers::health))
         .route("/accounts/{account_id}", get(handlers::get_account))
         .route("/accounts/{account_id}/deposits", post(handlers::deposit))
+        .route("/reservations", post(handlers::create_reservation))
+        .route("/jobs/{job_id}", get(handlers::get_job))
+        .route("/jobs/{job_id}/start", post(handlers::start_job))
+        .route("/jobs/{job_id}/settlements", post(handlers::settle_job))
+        .route("/jobs/{job_id}/refunds", post(handlers::refund_job))
         .with_state(state)
 }

@@ -19,7 +19,9 @@
 //! | `Overflow`             | `overflow`             | 500    |
 //!
 //! Malformed JSON bodies, unknown request fields, and non-numeric amount
-//! strings are all `validation_error` at 400.
+//! strings are all `validation_error` at 400. Job-registry failures and
+//! other unexpected conditions surface as `internal` at 500 without
+//! detail.
 
 use aps_core::CoreError;
 use axum::http::StatusCode;
@@ -79,6 +81,11 @@ impl ApiError {
             "insufficient_funds",
             message,
         )
+    }
+
+    /// 500: an unexpected internal condition.
+    pub(crate) fn internal(message: impl Into<String>) -> Self {
+        Self::new(StatusCode::INTERNAL_SERVER_ERROR, "internal", message)
     }
 }
 
