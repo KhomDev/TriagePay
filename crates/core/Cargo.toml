@@ -1,0 +1,10 @@
+[package]
+name = "aps-core"
+description = "AgentPay Sentinel prepaid ledger core: integer money, idempotent reservations, settlement, refunds"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# Intentionally empty: the ledger core is dependency-free and must stay
+# deterministic and auditable. Adding a dependency here requires an ADR.
