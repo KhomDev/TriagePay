@@ -56,7 +56,11 @@ def test_cli_rejects_unknown_fields():
     result = run_cli(strong_envelope(bonus_field="x"))
     assert result.returncode == 2
     errors = json.loads(result.stdout.decode("utf-8"))["errors"]
-    assert any("bonus_field" in message for message in errors)
+    # The loader reports the COUNT of unknown fields, never their names:
+    # attacker-chosen field names must not be echoed back (found by the
+    # API-level canary suite; see crates/api/tests/error_hygiene.rs).
+    assert any("unknown fields" in message for message in errors)
+    assert not any("bonus_field" in message for message in errors)
 
 
 def test_cli_rejects_over_limit_title():

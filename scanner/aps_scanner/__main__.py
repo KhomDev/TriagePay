@@ -46,9 +46,13 @@ def _load_envelope(raw: str) -> FindingEnvelope:
         raise ValueError("request body is not valid JSON: " + str(err)) from err
     if not isinstance(payload, dict):
         raise ValueError("request body must be a JSON object")
-    unknown = sorted(set(payload) - _ENVELOPE_FIELDS)
+    unknown = set(payload) - _ENVELOPE_FIELDS
     if unknown:
-        raise ValueError("unknown envelope fields: " + ", ".join(unknown))
+        # The count is safe to report; the field names themselves are
+        # attacker-chosen strings and must never be echoed back.
+        raise ValueError(
+            "the envelope contains unknown fields: " + str(len(unknown))
+        )
     refs = payload.get("evidence_refs", [])
     if not isinstance(refs, list) or not all(isinstance(r, str) for r in refs):
         raise ValueError("evidence_refs must be a list of strings")

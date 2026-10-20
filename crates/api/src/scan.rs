@@ -71,11 +71,19 @@ pub async fn scan_job(
             content_hash,
         } => (report, content_hash),
         ScanOutcome::InvalidInput { errors } => {
+            // Bound every message and the joined total: scanner errors are
+            // trusted only up to their fixed vocabulary, and a hostile
+            // payload must never be reflected into an HTTP body.
             let joined = if errors.is_empty() {
                 "the envelope failed validation".to_string()
             } else {
-                errors.join("; ")
+                errors
+                    .iter()
+                    .map(|error| truncate_at_char_boundary(error, 120))
+                    .collect::<Vec<_>>()
+                    .join("; ")
             };
+            let joined = truncate_at_char_boundary(&joined, 500);
             return Err(ApiError::validation(format!(
                 "envelope failed validation: {joined}"
             )));
@@ -100,6 +108,19 @@ pub async fn scan_job(
             "report": report,
         })),
     ))
+}
+
+/// The largest prefix of a string that does not exceed the byte limit and
+/// ends on a character boundary.
+fn truncate_at_char_boundary(text: &str, limit: usize) -> &str {
+    if text.len() <= limit {
+        return text;
+    }
+    let mut end = limit;
+    while end > 0 && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    &text[..end]
 }
 
 fn bridge_error(err: ScanBridgeError) -> ApiError {
