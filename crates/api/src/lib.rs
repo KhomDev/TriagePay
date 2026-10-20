@@ -1,23 +1,26 @@
 //! AgentPay Sentinel HTTP API: an axum 0.8 surface over the
-//! dependency-free prepaid ledger in `aps-core`.
+//! dependency-free prepaid ledger in aps-core.
 //!
 //! Wire contract:
 //! - all money crosses the boundary as u128 **atomic units encoded as JSON
 //!   strings**; receipts additionally render a display-only decimal string;
 //! - every money-moving request carries a caller-scoped idempotency key;
 //!   replay returns the recorded receipt and moves no funds;
-//! - every failure is one error shape, `{"error":{"code","message"}}`.
+//! - every failure is one error shape, {"error":{"code","message"}}.
 //!
 //! Documented limitations of this milestone:
-//! - a single dev caller acts for every request (`AppState::DEV_CALLER`);
+//! - a single dev caller acts for every request (AppState::DEV_CALLER);
 //!   real authentication is a later milestone;
 //! - the ledger is in-memory and process-local; durability is a later
-//!   milestone.
+//!   milestone;
+//! - the payment provider is the deterministic mock by default; the NEAR
+//!   adapter (verification-only, on-chain deposit verification) activates
+//!   only through explicit environment configuration.
 
 mod dto;
 mod error;
 mod handlers;
-mod payment;
+pub mod payment;
 mod scan;
 pub mod scanbridge;
 
@@ -26,6 +29,7 @@ use std::sync::{Arc, RwLock};
 
 use aps_core::{JobId, Ledger};
 use aps_payment::{MockClock, MockProvider};
+use payment::Provider;
 
 pub use error::ApiError;
 
@@ -34,28 +38,31 @@ pub const DEV_CALLER: &str = "dev-agent";
 
 /// Shared application state behind every handler.
 ///
-/// The ledger sits behind a `tokio::sync::RwLock` (single-writer by
-/// construction, matching the core's design). The state is cheaply
-/// cloneable so axum can route with it; the `Arc` exists only because
-/// axum requires `Clone` state.
+/// The ledger sits behind a tokio::sync::RwLock (single-writer by
+/// construction, matching the core design). The state is cheaply
+/// cloneable so axum can route with it; the Arc exists only because
+/// axum requires Clone state.
 #[derive(Clone)]
 pub struct AppState {
     ledger: Arc<tokio::sync::RwLock<Ledger>>,
-    /// Wire job id to the canonical core `JobId`.
+    /// Wire job id to the canonical core JobId.
     ///
-    /// `aps-core` creates job ids only inside `reserve` and keeps `JobId`
+    /// aps-core creates job ids only inside reserve and keeps JobId
     /// construction crate-private, so the API records the mapping when a
     /// reservation first returns it. The registry is therefore exactly the
     /// set of jobs the ledger knows: a wire id that was never returned by
-    /// `reserve` is answered `unknown_job` at 404, matching the ledger's
-    /// own view. A public `FromStr` for `JobId` in the core would let
+    /// reserve is answered unknown_job at 404, matching the ledger's
+    /// own view. A public FromStr for JobId in the core would let
     /// this field disappear.
     job_ids: Arc<RwLock<HashMap<String, JobId>>>,
     caller: String,
-    /// Scanner subprocess launcher (see `scanbridge`).
+    /// Which payment provider is active: "mock" or "near". Stored
+    /// un-locked so kind checks never contend on the provider mutex.
+    provider_kind: &'static str,
+    /// Scanner subprocess launcher (see scanbridge).
     scan: Arc<scanbridge::ScanLauncher>,
-    /// Payment provider (mock). Single-writer behind an async mutex.
-    payment: Arc<tokio::sync::Mutex<MockProvider>>,
+    /// Payment provider. Single-writer behind an async mutex.
+    payment: Arc<tokio::sync::Mutex<Provider>>,
     /// Gateway-level link from payment intent to the account it funds.
     intent_accounts: payment::IntentAccounts,
 }
@@ -69,36 +76,48 @@ impl AppState {
     /// State with an explicit caller, for future authentication
     /// milestones and for tests that need caller isolation.
     pub fn with_caller(caller: impl Into<String>) -> Self {
+        let provider = Provider::Mock(MockProvider::new(MockClock::new(unix_now())));
+        Self::with_provider(caller, provider)
+    }
+
+    /// State with an explicit payment provider. The scanner launcher is
+    /// discovered from the environment.
+    pub fn with_provider(caller: impl Into<String>, provider: Provider) -> Self {
+        Self::with_provider_and_launcher(caller, provider, scanbridge::ScanLauncher::discover())
+    }
+
+    /// State with an explicit provider and scanner launcher, for tests
+    /// and controlled environments.
+    pub fn with_provider_and_launcher(
+        caller: impl Into<String>,
+        provider: Provider,
+        launcher: scanbridge::ScanLauncher,
+    ) -> Self {
         Self {
             ledger: Arc::new(tokio::sync::RwLock::new(Ledger::new())),
             job_ids: Arc::new(RwLock::new(HashMap::new())),
             caller: caller.into(),
-            scan: Arc::new(scanbridge::ScanLauncher::discover()),
-            payment: Arc::new(tokio::sync::Mutex::new(MockProvider::new(MockClock::new(
-                unix_now(),
-            )))),
+            provider_kind: provider.kind(),
+            scan: Arc::new(launcher),
+            payment: Arc::new(tokio::sync::Mutex::new(provider)),
             intent_accounts: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
-    /// State with an explicit scanner launcher, for tests and controlled
-    /// environments.
+    /// Compatibility constructor with an explicit scanner launcher.
     pub fn with_launcher(caller: impl Into<String>, launcher: scanbridge::ScanLauncher) -> Self {
-        Self {
-            ledger: Arc::new(tokio::sync::RwLock::new(Ledger::new())),
-            job_ids: Arc::new(RwLock::new(HashMap::new())),
-            caller: caller.into(),
-            scan: Arc::new(launcher),
-            payment: Arc::new(tokio::sync::Mutex::new(MockProvider::new(MockClock::new(
-                unix_now(),
-            )))),
-            intent_accounts: Arc::new(RwLock::new(HashMap::new())),
-        }
+        let provider = Provider::Mock(MockProvider::new(MockClock::new(unix_now())));
+        Self::with_provider_and_launcher(caller, provider, launcher)
     }
 
     /// The caller identity every request acts under.
     pub fn caller(&self) -> &str {
         &self.caller
+    }
+
+    /// The active payment provider kind: "mock" or "near".
+    pub fn provider_kind(&self) -> &'static str {
+        self.provider_kind
     }
 
     /// The scanner subprocess launcher.
@@ -107,8 +126,16 @@ impl AppState {
     }
 
     /// The payment provider behind its single-writer mutex.
-    pub(crate) fn payment(&self) -> &Arc<tokio::sync::Mutex<MockProvider>> {
+    pub(crate) fn payment(&self) -> &Arc<tokio::sync::Mutex<Provider>> {
         &self.payment
+    }
+
+    /// Run one read-style operation against the payment provider under
+    /// its lock, with the provider clock synced to wall time.
+    pub(crate) async fn with_payment<T>(&self, read: impl FnOnce(&mut Provider) -> T) -> T {
+        let mut provider = self.payment.lock().await;
+        provider.sync_clock(unix_now());
+        read(&mut provider)
     }
 
     /// Record which account a payment intent funds.
@@ -134,8 +161,8 @@ impl AppState {
             .ok_or_else(|| ApiError::unknown_intent(intent_id))
     }
 
-    /// Read lock on the ledger for query handlers. Tokio's async
-    /// `RwLock` is not poisonable, so acquisition cannot fail.
+    /// Read lock on the ledger for query handlers. Tokio async RwLock
+    /// is not poisonable, so acquisition cannot fail.
     pub(crate) async fn read_ledger(&self) -> tokio::sync::RwLockReadGuard<'_, Ledger> {
         self.ledger.read().await
     }
@@ -158,7 +185,7 @@ impl AppState {
         Ok(())
     }
 
-    /// Look up the canonical `JobId` for a wire job id string.
+    /// Look up the canonical JobId for a wire job id string.
     pub(crate) fn resolve_job(&self, wire_id: &str) -> Result<Option<JobId>, ApiError> {
         Ok(self
             .job_ids

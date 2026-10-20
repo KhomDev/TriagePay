@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 aps-core = { path = "../core" }
 aps-payment = { path = "../payment" }
+aps-near = { path = "../near-adapter" }
 axum = "0.8"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "process", "io-util", "time"] }
 serde = { version = "1", features = ["derive"] }

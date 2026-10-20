@@ -6,11 +6,18 @@
 //! (same amount, same asset) against the intent. A client assertion of
 //! "I paid" has no route into the ledger.
 //!
-//! The provider here is the deterministic mock from aps-payment; a real
-//! adapter implements the same PaymentProvider trait behind this same
-//! route contract. The mock scenario field on creation is a test and
-//! demo control surface and would not exist on a real adapter.
+//! Two providers sit behind one enum:
+//!
+//! - the deterministic mock (default; the scenario field is a test and
+//!   demo control surface that would not exist on a real adapter), and
+//! - the NEAR adapter, where the caller pays a NEP-141 ft_transfer to
+//!   the gateway account with the intent id as the memo and submits the
+//!   transaction hash as a hint. The adapter re-verifies every fact on
+//!   chain (status, contract, method, arguments, memo, deposit, amount)
+//!   before producing an observation; the chain fetch runs on the
+//!   blocking thread pool so the async runtime is never blocked.
 
+use axum::extract::rejection::JsonRejection;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
@@ -19,7 +26,7 @@ use serde_json::json;
 
 use aps_payment::{
     reconcile, AssetId, CreateIntent, DepositIntent, IntentId, MockProvider, MockScenario,
-    Observation, PaymentProvider, ProviderError, ReconcileOutcome,
+    Observation, PaymentProvider, ProviderError, ReconcileOutcome, RefundRequest,
 };
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -32,19 +39,139 @@ use crate::AppState;
 /// credit from a provider confirmation.
 const GATEWAY_CALLER: &str = "payment-gateway";
 
+/// The active payment provider. The mock is the default; the NEAR
+/// adapter activates only through explicit environment configuration
+/// (APS_PROVIDER=near and friends), never implicitly.
+pub enum Provider {
+    /// Deterministic in-memory provider: the default for tests and demos.
+    Mock(MockProvider),
+    /// NEAR adapter: on-chain deposit verification over JSON-RPC.
+    Near(aps_near::NearProvider),
+}
+
+impl Provider {
+    /// The provider kind, surfaced in API responses.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Provider::Mock(_) => "mock",
+            Provider::Near(_) => "near",
+        }
+    }
+
+    /// Create a deposit intent. Mock scenarios are a mock-only control
+    /// surface and are rejected for the NEAR provider.
+    pub async fn create_intent(
+        &mut self,
+        req: CreateIntent,
+        mock_scenario: Option<MockScenario>,
+    ) -> Result<DepositIntent, ProviderError> {
+        match self {
+            Provider::Mock(mock) => mock.create_intent_with_scenario(
+                req,
+                mock_scenario.unwrap_or(MockScenario::ConfirmOnPoll { polls: 1 }),
+            ),
+            Provider::Near(near) => {
+                if mock_scenario.is_some() {
+                    return Err(ProviderError::Validation(
+                        "mock_scenario is only valid for the mock provider".to_string(),
+                    ));
+                }
+                near.create_intent(req)
+            }
+        }
+    }
+
+    /// Observe an intent. For the NEAR provider the chain fetch runs on
+    /// the blocking thread pool; observations are idempotent.
+    pub async fn observe(&mut self, intent_id: &IntentId) -> Result<Observation, ProviderError> {
+        match self {
+            Provider::Mock(mock) => mock.observe(intent_id),
+            Provider::Near(near) => match near.prepare_fetch(intent_id)? {
+                aps_near::FetchStep::Ready(observation) => Ok(observation),
+                aps_near::FetchStep::Verify { rpc, intent, hint } => {
+                    let verification = tokio::task::spawn_blocking(move || {
+                        aps_near::verify_tx(rpc, &intent, &hint)
+                    })
+                    .await
+                    .map_err(|err| {
+                        ProviderError::Validation(format!("verification task failed: {err}"))
+                    })??;
+                    near.apply_verification(intent_id, verification)
+                }
+            },
+        }
+    }
+
+    /// Request a refund. The mock executes it instantly; the NEAR
+    /// provider returns a refund PROPOSAL that requires a human-approved
+    /// on-chain transfer (no automatic payout, by design).
+    pub async fn request_refund(
+        &mut self,
+        intent_id: &IntentId,
+        reason: &str,
+    ) -> Result<RefundRequest, ProviderError> {
+        match self {
+            Provider::Mock(mock) => mock.request_refund(intent_id, reason),
+            Provider::Near(near) => near.request_refund(intent_id, reason),
+        }
+    }
+
+    /// Submit a transaction hint for the NEAR provider. The mock
+    /// provider has no use for hints and rejects them.
+    pub async fn submit_hint(
+        &mut self,
+        intent_id: &IntentId,
+        hint: aps_near::TxHint,
+    ) -> Result<(), ProviderError> {
+        match self {
+            Provider::Mock(_) => Err(ProviderError::Validation(
+                "the mock provider does not accept a transaction hint".to_string(),
+            )),
+            Provider::Near(near) => near.submit_hint(intent_id, hint),
+        }
+    }
+
+    /// Read-only view of an intent, if present. Syncs the provider clock
+    /// first so expiry status is current. Synchronous: safe to call inside
+    /// closures handed to AppState::with_payment.
+    pub fn intent(&mut self, intent_id: &IntentId) -> Result<Option<DepositIntent>, ProviderError> {
+        let now = unix_now();
+        match self {
+            Provider::Mock(mock) => {
+                mock.sync_clock(now);
+                Ok(mock.intent(intent_id).cloned())
+            }
+            Provider::Near(near) => {
+                near.sync_clock(now);
+                Ok(near.intent(intent_id).cloned())
+            }
+        }
+    }
+
+    /// Sync the provider clock to wall time.
+    pub fn sync_clock(&mut self, now: u64) {
+        match self {
+            Provider::Mock(mock) => mock.sync_clock(now),
+            Provider::Near(near) => near.sync_clock(now),
+        }
+    }
+}
+
 /// POST /payment/intents request.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateIntentRequest {
     /// Account credited when a matching confirmation is observed.
     pub account_id: String,
-    /// Asset identifier, opaque to the gateway.
+    /// Asset identifier, opaque to the gateway. For the NEAR provider
+    /// this must equal the configured settlement asset contract.
     pub asset_id: String,
     /// Amount in atomic units, as a decimal string.
     pub amount_atomic: String,
     /// How long the intent stays open, in seconds.
     pub expires_in_secs: u64,
     /// Mock-only behavior script. Absent means confirm on first poll.
+    /// Rejected when the NEAR provider is active.
     #[serde(default)]
     pub mock_scenario: Option<MockScenarioJson>,
 }
@@ -91,22 +218,41 @@ pub struct IntentJson {
     pub amount: AmountJson,
     pub expires_at_unix: u64,
     pub status: String,
+    /// Which provider answered: "mock" or "near".
+    pub provider: &'static str,
+    /// For the NEAR provider: the memo the payer must attach to the
+    /// ft_transfer. Always equal to the intent id.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memo: Option<String>,
+}
+
+/// POST /payment/intents/{intent_id}/observations request body.
+///
+/// Optional: the mock provider observes without a body. The NEAR
+/// provider requires the transaction hint - the hash of the payer's
+/// ft_transfer and the signer id needed to look it up. Hints locate a
+/// transaction; the provider re-verifies every fact on chain.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ObserveHintRequest {
+    pub signer_id: String,
+    pub tx_hash: String,
 }
 
 /// Create a deposit intent.
 ///
-/// 201 with the intent (including the deposit address the caller pays
-/// to). Credit is NOT granted here; only a provider-observed, exactly
-/// matching confirmation funds the account.
+/// 201 with the intent (including the deposit instructions the caller
+/// pays to). Credit is NOT granted here; only a provider-observed,
+/// exactly matching confirmation funds the account.
 pub async fn create_intent(
     State(state): State<AppState>,
-    body: Result<Json<CreateIntentRequest>, axum::extract::rejection::JsonRejection>,
+    body: Result<Json<CreateIntentRequest>, JsonRejection>,
 ) -> Result<(StatusCode, Json<IntentJson>), ApiError> {
     let Json(request) = body.map_err(crate::handlers::rejected_json)?;
     let amount = crate::dto::parse_amount_atomic(&request.amount_atomic)?;
     let scenario = match request.mock_scenario {
-        None => MockScenario::ConfirmOnPoll { polls: 1 },
-        Some(scenario) => MockScenario::try_from(scenario)?,
+        None => None,
+        Some(scenario) => Some(MockScenario::try_from(scenario)?),
     };
     let now = unix_now();
     let req = CreateIntent {
@@ -118,13 +264,18 @@ pub async fn create_intent(
         let mut provider = state.payment().lock().await;
         provider.sync_clock(now);
         provider
-            .create_intent_with_scenario(req, scenario)
+            .create_intent(req, scenario)
+            .await
             .map_err(provider_create_error)?
     };
     state.register_intent(&intent.intent_id, &request.account_id)?;
     Ok((
         StatusCode::CREATED,
-        Json(intent_json(&intent, &request.account_id)),
+        Json(intent_json(
+            &intent,
+            &request.account_id,
+            provider_kind(&state),
+        )),
     ))
 }
 
@@ -134,43 +285,60 @@ pub async fn get_intent(
     Path(intent_id): Path<String>,
 ) -> Result<Json<IntentJson>, ApiError> {
     let account_id = state.intent_account(&intent_id)?;
-    let intent = with_intent(&state, |provider| {
-        provider.intent(&IntentId::new(intent_id.clone())).cloned()
-    })
-    .await?
-    .ok_or_else(|| ApiError::unknown_intent(&intent_id))?;
-    Ok(Json(intent_json(&intent, &account_id)))
+    let intent = state
+        .with_payment(|provider| {
+            provider
+                .intent(&IntentId::new(intent_id.clone()))
+                .map_err(provider_error)
+        })
+        .await?
+        .ok_or_else(|| ApiError::unknown_intent(&intent_id))?;
+    Ok(Json(intent_json(
+        &intent,
+        &account_id,
+        state.provider_kind(),
+    )))
 }
 
 /// Observe an intent: poll the provider and reconcile.
 ///
-/// 200 with the observation, the reconciliation outcome, and — only when
-/// the provider confirmed a payment matching the intent exactly — the
+/// 200 with the observation, the reconciliation outcome, and - only when
+/// the provider confirmed a payment matching the intent exactly - the
 /// deposit receipt that funded the account. Replays are safe: the
 /// funding deposit is idempotent on the intent id, so observing twice
 /// never credits twice.
 pub async fn observe_intent(
     State(state): State<AppState>,
     Path(intent_id): Path<String>,
+    // The raw body is parsed manually (like the scan route) so that a
+    // bodyless poll - the mock provider's flow - never trips a
+    // content-type rejection, while a present body is parsed strictly.
+    body: axum::body::Bytes,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let account_id = state.intent_account(&intent_id)?;
+    let hint = normalize_hint_body(&body, state.provider_kind())?;
+    let intent_id = IntentId::new(intent_id.clone());
     let now = unix_now();
     let observation = {
         let mut provider = state.payment().lock().await;
         provider.sync_clock(now);
-        provider
-            .observe(&IntentId::new(intent_id.clone()))
-            .map_err(provider_error)?
+        if let Some(hint) = hint {
+            provider
+                .submit_hint(&intent_id, hint)
+                .await
+                .map_err(provider_error)?;
+        }
+        provider.observe(&intent_id).await.map_err(provider_error)?
     };
-    let intent = with_intent(&state, |provider| {
-        provider.intent(&IntentId::new(intent_id.clone())).cloned()
-    })
-    .await?
-    .ok_or_else(|| ApiError::unknown_intent(&intent_id))?;
+    let intent = state
+        .with_payment(|provider| provider.intent(&intent_id).map_err(provider_error))
+        .await?
+        .ok_or_else(|| ApiError::unknown_intent(intent_id.as_str()))?;
 
     let outcome = reconcile(&intent, &observation);
     let mut body = json!({
-        "intent_id": intent_id,
+        "intent_id": intent_id.as_str(),
+        "provider": state.provider_kind(),
         "observation": observation_json(&observation),
         "reconciled": outcome_name(&outcome),
         "funded": false,
@@ -204,6 +372,41 @@ pub async fn observe_intent(
     Ok(Json(body))
 }
 
+fn normalize_hint_body(
+    body: &[u8],
+    provider_kind: &str,
+) -> Result<Option<aps_near::TxHint>, ApiError> {
+    let raw = std::str::from_utf8(body)
+        .map_err(|_| ApiError::validation("request body must be UTF-8 JSON"))?;
+    if raw.trim().is_empty() {
+        if provider_kind == "near" {
+            return Err(ApiError::validation(
+                "the near provider requires a transaction hint body with signer_id and tx_hash",
+            ));
+        }
+        return Ok(None);
+    }
+    if provider_kind != "near" {
+        return Err(ApiError::validation(
+            "the mock provider does not accept a transaction hint body",
+        ));
+    }
+    let request: ObserveHintRequest = serde_json::from_str(raw.trim()).map_err(|err| {
+        ApiError::validation(format!(
+            "request body must be a JSON object with signer_id and tx_hash: {err}"
+        ))
+    })?;
+    if request.signer_id.trim().is_empty() || request.tx_hash.trim().is_empty() {
+        return Err(ApiError::validation(
+            "signer_id and tx_hash must be non-empty strings",
+        ));
+    }
+    Ok(Some(aps_near::TxHint {
+        signer_id: request.signer_id.trim().to_string(),
+        tx_hash: request.tx_hash.trim().to_string(),
+    }))
+}
+
 /// POST /payment/intents/{intent_id}/refunds request.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -215,7 +418,7 @@ pub struct IntentRefundRequest {
 pub async fn refund_intent(
     State(state): State<AppState>,
     Path(intent_id): Path<String>,
-    body: Result<Json<IntentRefundRequest>, axum::extract::rejection::JsonRejection>,
+    body: Result<Json<IntentRefundRequest>, JsonRejection>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let Json(request) = body.map_err(crate::handlers::rejected_json)?;
     let _ = state.intent_account(&intent_id)?;
@@ -225,7 +428,8 @@ pub async fn refund_intent(
         provider.sync_clock(now);
         provider
             .request_refund(&IntentId::new(intent_id.clone()), &request.reason)
-            .map_err(provider_refund_error)?
+            .await
+            .map_err(provider_error)?
     };
     Ok(Json(json!({
         "refund_id": refund.refund_id,
@@ -235,7 +439,16 @@ pub async fn refund_intent(
     })))
 }
 
-fn intent_json(intent: &DepositIntent, account_id: &str) -> IntentJson {
+fn provider_kind(state: &AppState) -> &'static str {
+    state.provider_kind()
+}
+
+fn intent_json(intent: &DepositIntent, account_id: &str, provider: &'static str) -> IntentJson {
+    let memo = if provider == "near" {
+        Some(intent.intent_id.to_string())
+    } else {
+        None
+    };
     IntentJson {
         intent_id: intent.intent_id.to_string(),
         account_id: account_id.to_string(),
@@ -244,6 +457,8 @@ fn intent_json(intent: &DepositIntent, account_id: &str) -> IntentJson {
         amount: AmountJson::from(intent.amount),
         expires_at_unix: intent.expires_at_unix,
         status: status_name(&intent.status),
+        provider,
+        memo,
     }
 }
 
@@ -284,16 +499,6 @@ fn outcome_name(outcome: &ReconcileOutcome) -> &'static str {
     }
 }
 
-async fn with_intent<T>(
-    state: &AppState,
-    read: impl FnOnce(&mut MockProvider) -> Option<T>,
-) -> Result<Option<T>, ApiError> {
-    let now = unix_now();
-    let mut provider = state.payment().lock().await;
-    provider.sync_clock(now);
-    Ok(read(&mut provider))
-}
-
 fn provider_create_error(err: ProviderError) -> ApiError {
     match err {
         ProviderError::Validation(msg) => ApiError::validation(msg),
@@ -310,10 +515,6 @@ fn provider_error(err: ProviderError) -> ApiError {
         }
         ProviderError::Validation(msg) => ApiError::conflict("provider_state", msg),
     }
-}
-
-fn provider_refund_error(err: ProviderError) -> ApiError {
-    provider_error(err)
 }
 
 fn unix_now() -> u64 {

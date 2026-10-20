@@ -1,0 +1,18 @@
+[package]
+name = "aps-near"
+description = "NEAR payment adapter for AgentPay Sentinel: on-chain deposit verification over JSON-RPC (verification-only; no autonomous transaction signing)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+aps-core = { path = "../core" }
+aps-payment = { path = "../payment" }
+serde_json = "1"
+ureq = "2"
+base64 = "0.22"
+
+# Dependency policy (ADR-0004): aps-core and aps-payment stay dependency-free;
+# adapter crates may carry the minimum needed to speak their protocol. This
+# crate adds a blocking HTTP client (ureq over rustls), JSON handling
+# (serde_json), and base64 decoding for NEP-141 function-call arguments.
