@@ -205,3 +205,45 @@ NEAR_ASSET_CONTRACT.
 
 After either route: python scripts/near-preflight.py must print READY,
 then scripts/near-demo.ps1 walks the verified end-to-end deposit.
+
+
+---
+
+## Live testnet end-to-end run (2026-10-20, evidence recorded)
+
+Executed against NEAR testnet with throwaway accounts (zero value; keys
+generated for the run, held outside the repository):
+
+| Step | Result |
+|---|---|
+| Payer account | aps-e2e-mvh0s6bh.testnet (helper-created, 10 NEAR) |
+| Gateway account | aps-gw-mvh1jptk.testnet (helper-created, 10 NEAR) |
+| Settlement asset | wrap.testnet (wNEAR, 24 decimals) - storage registered for both |
+| Wrap 1 NEAR to wNEAR | tx 6v7cbphrSsqPDc4o3idfed7zyKErRTZ4NX6Xx7DYiU25, success |
+| Intent | aps2_3b74_6ad7b8c5_00001, deposit to gateway, memo-bound |
+| Payment (ft_transfer, 1 yoctoNEAR, memo) | tx kNZVYwd9zbf9ugkSvQsTQvwnAGuXbcoAExiXUWfz9xs, success |
+| Observation through the adapter | reconciled: fund, funded: true, credited exactly once |
+| Re-observation (replay attack) | receipt replayed, deposited_total unchanged |
+| Reserve -> scan -> settle | job_0000000000000001, decision supported / confidence high |
+| Scan replay after settlement | 409 illegal_transition (terminal; no double charge) |
+| Refund request | near-proposal-00001, PROPOSAL ONLY, one-shot (second is 409) |
+| Conservation | deposited == settled_total, available 0, reserved 0 |
+
+The payer-side transfer used the official near-api-js (reference
+signing); the gateway side is this repository's adapter, verifying the
+transaction on chain exactly as in production.
+
+**Topology note discovered by the run:** NEP-141 contracts reject
+self-transfers (sender == receiver panics in the reference
+implementation). A deployment where the payer pays the intent from the
+gateway's own account therefore cannot work by design; the demo
+presupposes distinct payer and gateway accounts, which is also the honest
+production topology. Record this in any operator runbook.
+
+**Borsh notes for implementers (hard-won):** the Transaction borsh field
+order is signer_id, public_key, nonce, receiver_id, block_hash, actions
+(receiver BEFORE block_hash - the reverse of the RPC JSON field order),
+and the Action enum variant order is CreateAccount, DeployContract,
+FunctionCall(2), Transfer, Stake, AddKey, DeleteKey, DeleteAccount,
+Delegate. Hand-rolled encoders that get either wrong produce either a
+parse error or an InvalidSignature from the node.
