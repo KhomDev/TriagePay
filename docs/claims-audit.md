@@ -41,7 +41,8 @@ voice check (`python scripts/voice-check.py`: 0 violations).
 | Published real-term digests hide the terms (33b8b2f to 01d462e) | a published SHA-256 digest of a guessable word is reversible: a 14-word guess list recovered 10 of the 14 published digests | CORRECTED 2026-10-21 (every real-term digest moved to the operator's off-repo file; the published list keeps a synthetic stand-in only) |
 | NEAR adapter targets NEAR Intents 1Click (track fit section) | documented as the v2 roadmap in docs/integrations/near.md; v1 (direct NEP-141 verification) is implemented | GREEN (phrasing kept as target/milestone) |
 | Mock provider is the default; NEAR activates only via env | AppState construction + APS_PROVIDER gate in main.rs | GREEN |
-| Live mainnet read-only verification | aps-near live_readonly vs https://rpc.mainnet.near.org: 3/3 pass | GREEN (mainnet deposit E2E executed 2026-10-21, see the near.md section) |
+| Live mainnet read-only verification | aps-near live_readonly vs https://rpc.mainnet.near.org, run 2026-10-21: 3/3 pass, including native USDC ft_metadata = symbol "USDC", 6 decimals, and legacy USDC.e = symbol "USDC.e", 6 decimals | GREEN (mainnet deposit E2E executed 2026-10-21, see the near.md section) |
+| Script and test defaults name the settlement asset | scripts/near-preflight.py --asset fallback USDC_NATIVE_MAINNET; scripts/near-wait-for-deposit.py lists native USDC first; live_readonly's primary candidate is native USDC | CORRECTED 2026-10-21 (all three defaulted to or led with legacy USDC.e) |
 | README status: one mainnet deposit E2E executed with real USDC | docs/integrations/near.md "Mainnet end-to-end run" (tx hashes) | GREEN (README sentence updated 2026-10-21; it previously said the run was operator-gated) |
 
 ## SCANNER_SPEC.md / scanner/README.md

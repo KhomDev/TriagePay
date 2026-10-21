@@ -80,4 +80,11 @@ follows Keep a Changelog; the project has not shipped a tagged release.
 ### Fixed (2026-10-21)
 - `compile --check` is byte-stable on Windows: write_artifact pins LF
   line endings.
+- Native USDC (17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1)
+  is the settlement asset everywhere: the NEAR integration docs and
+  .env.example, the near-preflight `--asset` fallback, the deposit
+  waiter's known-contract list (native first), and the opt-in live
+  read-only test (asserts symbol USDC, 6 decimals; keeps a check that
+  legacy bridged USDC.e reports symbol USDC.e). The 2026-10-20 entry
+  above that mentions USDC.e metadata is history.
 

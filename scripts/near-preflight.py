@@ -20,7 +20,9 @@ import os
 import sys
 import urllib.request
 
-USDC_E_MAINNET = "a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.factory.bridge.near"
+# Native USDC on mainnet: the settlement asset (docs/integrations/near.md).
+# Bridged USDC.e is a legacy token and is not a default anywhere.
+USDC_NATIVE_MAINNET = "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1"
 
 
 def rpc_call(url, method, params):
@@ -78,7 +80,7 @@ def main():
     )
     parser.add_argument(
         "--asset",
-        default=os.environ.get("NEAR_ASSET_CONTRACT", USDC_E_MAINNET),
+        default=os.environ.get("NEAR_ASSET_CONTRACT", USDC_NATIVE_MAINNET),
     )
     args = parser.parse_args()
 
