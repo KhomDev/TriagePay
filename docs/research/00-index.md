@@ -96,8 +96,9 @@ internals, test counts) were not checked.
 - Logs of a failed receipt being retained in `outcome.logs` (fixture needed).
 - The native USDC contract's own `ft_resolve_transfer` refund-event behaviour (the reference
   implementation is verified).
-- The memo that 1Click puts on its destination `ft_transfer`, `EXACT_OUTPUT` refund rules, and
-  the quote-signature key and algorithm.
+- The memo that 1Click puts on its destination `ft_transfer`, whether `amountOut` under
+  `EXACT_OUTPUT` is delivered net or gross of `withdrawFee`, and the quote-signature key and
+  algorithm.
 - A live NEAR AI attestation report (needs an API key), the latency of attested models, and the
   NEAR AI SDK versions.
 - Actual rate limits of the public RPC endpoints (not published).
