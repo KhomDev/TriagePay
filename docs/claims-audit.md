@@ -63,6 +63,7 @@ root OpenAPI conformance 4. Total 187 passing.
 | Adapter never signs or broadcasts | no such code path; ADR-0005 | GREEN |
 | Mainnet deposit E2E | executed 2026-10-21 with real USDC: payment tx ZonAdEjgAUM4tBnCR3nJTxe9LHiv7KcsbqRZdp9dns1 verified by the adapter, ledger funded, scan settled (evidence in docs/integrations/near.md) | GREEN |
 | Live-network E2E (testnet) | executed 2026-10-20: intent -> memo-bound ft_transfer -> adapter-verified funding -> scan -> settle, all through the real adapter; evidence in docs/integrations/near.md | GREEN |
+| Security hardening via a function-call key restricted to ft_transfer (near.md "Security-track angle", PROPOSALS.md section 3, section 6 custody row) | infeasible: function-call keys cannot attach a deposit (https://docs.near.org/protocol/accounts-contracts/access-keys, accessed 2026-10-21) and NEP-141 ft_transfer requires exactly 1 yoctoNEAR; replaced in all three places by the planned spend-policy wallet contract (zero-deposit `pay` callable by a function-call key; the contract performs ft_transfer) | CORRECTED 2026-10-21 (claim withdrawn; replacement labelled planned, prompt 02) |
 
 ## SECURITY.md / CHANGELOG.md
 

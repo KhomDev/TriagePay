@@ -101,17 +101,31 @@ Keys are never environment variables of this service: the adapter holds no
 private keys by design. A .env.example in the repository root documents the
 full variable set with placeholders.
 
-## Security-track angle: function-call keys
+## Security-track angle: a spend-policy wallet (corrected 2026-10-21)
 
-NEAR access keys can be scoped to a single contract and method (the
-permission object's receiver_id and method_names). The recommended
-hardening for a real deployment is a **function-call key on the gateway's
-funding account restricted to ft_transfer on the asset contract**: the hot
-process that moves deposits can then only ever move the settlement asset
-in the standard transfer shape, never arbitrary contracts. This is the
-NEAR-native answer to "give an agent a payment key, not the vault key" and
-maps directly to the hackathon security track. Not yet exercised in the
-demo; listed as the first hardening milestone.
+An earlier version of this section recommended a function-call access key
+restricted to ft_transfer on the settlement asset. **That design cannot
+work**, for two platform reasons:
+
+- Function-call access keys cannot attach a deposit. The NEAR access-key
+  documentation states that function-call keys "do not allow to attach
+  NEAR tokens to the call"
+  (https://docs.near.org/protocol/accounts-contracts/access-keys,
+  accessed 2026-10-21).
+- NEP-141 ft_transfer requires exactly 1 yoctoNEAR attached
+  (NEP-141, https://github.com/near/NEPs/blob/master/neps/nep-0141.md;
+  see also ADR-0005), precisely so that a function-call key cannot call
+  it.
+
+A function-call key restricted to ft_transfer would therefore fail on
+every call. The replacement design (planned, prompt 02; not implemented)
+is a **spend-policy wallet contract**: the agent holds a function-call key
+for the wallet's own `pay` method, which takes zero deposit and is
+therefore callable with such a key. The contract enforces the spend
+policy (allowed receivers, per-call and per-period caps) and itself
+performs the ft_transfer with the required 1 yoctoNEAR from its own
+balance. The agent gets a payment key, never the vault key, and the
+policy lives on chain where a judge can read it.
 
 ## v2 roadmap: NEAR Intents (1Click API)
 
@@ -140,7 +154,8 @@ README names Intents as the adapter target):
 - Indexer/listener-based deposit observation (the caller supplies the tx
   hash hint; a listener would remove that step).
 - NEAR Intents 1Click adapter (v2, documented above).
-- Function-call-key hardening of a dedicated gateway account.
+- The spend-policy wallet contract (planned; see "Security-track angle"
+  above for why a bare function-call key on ft_transfer is infeasible).
 
 ## Operator-gated next steps (from the session plan)
 

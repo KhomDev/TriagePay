@@ -43,14 +43,25 @@ index, and state limitations in the same breath as capabilities.
 
 ## 3. NEAR-native hardening (the security track's ace)
 
-Implement the function-call-key design documented in
-docs/integrations/near.md: a gateway hot account whose access key is
-restricted to ft_transfer on the settlement asset contract. That single
-change turns "the agent process can move money" into "the agent process
-can move exactly one asset in exactly one shape" - the NEAR-native
-expression of least privilege, and a demo-able, judge-visible property.
-First step: add the key-scoping walkthrough to scripts/near-demo.ps1
-(warning: the operator creates the key; the repo never holds it).
+Correction (2026-10-21): an earlier version of this section proposed a
+gateway hot account whose function-call access key is restricted to
+ft_transfer on the settlement asset. That is infeasible: function-call
+keys cannot attach a deposit (docs.near.org access keys, accessed
+2026-10-21: function-call keys "do not allow to attach NEAR tokens to the
+call", https://docs.near.org/protocol/accounts-contracts/access-keys), and
+NEP-141 ft_transfer requires exactly 1 yoctoNEAR attached, precisely so
+that function-call keys cannot call it.
+
+The replacement (planned, prompt 02) is a **spend-policy wallet
+contract**. The agent holds a function-call key for the wallet's `pay`
+method, which takes zero deposit and is therefore callable by such a key;
+the contract checks the on-chain spend policy (allowed receivers, per-call
+and per-period caps) and itself performs the ft_transfer with the required
+1 yoctoNEAR. That turns "the agent process can move money" into "the agent
+process can move one asset, to allowed receivers, within caps" - the
+NEAR-native expression of least privilege, and a judge-visible property.
+Details: docs/integrations/near.md, "Security-track angle". The operator
+creates any key; the repository never holds one.
 
 ## 4. Engineering roadmap (prioritized)
 
@@ -85,7 +96,7 @@ First step: add the key-scoping walkthrough to scripts/near-demo.ps1
 |---|---|---|
 | NEAR integration depth vs judges' expectations | read-only mainnet verification is live; the deposit E2E is not yet executed | run scripts/near-demo.ps1 with the operator's approval before the deadline; record the tx hash in the demo evidence |
 | Private knowledge cannot be demonstrated publicly | true by design | demo the synthetic pipeline + leakage-scanner tests; the guarantee is the product, not the corpus |
-| Single-operator custody | the gateway account is one wallet | function-call-key scoping (section 3); later, a multisig (Trezu/Sputnik) as the deposit account |
+| Single-operator custody | the gateway account is one wallet | spend-policy wallet contract (section 3, planned); later, a multisig (Trezu/Sputnik) as the deposit account |
 | In-memory state | restarts lose credit | roadmap item 1; document loudly until then |
 | One-shot submission errors | project name/email must be unique across the hackathon | draft the payload early, human sends, requestId reused on retry |
 | Pre-window commits | rules are silent on pre-window work | ask organizers in Discord; if sensitive, land public history inside the window |
