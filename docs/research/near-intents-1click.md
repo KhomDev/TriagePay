@@ -32,7 +32,7 @@ for chains that need a deposit memo), `connectedWallets`, `sessionId`,
 
 | Field | Values / meaning | Status |
 |---|---|---|
-| `swapType` | `EXACT_INPUT`, `EXACT_OUTPUT`, `FLEX_INPUT`, `ANY_INPUT`. For `EXACT_INPUT`, a short deposit is refunded by the deadline and an excess is swapped and the surplus refunded to `refundTo`. | Verified-primary (EXACT_INPUT text); the EXACT_OUTPUT refund rules were not read in full: Unverified |
+| `swapType` | `EXACT_INPUT`, `EXACT_OUTPUT`, `FLEX_INPUT`, `ANY_INPUT`. For `EXACT_INPUT`, a short deposit is refunded by the deadline and an excess is swapped and the surplus refunded to `refundTo`. For `EXACT_OUTPUT`, "The output amount (`amountOut`) is fixed; slippage is applied to the **input** side"; an input above what is needed is refunded to `refundTo`, and a deposit below `minAmountIn` is refunded by the deadline. | Verified-primary |
 | `amount` | integer string in base units | Verified-primary |
 | `recipientType` | `DESTINATION_CHAIN`, `INTENTS`, `CONFIDENTIAL_INTENTS` | Verified-primary |
 | `depositType` / `refundType` | `ORIGIN_CHAIN`, `INTENTS`, `CONFIDENTIAL_INTENTS` | Verified-primary |
@@ -78,7 +78,7 @@ aptos, op, avax, sui, stellar, monad, xlayer and hypercore. Status: Verified-pri
 |---|---|---|
 | Can the quote set the recipient to the gateway account? | Yes: `recipient: "gateway.<operator>"` with `recipientType: "DESTINATION_CHAIN"` and `destinationAsset` = native USDC delivers by `ft_transfer` on NEAR (`INTENTS` would credit an intents.near balance instead). | Verified-primary (field semantics); not executed |
 | Can the payer bind a memo equal to the intent id on the NEAR-side transfer? | **No such request field exists.** `depositMemo` is an origin-chain deposit memo issued by 1Click, not a destination memo. The memo 1Click puts on its outgoing `ft_transfer` is not documented. | Verified-primary (absence in QuoteRequest); destination memo content Unverified (observe one real swap) |
-| Alternative bindings | (a) **Per-quote deposit address:** each quote has a unique `depositAddress`; the gateway creates the quote itself, stores `depositAddress -> intent_id`, and polls `/v0/status`. (b) **Exact destination amount:** `swapType: "EXACT_OUTPUT"` fixes `amountOut`, which permits a unique per-intent amount suffix. (c) `customRecipientMsg` with `ft_transfer_call` is experimental and needs a receiver contract: avoid. | Derived; (b) needs EXACT_OUTPUT semantics confirmed |
+| Alternative bindings | (a) **Per-quote deposit address:** each quote has a unique `depositAddress`; the gateway creates the quote itself, stores `depositAddress -> intent_id`, and polls `/v0/status`. (b) **Exact destination amount:** `swapType: "EXACT_OUTPUT"` fixes `amountOut`, which permits a unique per-intent amount suffix. (c) `customRecipientMsg` with `ft_transfer_call` is experimental and needs a receiver contract: avoid. | Derived; the EXACT_OUTPUT fixed-`amountOut` rule is Verified-primary (openapi.yaml), and the delivered amount net of `withdrawFee` should be checked on one real swap |
 | Funding authority | The gateway should credit only after verifying the NEAR-side transfer (receipt-level verifier) whose tx hash appears in `swapDetails.destinationChainTxHashes`, never on `status: SUCCESS` alone. | Recommendation (matches prompt 03) |
 
 ## Implications for the build
