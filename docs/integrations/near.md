@@ -247,3 +247,33 @@ and the Action enum variant order is CreateAccount, DeployContract,
 FunctionCall(2), Transfer, Stake, AddKey, DeleteKey, DeleteAccount,
 Delegate. Hand-rolled encoders that get either wrong produce either a
 parse error or an InvalidSignature from the node.
+
+
+---
+
+## Mainnet end-to-end run (2026-10-21, complete)
+
+The final AMBER is green: the full verified deposit flow executed on
+NEAR mainnet with real USDC.
+
+| Fact | Value (all verifiable on nearblocks.io / any explorer) |
+|---|---|
+| Operator account | hlpok1lad.tg (payer, USDC holder) |
+| Gateway account | gateway.hlpok1lad.tg (subaccount created for the demo) |
+| Settlement asset | 17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1 - native USDC, 6 decimals (the omft-canonical USDC the Intents swap delivered) |
+| Gateway creation | tx DfcMsqJyisNsmhxkXsxuQXy9xuJDtvucazjZ1Fp4vwdW (CreateAccount + AddKey + 0.01 NEAR) |
+| Gateway storage registration | tx A725JfESSvWUzHCBjgXtiF3838u3uk9SdpuMz6conFwq (0.00125 NEAR) |
+| Deposit payment | tx ZonAdEjgAUM4tBnCR3nJTxe9LHiv7KcsbqRZdp9dns1 - ft_transfer: receiver gateway.hlpok1lad.tg, amount 100000, memo aps2_2160_6ad8a68a_00001, exactly 1 yoctoNEAR attached, status SuccessValue at FINAL |
+| Adapter verification | reconciled fund / funded true; ledger credited 100000 atomic exactly once |
+| Scan settlement | job settled against report content hash aa6d7ba947bd1268..., decision supported / confidence high |
+| Conservation | deposited_total == settled_total == 100000; available 0; reserved 0 |
+| Gateway balance after | 100000 atomic (0.1 USDC) - refundable from the gateway with its FullAccess key |
+
+Deployment facts this run established for the README / operator runbook:
+
+- The canonical mainnet USDC today is the Intents-delivered contract
+  above (not the old factory-bridge USDC.e, which shows 0 balance).
+- Two distinct accounts are required (payer and gateway) because the
+  NEP-141 reference implementation rejects self-transfers.
+- The 1RPC privacy endpoint does not expose the NEAR JSON-RPC surface;
+  the official public endpoints are the tested default.

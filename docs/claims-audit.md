@@ -61,7 +61,7 @@ root OpenAPI conformance 4. Total 187 passing.
 | 1RPC caveat | probed 2026-10-20: NEAR JSON-RPC methods answered -3261 | GREEN |
 | USDC.e metadata (6 decimals, Bridged USDC) | on-chain ft_metadata read at finality | GREEN |
 | Adapter never signs or broadcasts | no such code path; ADR-0005 | GREEN |
-| Mainnet deposit E2E | scripts/near-demo.* walk the flow; the operator-gated mainnet transfer has NOT been executed yet | AMBER - pending operator action (swap from Base + gas) |
+| Mainnet deposit E2E | executed 2026-10-21 with real USDC: payment tx ZonAdEjgAUM4tBnCR3nJTxe9LHiv7KcsbqRZdp9dns1 verified by the adapter, ledger funded, scan settled (evidence in docs/integrations/near.md) | GREEN |
 | Live-network E2E (testnet) | executed 2026-10-20: intent -> memo-bound ft_transfer -> adapter-verified funding -> scan -> settle, all through the real adapter; evidence in docs/integrations/near.md | GREEN |
 
 ## SECURITY.md / CHANGELOG.md
@@ -73,8 +73,6 @@ root OpenAPI conformance 4. Total 187 passing.
 
 ## Known open items (not doc claims)
 
-- The mainnet end-to-end deposit (operator-gated) is not yet executed:
-  the operator's 1 USDC is on Base and must be swapped to NEAR first, and
-  the wallet needs a small NEAR gas balance.
+- ~~Mainnet E2E~~ DONE 2026-10-21 (real USDC, tx evidence in docs/integrations/near.md).
 - ~~Testnet E2E~~ DONE 2026-10-20 (throwaway accounts, evidence recorded).
 - The repository has no remote yet; publication is a human action.
