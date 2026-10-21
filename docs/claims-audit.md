@@ -10,9 +10,9 @@ code, never the audit.**
 
 Suites verified for this audit (regenerated 2026-10-21, not hand-edited):
 aps-core 21, aps-payment 9, aps-api 37, aps-near 25 (+3 opt-in live
-read-only, ignored by default), scanner 69, knowledge-compiler 36 (+1
+read-only, ignored by default), scanner 69, knowledge-compiler 37 (+1
 local-only private-denylist tree scan, skipped unless APS_PRIVATE_DENYLIST
-is set), root OpenAPI conformance 4. Total 201 passing. Also green: cargo
+is set), root OpenAPI conformance 4. Total 202 passing. Also green: cargo
 fmt --check, clippy -D warnings, ruff, the leakage tree scan
 (`python -m knowledge_compiler scan-tree --root ..`: 0 hits against the
 published stand-in list in CI, and 0 hits locally with
@@ -26,7 +26,7 @@ voice check (`python scripts/voice-check.py`: 0 violations).
 | cargo test --workspace runs the Rust suites | gate run 2026-10-21: exit 0 | GREEN |
 | Rust test count | 92 tests across 4 crates (21 core, 9 payment, 37 api, 25 near-adapter) + 3 opt-in live tests | GREEN |
 | Python scanner tests | cd scanner && python -m pytest -q: 69 passed | GREEN |
-| Knowledge-compiler tests | cd knowledge-compiler && python -m pytest -q: 36 passed, 1 skipped (local-only) | GREEN |
+| Knowledge-compiler tests | cd knowledge-compiler && python -m pytest -q: 37 passed, 1 skipped (local-only) | GREEN |
 | OpenAPI conformance | python -m pytest tests -q (root): 4 passed | GREEN |
 | No keys or external services needed for the default run | mock provider default; secret scan of the tree: 0 hits | GREEN |
 | Scanner is stdlib-only Python | scanner/pyproject.toml dependencies = [] | GREEN |
@@ -52,7 +52,7 @@ voice check (`python scripts/voice-check.py`: 0 violations).
 | Gates are ruleset-driven, fail closed on unknown evaluator or tampered hash | test_ruleset unknown-evaluator, tampered-hash, missing-file | GREEN |
 | Report exposes exactly the spec fields (including ruleset_hash) | test_engine_golden field-set test | GREEN |
 | content_hash is the sha256 of the canonical normalized envelope | test_engine_golden replay test (identical hashes) | GREEN |
-| The committed ruleset artifact is byte-stable | compile --check passes on Linux CI; test_compiler determinism; on 2026-10-21 a fresh compile was byte-identical to the committed file | GREEN (caveat: on Windows the --check command reports a false mismatch because write_artifact writes CRLF; content is identical - open defect, compiler.py) |
+| The committed ruleset artifact is byte-stable | compile --check passes on Linux CI and on Windows (2026-10-21); test_written_artifact_is_lf_and_matches_the_committed_bytes; test_compiler determinism | GREEN (the Windows-only false mismatch - write_artifact wrote CRLF in text mode - was fixed 2026-10-21 by pinning newline="\n") |
 
 ## docs/architecture.md, threat-model.md, ADRs
 

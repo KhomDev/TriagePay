@@ -6,8 +6,8 @@ the residual risk, and the owner. Generated from the real test inventory
 (all counts regenerated on 2026-10-21).
 
 **Suites:** aps-core 21, aps-payment 9, aps-api 37, aps-near 25 (+3
-opt-in live read-only tests), scanner 69, knowledge-compiler 36 (+1
-local-only private-denylist check), root OpenAPI conformance 4. Total 201
+opt-in live read-only tests), scanner 69, knowledge-compiler 37 (+1
+local-only private-denylist check), root OpenAPI conformance 4. Total 202
 passing, plus the 3 live tests run explicitly against mainnet.
 
 ## Threat → control → verification
