@@ -109,8 +109,22 @@ notes, never guessed.
 | policy-core unit tests | 25 | yes |
 | policy-core property tests (proptest, 256 cases each) | 3 | yes |
 | policy-wallet unit tests (near-sdk mocked runtime) | 50 | yes |
-| test-token unit tests | see `contracts/test-token` | yes |
-| sandbox integration tests | see `tests/` | no, Linux CI only, not executed |
+| test-token unit tests | 3 | yes |
+| sandbox integration tests (near-workspaces) | 15 | compiled and reported as ignored on Windows; written for Linux CI, never executed yet |
+
+Test-token wasm (same build command, from `contracts/test-token/`): 148,419
+bytes, SHA-256
+`1085d171aac31acbc4e6005fa3eebd16ae2bf7cf26c1d80439495aa57e61a188`. It is
+built from the crates.io release of `near-contract-standards` `=5.29.1`
+(locked in `Cargo.lock`) rather than from a git checkout of the near-sdk
+fungible-token example; the example's code shape is reproduced in
+`contracts/test-token/src/lib.rs`.
+
+Hash caveat: a non-reproducible build can embed dependency source paths
+from the build host's cargo registry, so a Linux CI build may print a
+different SHA-256 than the one above. The CI log hash is the reference for
+CI-built artifacts; the deployed hash must come from the reproducible
+build.
 
 ## Deviations from prompt 02
 
