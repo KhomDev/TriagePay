@@ -10,9 +10,10 @@ A working, tested payment gateway for metered agent tools: an
 integer-only prepaid ledger with structural idempotency (92 Rust tests
 across four crates), a deterministic hostile-input scanner whose nine
 gates now execute from a compiled, hash-addressed, leakage-scanned
-ruleset (91 Python tests), a NEAR adapter that funds credit only from
-on-chain-verified NEP-141 deposits (verified against mainnet read-only;
-the end-to-end deposit run is operator-gated and pending), and docs whose
+ruleset (102 Python tests across the scanner and the knowledge compiler),
+a NEAR adapter that funds credit only from on-chain-verified NEP-141
+deposits (verified against mainnet read-only, and one end-to-end mainnet
+deposit with real USDC executed on 2026-10-21), and docs whose
 claims are audited line by line. What it is not: durable, authenticated,
 rate-limited, or signed - all documented as limitations, none hidden.
 
@@ -99,7 +100,7 @@ creates any key; the repository never holds one.
 
 | Risk | Honest assessment | Mitigation |
 |---|---|---|
-| NEAR integration depth vs judges' expectations | read-only mainnet verification is live; the deposit E2E is not yet executed | run scripts/near-demo.ps1 with the operator's approval before the deadline; record the tx hash in the demo evidence |
+| NEAR integration depth vs judges' expectations | read-only mainnet verification is live and one mainnet deposit E2E was executed on 2026-10-21 (tx evidence in docs/integrations/near.md); depth beyond one deposit is still thin | the mainnet test campaign (prompt 09), each write run only on an operator-approved plan |
 | Private knowledge cannot be demonstrated publicly | true by design | demo the synthetic pipeline + leakage-scanner tests; the guarantee is the product, not the corpus |
 | Single-operator custody | the gateway account is one wallet | spend-policy wallet contract (section 3, planned); later, a multisig (Trezu/Sputnik) as the deposit account |
 | In-memory state | restarts lose credit | roadmap item 1; document loudly until then |

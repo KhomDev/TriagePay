@@ -2,22 +2,29 @@
 
 Every testable claim in the public documentation, mapped to its evidence.
 This file exists so a reviewer (human or AI judge) can verify the repo
-against its own promises without trusting prose. Audit date: 2026-10-20.
+against its own promises without trusting prose. Audit date: 2026-10-21,
+taken at commit `6057ae4` (the commit that records this refresh changes
+documentation only). Previous audit: 2026-10-20.
 **Rule: if a claim is not green here, it is a defect - fix the doc or the
 code, never the audit.**
 
-Suites verified for this audit: aps-core 21, aps-payment 9, aps-api 37,
-aps-near 25 (+3 opt-in live read-only), scanner 68, knowledge-compiler 23,
-root OpenAPI conformance 4. Total 187 passing.
+Suites verified for this audit (regenerated 2026-10-21, not hand-edited):
+aps-core 21, aps-payment 9, aps-api 37, aps-near 25 (+3 opt-in live
+read-only, ignored by default), scanner 69, knowledge-compiler 33 (+1
+local-only private-denylist tree scan, skipped unless APS_PRIVATE_DENYLIST
+is set), root OpenAPI conformance 4. Total 198 passing. Also green: cargo
+fmt --check, clippy -D warnings, ruff, the leakage tree scan
+(`python -m knowledge_compiler scan-tree --root ..`: 0 hits), and the
+voice check (`python scripts/voice-check.py`: 0 violations).
 
 ## README.md
 
 | Claim | Evidence | Status |
 |---|---|---|
-| cargo test --workspace runs the Rust suites | gate run 2026-10-20: exit 0 | GREEN |
+| cargo test --workspace runs the Rust suites | gate run 2026-10-21: exit 0 | GREEN |
 | Rust test count | 92 tests across 4 crates (21 core, 9 payment, 37 api, 25 near-adapter) + 3 opt-in live tests | GREEN |
-| Python scanner tests | cd scanner && python -m pytest -q: 68 passed | GREEN |
-| Knowledge-compiler tests | cd knowledge-compiler && python -m pytest -q: 23 passed | GREEN |
+| Python scanner tests | cd scanner && python -m pytest -q: 69 passed | GREEN |
+| Knowledge-compiler tests | cd knowledge-compiler && python -m pytest -q: 33 passed, 1 skipped (local-only) | GREEN |
 | OpenAPI conformance | python -m pytest tests -q (root): 4 passed | GREEN |
 | No keys or external services needed for the default run | mock provider default; secret scan of the tree: 0 hits | GREEN |
 | Scanner is stdlib-only Python | scanner/pyproject.toml dependencies = [] | GREEN |
@@ -27,10 +34,12 @@ root OpenAPI conformance 4. Total 187 passing.
 | Settlement requires non-zero report hash; refunds one-shot | ledger_ops + error_hygiene tests | GREEN |
 | Payment covers the scan, not the verdict | scan_flow settle tests (rejected verdicts settle identically) | GREEN |
 | Credit funds only from provider-observed confirmations | payment_flow + provider_rpc + near_flow suites | GREEN |
-| Privacy: no protocol names/paths/corpus content in output | test_engine_golden privacy test + error_hygiene canaries | GREEN |
+| Privacy: no protocol names/paths/corpus content in output | test_engine_golden privacy test (digest denylist + host-path prefixes, with a non-vacuity control) + error_hygiene canaries | GREEN |
+| Private terms are never published, not even in the privacy tests | published list is SHA-256 digests only (test_published_denylist_contains_only_digests); stand-in poisons in test_leakage; scan-tree of the tracked tree: 0 hits against the published list, and 0 hits with a local APS_PRIVATE_DENYLIST on 2026-10-21 | GREEN (earlier commits still contain the literal terms; history scrub is an open human decision, ADR-0006) |
 | NEAR adapter targets NEAR Intents 1Click (track fit section) | documented as the v2 roadmap in docs/integrations/near.md; v1 (direct NEP-141 verification) is implemented | GREEN (phrasing kept as target/milestone) |
 | Mock provider is the default; NEAR activates only via env | AppState construction + APS_PROVIDER gate in main.rs | GREEN |
-| Live mainnet read-only verification | aps-near live_readonly vs https://rpc.mainnet.near.org: 3/3 pass | GREEN (the deposit E2E is operator-gated and not yet executed) |
+| Live mainnet read-only verification | aps-near live_readonly vs https://rpc.mainnet.near.org: 3/3 pass | GREEN (mainnet deposit E2E executed 2026-10-21, see the near.md section) |
+| README status: one mainnet deposit E2E executed with real USDC | docs/integrations/near.md "Mainnet end-to-end run" (tx hashes) | GREEN (README sentence updated 2026-10-21; it previously said the run was operator-gated) |
 
 ## SCANNER_SPEC.md / scanner/README.md
 
@@ -40,7 +49,7 @@ root OpenAPI conformance 4. Total 187 passing.
 | Gates are ruleset-driven, fail closed on unknown evaluator or tampered hash | test_ruleset unknown-evaluator, tampered-hash, missing-file | GREEN |
 | Report exposes exactly the spec fields (including ruleset_hash) | test_engine_golden field-set test | GREEN |
 | content_hash is the sha256 of the canonical normalized envelope | test_engine_golden replay test (identical hashes) | GREEN |
-| The committed ruleset artifact is byte-stable | compile --check passes; test_compiler determinism | GREEN |
+| The committed ruleset artifact is byte-stable | compile --check passes on Linux CI; test_compiler determinism; on 2026-10-21 a fresh compile was byte-identical to the committed file | GREEN (caveat: on Windows the --check command reports a false mismatch because write_artifact writes CRLF; content is identical - open defect, compiler.py) |
 
 ## docs/architecture.md, threat-model.md, ADRs
 
@@ -52,6 +61,8 @@ root OpenAPI conformance 4. Total 187 passing.
 | ADR-0001/0002/0003 (integer money, charge timing, idempotency) | ledger_ops + api.rs suites | GREEN |
 | ADR-0004 adapter dependency policy | aps-near carries only ureq/serde_json/base64; core/payment dep-free | GREEN |
 | ADR-0005 verification-only NEAR adapter | no signing/broadcast code path exists; refunds are proposals | GREEN |
+| ADR-0006 window strategy and ADR-0007 product direction | decision records only; every pillar and the README prior-work section / boundary tag are labelled planned | GREEN (organizer answer pending) |
+| CI enforces neutral or singular voice in tracked Markdown | .github/workflows/ci.yml "Documentation voice" job; scripts/voice-check.py --self-test 15/15 | GREEN |
 
 ## docs/integrations/near.md
 
@@ -70,10 +81,14 @@ root OpenAPI conformance 4. Total 187 passing.
 | Claim | Evidence | Status |
 |---|---|---|
 | Request bodies are never logged | no request-body logging in handlers; one startup log line | GREEN |
-| No real funds, keys, or mainnet writes in the codebase | secret scan 0 hits; adapter is verification-only | GREEN |
+| No keys and no signing or broadcast path in the codebase | secret scan 0 hits; adapter is verification-only (ADR-0005) | GREEN |
+| SECURITY.md posture: real funds moved only in the operator-approved mainnet deposit run | docs/integrations/near.md mainnet section | CORRECTED 2026-10-21 (SECURITY.md previously said no real funds or mainnet endpoints were involved anywhere, which the mainnet E2E made false) |
+| SECURITY.md "Non-goals and guarantees" (renamed from a plural-voice heading) | same four guarantees; voice check 0 violations | GREEN |
 
 ## Known open items (not doc claims)
 
 - ~~Mainnet E2E~~ DONE 2026-10-21 (real USDC, tx evidence in docs/integrations/near.md).
 - ~~Testnet E2E~~ DONE 2026-10-20 (throwaway accounts, evidence recorded).
 - The repository has no remote yet; publication is a human action.
+- Organizer answer on pre-window work: pending (ADR-0006 default applies).
+- Spend-policy wallet contract: planned (prompt 02), not implemented.

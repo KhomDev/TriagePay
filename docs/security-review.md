@@ -3,12 +3,12 @@
 Adversarial QA record for the current milestone: every threat from
 docs/threat-model.md mapped to its control, the test that verifies it,
 the residual risk, and the owner. Generated from the real test inventory
-(all counts verified on 2026-10-20).
+(all counts regenerated on 2026-10-21).
 
 **Suites:** aps-core 21, aps-payment 9, aps-api 37, aps-near 25 (+3
-opt-in live read-only tests), scanner 68, knowledge-compiler 23, root
-OpenAPI conformance 4. Total 187 passing, plus the 3 live tests run
-explicitly against mainnet.
+opt-in live read-only tests), scanner 69, knowledge-compiler 33 (+1
+local-only private-denylist check), root OpenAPI conformance 4. Total 198
+passing, plus the 3 live tests run explicitly against mainnet.
 
 ## Threat → control → verification
 
