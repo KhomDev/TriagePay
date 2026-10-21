@@ -18,7 +18,12 @@ rate-limited, or signed - all documented as limitations, none hidden.
 
 ## 2. Hackathon positioning
 
-Primary tracks, in priority order:
+Decision (docs/decisions/0007-product-direction.md, 2026-10-21): the
+submission targets the **security** and **agents** tracks; **privacy** is
+added only if attested verdicts (pillar P7) ship; **business** is not
+submitted. The track analysis below is kept as context.
+
+Tracks considered, in the original priority order:
 
 1. **agents** (Agent Economy) - the core story: an agent prepays credit
    and buys a bounded tool call. The demo IS the track: fund -> reserve ->
@@ -108,8 +113,9 @@ creates any key; the repository never holds one.
 - X demo post with video/screenshots, stating the project was built at
   NEAR HACKATHON (human posts; the near-demo transcript is the script).
 - Submission payload drafted for human confirmation: projectName (2-80,
-  unique), leadName, email (unique), size, tracks (agents, security,
-  business, privacy), nearAddress (mainnet payout account), projectUrl,
+  unique), leadName, email (unique), size, tracks (security, agents;
+  privacy only if P7 ships, per ADR-0007), nearAddress (mainnet payout
+  account), projectUrl,
   demoUrl, idea (20-2000 chars), consent read verbatim.
 - requestId generated once and reused on any retry; payload never
   committed (it contains personal data).
