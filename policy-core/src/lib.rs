@@ -1,0 +1,26 @@
+//! Spend-policy core for the policy wallet contract.
+//!
+//! This crate holds the policy arithmetic the wallet contract enforces on
+//! chain, with no `near-sdk` dependency, so an off-chain simulator and the
+//! property tests run the exact same rules.
+//!
+//! Design rules enforced in this crate:
+//! - integer money only, u128 atomic units, checked math, no floats;
+//! - a spend window is one UTC day derived from a nanosecond timestamp;
+//! - a payment is checked and reserved in one step, and a refused payment
+//!   leaves the policy unchanged;
+//! - a release restores the exact pre-reservation total, and a release that
+//!   arrives after its window rolled over changes nothing;
+//! - every refusal carries a stable error code string.
+
+pub mod error;
+pub mod policy;
+pub mod window;
+
+pub use error::{
+    PolicyError, ERR_AGENT_INACTIVE, ERR_DAILY_LIMIT, ERR_INVALID_POLICY, ERR_OVERFLOW, ERR_PAUSED,
+    ERR_PAYEE_NOT_ALLOWED, ERR_PER_CALL_LIMIT, ERR_RELEASE_MISMATCH, ERR_TOKEN_NOT_ALLOWED,
+    ERR_ZERO_AMOUNT,
+};
+pub use policy::{AgentPolicy, ReleaseOutcome, Reservation, WalletGate, MAX_PAYEES};
+pub use window::{next_window_start, window_index, NANOS_PER_DAY};

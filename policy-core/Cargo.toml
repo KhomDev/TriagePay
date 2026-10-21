@@ -1,0 +1,14 @@
+[package]
+name = "policy-core"
+description = "Spend-policy arithmetic for the policy wallet: UTC-day windows, per-call and daily limits, reserve and release"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# Intentionally empty: the policy core is dependency-free so the same rules
+# can be enforced on chain and modelled off chain. Adding a dependency here
+# requires an ADR.
+
+[dev-dependencies]
+proptest = "1.7"
