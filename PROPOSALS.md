@@ -67,7 +67,7 @@ creates any key; the repository never holds one.
 
 | # | Item | Why | First PR |
 |---|---|---|---|
-| 1 | Durable ledger (SQLite/Sled behind a trait in aps-api) | restarts currently lose state; the #1 credibility gap | ADR-0006 + event-sourced append log + replay test |
+| 1 | Durable ledger (SQLite/Sled behind a trait in aps-api) | restarts currently lose state; the #1 credibility gap | a durable-ledger ADR + event-sourced append log + replay test |
 | 2 | Per-caller authentication (bearer keys or ed25519-signed requests) | the single dev caller is the biggest real security limitation | caller registry + per-caller idempotency scope (already structural) |
 | 3 | Listener-based deposits (replace tx-hash hints) | removes the client-supplied hint step; the gateway watches for memo-matching transfers | block-scanning worker behind the provider trait |
 | 4 | NEAR Intents 1Click adapter v2 | cross-chain deposits (USDC from any chain) without custodians; official Rust SDK exists | quote->depositAddress->status flow behind PaymentProvider |
@@ -99,7 +99,7 @@ creates any key; the repository never holds one.
 | Single-operator custody | the gateway account is one wallet | spend-policy wallet contract (section 3, planned); later, a multisig (Trezu/Sputnik) as the deposit account |
 | In-memory state | restarts lose credit | roadmap item 1; document loudly until then |
 | One-shot submission errors | project name/email must be unique across the hackathon | draft the payload early, human sends, requestId reused on retry |
-| Pre-window commits | rules are silent on pre-window work | ask organizers in Discord; if sensitive, land public history inside the window |
+| Pre-window commits | rules are silent on pre-window work | docs/decisions/0006-prior-work-and-window.md: disclose prior work in the README, tag the window boundary, hold new feature code until the organizers answer; commit dates are never rewritten |
 
 ## 7. Submission checklist (from HACKATHON.md)
 
