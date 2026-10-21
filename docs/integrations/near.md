@@ -199,7 +199,7 @@ Consequences for the demo flow:
 The agent does not hold (and must never hold) the Base-side key, so this
 step belongs to the operator. Two supported routes:
 
-**Route A - NEAR Intents (recommended, and it exercises our v2 target):**
+**Route A - NEAR Intents (recommended, and it exercises the project's v2 target):**
 1. Open the NEAR Intents flow (https://intents.near.org or a 1Click-integrated
    frontend) and sign in with **hlpok1lad.tg** (the HOT/.tg wallet can
    authenticate it).

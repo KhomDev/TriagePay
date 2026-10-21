@@ -25,10 +25,12 @@ abstraction, the HTTP API, and the scan engine.
   [docs/threat-model.md](docs/threat-model.md), including the accepted
   residual risks.
 
-## What we will not do
+## Non-goals and guarantees
 
-- We do not log request bodies.
-- We do not accept client assertions as proof of payment.
-- We do not fetch URLs found in evidence fields.
-- We do not put floats near money.
+- Request bodies are never logged.
+- Client assertions are never accepted as proof of payment; credit is
+  funded only from provider-observed confirmations.
+- URLs found in evidence fields are never fetched.
+- No floating-point value is used anywhere near money; balances are
+  integer atomic units.
 
