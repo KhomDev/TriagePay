@@ -146,7 +146,11 @@ def main():
                       f"{key.get('nonce')}) - can sign transfers")
             else:
                 print(f"[warn] access key is a function-call key "
-                      f"({json.dumps(permission)}) - signing scope is restricted")
+                      f"({json.dumps(permission)}) - it cannot send the deposit "
+                      f"ft_transfer: NEP-141 requires exactly 1 yoctoNEAR attached "
+                      f"and function-call keys cannot attach a deposit. Use a "
+                      f"FullAccess key for the payer, or the planned spend-policy "
+                      f"wallet (docs/integrations/near.md, 'Security-track angle')")
         except Exception as err:  # noqa: BLE001
             print(f"[FAIL] access key not found on the account: {err}")
             failures.append("public key not registered on the account")
