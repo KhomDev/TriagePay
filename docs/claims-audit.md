@@ -3,7 +3,7 @@
 Every testable claim in the public documentation, mapped to its evidence.
 This file exists so a reviewer (human or AI judge) can verify the repo
 against its own promises without trusting prose. Audit date: 2026-10-21,
-taken at commit `6057ae4` (the commit that records this refresh changes
+taken at commit `3139b75` (the commit that records this refresh changes
 documentation only). Previous audit: 2026-10-20.
 **Rule: if a claim is not green here, it is a defect - fix the doc or the
 code, never the audit.**

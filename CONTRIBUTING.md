@@ -11,7 +11,14 @@
    must keep the injection corpus green (injections never change
    outcomes).
 5. No secrets, private paths, protocol names, or private corpus content
-   anywhere in code, tests, fixtures, logs, or docs.
+   anywhere in code, tests, fixtures, logs, or docs - not even as
+   digests. Real private terms are checked off-repo only (see
+   knowledge-compiler/knowledge_compiler/leakage.py and
+   APS_PRIVATE_DENYLIST); tests use synthetic stand-ins.
+6. Voice: the project has one independent developer. Public text uses
+   first person singular or neutral voice, never first-person plural.
+   `python scripts/voice-check.py` enforces this in CI; a line carrying
+   `<!-- voice-ok -->` is exempt, for verbatim third-party quotes only.
 
 ## Workflow
 
@@ -19,10 +26,15 @@
 cargo fmt --all
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --workspace
-cd scanner && python -m pytest -q
+(cd scanner && python -m pytest -q)
+(cd knowledge-compiler && python -m pytest -q)
+python -m pytest tests -q
+python -m ruff check scanner knowledge-compiler
+python scripts/voice-check.py
 ```
 
-All four must pass before a commit lands. Small commits, present tense,
+All of these must pass before a commit lands; CI runs the same set plus
+cargo audit and the ruleset `--check`. Small commits, present tense,
 scoped to one concern.
 
 ## Adding a payment provider

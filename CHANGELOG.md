@@ -53,3 +53,31 @@ follows Keep a Changelog; the project has not shipped a tagged release.
   bodies (found by the error-hygiene canary suite); scanner errors are
   bounded before they reach any response.
 
+### Changed (2026-10-21: truth and privacy hygiene)
+- Privacy: the leakage scanner, its tests, the scanner privacy test, and
+  SCANNER_SPEC.md no longer contain private terms. Real terms are
+  checked off-repo only, from the digest file named by
+  APS_PRIVATE_DENYLIST; the published denylist holds a synthetic
+  stand-in only, because a published digest of a guessable word is
+  reversible. New `digest` and `scan-tree` compiler commands.
+- Docs: the function-call-key hardening claim is withdrawn as
+  infeasible (function-call keys cannot attach the 1 yoctoNEAR that
+  NEP-141 ft_transfer requires); the planned replacement is a
+  spend-policy wallet contract. The near preflight script now says so
+  when it finds a function-call key.
+- Docs: stale "mainnet E2E pending" statements and the SECURITY.md "no
+  real funds" sentence are corrected; SECURITY.md lists "Non-goals and
+  guarantees" in neutral voice; the claims audit is refreshed with
+  regenerated test counts.
+- Docs: ADR-0006 (prior work, commit history, and the hackathon window)
+  and ADR-0007 (product direction).
+
+### Added (2026-10-21)
+- CI voice gate: scripts/voice-check.py fails on first-person plural in
+  tracked Markdown (`<!-- voice-ok -->` exempts a verbatim third-party
+  quote).
+
+### Fixed (2026-10-21)
+- `compile --check` is byte-stable on Windows: write_artifact pins LF
+  line endings.
+
