@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["policy-core"]
+members = ["policy-core", "contracts/policy-wallet"]
 
 [workspace.package]
 version = "0.1.0"
