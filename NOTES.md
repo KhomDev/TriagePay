@@ -87,12 +87,12 @@ cargo-near wasm build cover the contract code.
 | Item | Value |
 |---|---|
 | File | `target/near/policy_wallet/policy_wallet.wasm` |
-| Size | 165,025 bytes |
-| SHA-256 | `0e1b5272d3c03f24f3272d19fddc46751ef7aab9449a0b1295e3798ba38408fd` |
-| SHA-256 (base58, as cargo-near prints) | `x4sYs8ZEe1cBEZ2dgAZi63jyRRHsA3kQvJNkfCgjfHe` |
-| Built at commit | `a6b5d8b` |
+| Size | 174,798 bytes |
+| SHA-256 | `22de525576ea9f8711c8db59cdee6ad06cf221d5f6f818a4499d989d29743c9c` |
+| SHA-256 (base58, as cargo-near prints) | `3M7V5UVy1QpmbFk1BzzcDGA9nsMM5zGMP5gDG56bY7Ab` |
+| Built at commit | `e1aecff` (adds `close`; the pre-`close` build at `a6b5d8b` was 165,025 bytes, SHA-256 `0e1b5272d3c03f24f3272d19fddc46751ef7aab9449a0b1295e3798ba38408fd`) |
 | Imports | 37 functions, all from module `env` |
-| Exports | `new`, `pay`, `on_pay_complete`, `set_agent`, `revoke_agent`, `set_tokens`, `pause`, `unpause`, `withdraw`, `on_withdraw_complete`, `ft_on_transfer`, `get_agent`, `get_spent`, `get_config`, `contract_source_metadata` |
+| Exports | `new`, `pay`, `on_pay_complete`, `set_agent`, `revoke_agent`, `set_tokens`, `pause`, `unpause`, `withdraw`, `on_withdraw_complete`, `close`, `on_close_check`, `ft_on_transfer`, `get_agent`, `get_spent`, `get_config`, `contract_source_metadata` |
 
 The same hash came out of two builds from different checkout directories,
 so the host path is not embedded in the module. This is a non-reproducible
@@ -108,9 +108,9 @@ notes, never guessed.
 |---|---|---|
 | policy-core unit tests | 25 | yes |
 | policy-core property tests (proptest, 256 cases each) | 3 | yes |
-| policy-wallet unit tests (near-sdk mocked runtime) | 50 | yes |
+| policy-wallet unit tests (near-sdk mocked runtime) | 62 | yes |
 | test-token unit tests | 3 | yes |
-| sandbox integration tests (near-workspaces) | 15 | compiled and reported as ignored on Windows; written for Linux CI, never executed yet |
+| sandbox integration tests (near-workspaces) | 18 | compiled and reported as ignored on Windows; written for Linux CI, never executed yet |
 
 Test-token wasm (same build command, from `contracts/test-token/`): 148,419
 bytes, SHA-256
@@ -154,3 +154,7 @@ build.
 - `#[private]` cannot be exercised in near-sdk unit tests (the generated
   wasm entry point enforces it and the mocked runtime bypasses that); the
   sandbox tests cover it.
+- Added after lead review: owner-only `close(beneficiary)` (1 yocto,
+  paused only) with the private `on_close_check` callback and the
+  `closed` / `close_refused` events and `ERR_NOT_PAUSED`, so the keyless
+  wallet's storage stake is recoverable without an upgrade path.

@@ -16,7 +16,7 @@ execution belongs to prompt 09). No key material appears here.
 | Payee allowlist | `[<gateway>]` only | prompt 02 |
 | Token | native USDC `17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1`, 6 decimals | prompt 02 |
 | Policy | `per_call_max` = 0.05 USDC = `"50000"`; `daily_max` = 0.20 USDC = `"200000"` | prompt 02 |
-| Wasm | `policy_wallet.wasm`, 165,025 bytes, SHA-256 `0e1b5272d3c03f24f3272d19fddc46751ef7aab9449a0b1295e3798ba38408fd` (spike build, see below) | `NOTES.md` |
+| Wasm | `policy_wallet.wasm`, 174,798 bytes, SHA-256 `22de525576ea9f8711c8db59cdee6ad06cf221d5f6f818a4499d989d29743c9c` (spike build with `close`, see below) | `NOTES.md` |
 | `storage_amount_per_byte` | `10000000000000000000` yoctoNEAR (1e19; 1 NEAR per 100 KB) | read-only `EXPERIMENTAL_protocol_config` on `https://rpc.mainnet.near.org`, finality `final`, 2026-10-21T19:15Z; protocol version 86. Matches the lead's independent read and the research note `docs/research/near-contract-toolchain.md` |
 | Gas price | `100000000` yoctoNEAR per gas (0.0001 NEAR per TGas) | read-only `gas_price` on the same endpoint, same time |
 | Prepaid-gas planning price | 0.001 NEAR per TGas (10x the burn price; unused gas is refunded) | research note `docs/research/near-contract-toolchain.md` |
@@ -32,16 +32,19 @@ size.
 
 | Component | Bytes | Stake (NEAR) |
 |---|---|---|
-| Contract code | 165,025 | 1.65025 |
+| Contract code | 174,798 | 1.74798 |
 | Account record (`num_bytes_account`) | 100 | 0.00100 |
 | Contract state after `new` and one `set_agent` (estimate: config, token list, one agent entry with one payee, record overheads) | about 500 | about 0.00500 |
-| **Total** | **about 165,625** | **about 1.65625** |
+| **Total** | **about 175,398** | **about 1.75398** |
 
 Computation: stake = bytes x 1e19 yoctoNEAR = bytes x 0.00001 NEAR.
 
-The wallet keeps no access keys after deployment, so its NEAR can never be
-withdrawn and the account can never be deleted: the stake is a permanent
-cost. Fund it with the stake plus a small headroom only.
+The wallet keeps no access keys after deployment, so its NEAR cannot be
+moved by any key. It is not locked forever: the wallet is closable by the
+owner after withdrawing all tokens (T8), and the account deletion returns
+its NEAR, stake included, to a beneficiary. Recovery of the storage stake
+by account deletion is to be confirmed on testnet. Fund it with the stake
+plus a small headroom only.
 
 ## Transactions
 
@@ -56,12 +59,12 @@ cost at the current gas price is one tenth of that.
 |---|---|
 | Signer | `<operator>` (full-access key) |
 | Receiver | `agent-wallet.<operator>` |
-| Actions | `CreateAccount`; `Transfer` 1.70 NEAR; `AddKey` (temporary full-access key `<K_deploy>`, generated for this run, held outside the repository) |
+| Actions | `CreateAccount`; `Transfer` 1.80 NEAR; `AddKey` (temporary full-access key `<K_deploy>`, generated for this run, held outside the repository) |
 | Gas | about 8.4 TGas burnt |
-| Max cost | 1.70 NEAR transfer + about 0.0084 NEAR gas |
+| Max cost | 1.80 NEAR transfer + about 0.0084 NEAR gas |
 
-1.70 NEAR covers the 1.65625 NEAR stake with about 0.044 NEAR headroom
-(about 4.4 KB of further state, roughly 15 more agent entries).
+1.80 NEAR covers the 1.75398 NEAR stake with about 0.046 NEAR headroom
+(about 4.6 KB of further state, roughly 15 more agent entries).
 
 ### T2. Deploy, initialize, lock
 
@@ -70,7 +73,7 @@ cost at the current gas price is one tenth of that.
 | Signer | `agent-wallet.<operator>` with `<K_deploy>` |
 | Receiver | `agent-wallet.<operator>` |
 | Actions | `DeployContract` (the wasm above); `FunctionCall new {"owner": "<operator>", "tokens": ["17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1"]}`, deposit 0, gas 30 TGas; `DeleteKey <K_deploy>` |
-| Gas | deploy about 11.8 TGas (165,025 x 71,385,943) + 0.4 TGas base; `new` 30 TGas prepaid; delete key 0.2 TGas |
+| Gas | deploy about 12.5 TGas (174,798 x 71,385,943) + 0.4 TGas base; `new` 30 TGas prepaid; delete key 0.2 TGas |
 | Max cost | about 0.043 NEAR |
 
 `new` is `#[private]`, so it must be called by the wallet account itself in
@@ -150,24 +153,46 @@ gas is paid from its balance.
 | Gas | 50 TGas |
 | Max cost | 0.05 USDC from the wallet + about 0.0503 NEAR of allowance (expected about 0.002 NEAR burnt) |
 
+### T8 (retirement, later). Close the wallet
+
+Run only when the wallet is retired. Order: `pause` (owner, 1 yocto), then
+`withdraw` of the full balance of every token the wallet holds (owner,
+1 yocto, 50 TGas each), then:
+
+| Field | Value |
+|---|---|
+| Signer | `<operator>` |
+| Receiver | `agent-wallet.<operator>` |
+| Actions | `FunctionCall close {"beneficiary": "<operator>"}` |
+| Deposit | 1 yoctoNEAR |
+| Gas | 50 TGas (the contract requires 25 TGas plus 5 TGas per allowlisted token) |
+| Max cost | 0.05 NEAR gas; returns the wallet's whole NEAR balance (about 1.80 NEAR less storage already released) to `<operator>` |
+
+The callback emits `closed` and deletes the account only if
+`ft_balance_of(wallet)` is zero on every allowlisted token; otherwise it
+emits `close_refused` and nothing changes. Verify afterwards that
+`view_account(agent-wallet.<operator>)` reports the account missing and
+that the beneficiary's NEAR rose by about the wallet's balance. The
+wallet's USDC storage deposit (0.00125 NEAR) stays with the USDC contract.
+
 ## Totals (maximum, before refunds)
 
 | Item | NEAR | USDC |
 |---|---|---|
-| Wallet account balance (T1; permanently locked as stake and headroom) | 1.70 | - |
+| Wallet account balance (T1; held as stake and headroom, recoverable by `close`, T8) | 1.80 | - |
 | Gas, T1 to T6 | about 0.21 | - |
 | USDC storage deposit (T3) | 0.00125 | - |
 | Funding (T4) | - | `<funding>` |
 | Agent account NEAR for the allowance (T6) | 0.5 (spent only as gas) | - |
-| **Total** | **about 2.41** | **`<funding>`** |
+| **Total** | **about 2.51** | **`<funding>`** |
 
 ## Open questions for prompt 09
 
 - Final account names (`<operator>`, `<gateway>`, `<agent-account>`) per
   the ADR-0006 naming decision.
 - The reproducible-build hash and size that replace the spike values.
-- Whether the operator accepts a permanently keyless wallet (about
-  1.70 NEAR locked) or prefers to keep a recovery key and give up the
-  immutability guarantee.
+- The wallet stays keyless and immutable; it is closable by the owner
+  after withdrawing all tokens, and recovery of the storage stake by
+  account deletion is to be confirmed on testnet.
 - Funding amount and campaign length.
 - Testnet confirmation of T2's self-deleting batch.

@@ -69,6 +69,16 @@ The upgrade path is to deploy a new wallet to a new account, re-provision
 agents, and withdraw the remaining balance from the old wallet with
 `withdraw` (which keeps working while paused and for de-listed tokens).
 
+Retiring a wallet does not need an upgrade either. The owner pauses it,
+withdraws every token, and calls `close(beneficiary)` (exactly 1 yocto,
+owner only, paused only). `close` queries `ft_balance_of(wallet)` on every
+allowlisted token; its private callback deletes the wallet account to the
+beneficiary only if every balance is zero, and otherwise emits
+`close_refused` and changes nothing. Deletion returns the wallet's NEAR,
+including the storage stake, so a keyless wallet no longer locks its
+stake forever. The code itself is never replaced: there is still no
+upgrade, migrate or redeploy path.
+
 ## Consequences
 
 - An agent-key compromise is bounded by that agent's `daily_max` per UTC
@@ -85,8 +95,15 @@ agents, and withdraw the remaining balance from the old wallet with
   than 35 TGas so the callback always has gas.
 - Refusals panic with stable `ERR_*` codes, so nothing changes on chain and
   the reason is visible on any explorer.
+- The storage stake is recoverable: an empty, paused wallet is closable by
+  the owner, and account deletion returns its NEAR to the beneficiary.
+  Tokens held but no longer allowlisted are not checked by `close` and
+  must be withdrawn first, and the beneficiary must exist.
 
 ## Open items
+
+- Confirm on testnet that recovery of the storage stake by account
+  deletion behaves as expected (`close` after withdrawing all tokens).
 
 - Reproducible wasm build (`cargo near build reproducible-wasm`) with a
   pinned image, so the deployed code hash can be re-derived by anyone.

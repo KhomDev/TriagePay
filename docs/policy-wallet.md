@@ -23,6 +23,8 @@ and ids are JSON strings (`U64`).
 | `pause()` / `unpause()` | owner | exactly 1 yocto | 10 TGas | Stop / resume every `pay` |
 | `withdraw(token, amount, to)` | owner | exactly 1 yocto | >= 35 TGas | `ft_transfer` any held token to `to` (works while paused) |
 | `on_withdraw_complete(token, amount, to)` | the wallet itself (`#[private]`) | - | 10 TGas (static) | `withdrawn` or `withdraw_failed` |
+| `close(beneficiary)` | owner, wallet paused | exactly 1 yocto | >= 25 TGas + 5 TGas per allowlisted token (50 recommended) | Query `ft_balance_of(wallet)` on every allowlisted token, then `on_close_check` |
+| `on_close_check(beneficiary, tokens)` | the wallet itself (`#[private]`) | - | 15 TGas (static) | All balances zero: emit `closed` and delete the wallet account to `beneficiary`. Otherwise emit `close_refused` and change nothing; returns `false` |
 | `ft_on_transfer(sender_id, amount, msg)` | an allowlisted token contract | - | - | Accept funding via `ft_transfer_call` (returns `"0"`); any other token is refused and refunded |
 | `get_agent(agent_id)` | anyone (view) | - | - | Limits, payees, active, spent and remaining in the current UTC day, window index, next reset time; `null` if unknown |
 | `get_spent(agent_id)` | anyone (view) | - | - | Spent in the current UTC day (`"0"` if unknown) |
@@ -49,6 +51,8 @@ Logged as `EVENT_JSON:{"standard":"aps_policy_wallet","version":"1.0.0","event":
 | `paused` / `unpaused` | `by` |
 | `funded` | `token`, `sender_id`, `amount` |
 | `withdrawn` / `withdraw_failed` | `token`, `amount`, `to` |
+| `closed` | `beneficiary` (emitted just before the account deletion) |
+| `close_refused` | `tokens`: list of `{token, balance}` that blocked the close (`balance` is `null` when the query failed) |
 
 ## Error codes
 
@@ -71,7 +75,8 @@ Every refusal panics with `CODE: description`; the code is stable.
 | `ERR_INSUFFICIENT_GAS` | `pay`, `withdraw` | Less than 35 TGas prepaid |
 | `ERR_MEMO_TOO_LONG` | `pay` | Memo over 256 bytes |
 | `ERR_TOO_MANY_TOKENS` | `new`, `set_tokens` | More than 16 tokens |
-| `ERR_SELF_ACCOUNT` | `new`, `set_agent`, `set_tokens`, `withdraw` | The wallet itself used as owner, agent, payee, token or destination |
+| `ERR_SELF_ACCOUNT` | `new`, `set_agent`, `set_tokens`, `withdraw`, `close` | The wallet itself used as owner, agent, payee, token, destination or beneficiary |
+| `ERR_NOT_PAUSED` | `close` | Pause the wallet before closing |
 | `Requires attached deposit of exactly 1 yoctoNEAR` | owner methods | near-sdk `assert_one_yocto`; what any function-call key hits |
 
 ## Threat table
@@ -80,7 +85,8 @@ Every refusal panics with `CODE: description`; the code is stable.
 |---|---|---|
 | Agent key theft | The key can only call `pay` on the wallet with zero deposit. Spend is capped at `daily_max` per UTC day, to allowlisted payees only. The owner can `revoke_agent` or `pause` at once and delete the key from the agent account | Up to one day's limit to allowlisted payees, plus the key's gas allowance (paid in the agent account's NEAR) |
 | Agent tries owner methods | Every owner method requires exactly 1 yocto (function-call keys cannot attach a deposit) and `predecessor == owner` | None known (tested in unit and sandbox suites) |
-| Agent forges a callback to refund itself | `on_pay_complete` and `on_withdraw_complete` are `#[private]` | None known |
+| Agent forges a callback to refund itself or to delete the wallet | `on_pay_complete`, `on_withdraw_complete` and `on_close_check` are `#[private]` | None known |
+| Premature or hostile `close` | Owner only, exactly 1 yocto, paused only; deletes only when every allowlisted balance reads zero; a failed or unreadable balance query refuses | Tokens held but no longer allowlisted are not checked (withdraw them first); a missing beneficiary loses the NEAR |
 | Owner key compromise | Owner can withdraw everything; keep the key offline or in a hardware wallet | Full wallet balance |
 | Contract bug | Policy math in a pure crate with property tests; checked u128; immutable code; small balances in the wallet | Funds in the wallet at the time |
 | Redeploy or re-init by a third party | `new` is private and init-once; the wallet account keeps no access keys after the deploy batch | None while no key exists on the wallet account |
@@ -108,6 +114,8 @@ order:
 6. Agent account: add a function-call key, `receiver_id = wallet`,
    `method_names = ["pay"]`, with a gas allowance.
 7. Agent: `pay(token, receiver_id, amount, memo)` with 50 TGas, no deposit.
+8. Retire: owner `pause`, `withdraw` every token, then `close(beneficiary)`;
+   the account deletion returns the wallet's NEAR, storage stake included.
 
 ## Tests
 
@@ -115,6 +123,6 @@ order:
 |---|---|---|
 | `policy-core` unit | 25 | any host |
 | `policy-core` property (proptest) | 3 | any host |
-| `policy-wallet` unit (near-sdk mocked runtime) | 50 | any host |
+| `policy-wallet` unit (near-sdk mocked runtime) | 62 | any host |
 | `test-token` unit | 3 | any host |
-| Sandbox integration (near-workspaces) | 15 | Linux CI only; written, not yet executed |
+| Sandbox integration (near-workspaces) | 18 | Linux CI only; written, not yet executed |
