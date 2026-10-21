@@ -714,3 +714,79 @@ async fn init_and_callbacks_are_private() -> TestResult {
     assert_eq!(config["event_standard"], "aps_policy_wallet");
     Ok(())
 }
+
+// ----- close ------------------------------------------------------------------------
+
+#[tokio::test]
+#[cfg_attr(windows, ignore = "near-sandbox has no Windows build")]
+async fn close_is_owner_only_and_requires_paused() -> TestResult {
+    let env = setup().await?;
+    let res = env
+        .agent_full
+        .call(env.wallet.id(), "close")
+        .args_json(json!({"beneficiary": env.agent.id()}))
+        .deposit(ONE_YOCTO)
+        .max_gas()
+        .transact()
+        .await?;
+    assert_refused(&res, "ERR_NOT_OWNER");
+    let res = env
+        .owner_call("close", json!({"beneficiary": env.owner.id()}))
+        .await?;
+    assert_refused(&res, "ERR_NOT_PAUSED");
+    env.worker.view_account(env.wallet.id()).await?;
+    Ok(())
+}
+
+#[tokio::test]
+#[cfg_attr(windows, ignore = "near-sandbox has no Windows build")]
+async fn close_is_refused_while_tokens_remain() -> TestResult {
+    let env = setup().await?;
+    env.owner_call("pause", json!({})).await?.into_result()?;
+    let res = env
+        .owner_call("close", json!({"beneficiary": env.owner.id()}))
+        .await?;
+    assert!(has_event(&res, "close_refused"), "{:?}", res.logs());
+    assert!(!has_event(&res, "closed"));
+    let account = env.worker.view_account(env.wallet.id()).await?;
+    assert!(account.balance > NearToken::from_near(1));
+    assert_eq!(env.balance(env.wallet.id()).await?, FUNDING);
+    Ok(())
+}
+
+#[tokio::test]
+#[cfg_attr(windows, ignore = "near-sandbox has no Windows build")]
+async fn close_after_withdrawing_everything_deletes_the_wallet() -> TestResult {
+    let env = setup().await?;
+    env.owner_call("pause", json!({})).await?.into_result()?;
+    let remaining = env.balance(env.wallet.id()).await?;
+    env.owner_call(
+        "withdraw",
+        json!({"token": env.token.id(), "amount": remaining.to_string(), "to": env.owner.id()}),
+    )
+    .await?
+    .into_result()?;
+    assert_eq!(env.balance(env.wallet.id()).await?, 0);
+    let wallet_near = env.worker.view_account(env.wallet.id()).await?.balance;
+    let owner_before = env.worker.view_account(env.owner.id()).await?.balance;
+    let res = env
+        .owner_call("close", json!({"beneficiary": env.owner.id()}))
+        .await?;
+    assert!(res.is_success(), "{:?}", res.failures());
+    assert!(has_event(&res, "closed"));
+    assert!(
+        env.worker.view_account(env.wallet.id()).await.is_err(),
+        "wallet account still exists"
+    );
+    let owner_after = env.worker.view_account(env.owner.id()).await?.balance;
+    // The owner receives the wallet's whole NEAR balance (stake included),
+    // less the gas the owner paid for the close transaction.
+    let gained = owner_after.as_yoctonear() as i128 - owner_before.as_yoctonear() as i128;
+    let expected = wallet_near.as_yoctonear() as i128;
+    let tolerance = NearToken::from_millinear(50).as_yoctonear() as i128;
+    assert!(
+        (expected - gained).abs() < tolerance,
+        "owner gained {gained}, wallet held {expected}"
+    );
+    Ok(())
+}
