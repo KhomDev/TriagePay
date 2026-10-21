@@ -51,6 +51,18 @@ jobs:
       - name: Committed ruleset is byte-stable
         run: python -m knowledge_compiler compile --source knowledge-compiler/samples/synthetic --out scanner/rulesets/rules-v0.synthetic.1.json --check
         working-directory: knowledge-compiler
+  voice:
+    name: Documentation voice
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Voice check self-test
+        run: python scripts/voice-check.py --self-test
+      - name: No first-person plural in tracked Markdown
+        run: python scripts/voice-check.py
   openapi:
     name: OpenAPI conformance
     runs-on: ubuntu-latest
