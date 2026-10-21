@@ -25,6 +25,17 @@ pub enum ReleaseStatus {
     Mismatch,
 }
 
+/// A token that blocked `close`, with its balance (`null` when the balance
+/// query failed or returned an unreadable value).
+#[near(serializers = [json])]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TokenBalance {
+    /// The NEP-141 token contract.
+    pub token: AccountId,
+    /// The wallet's balance on it, if it could be read.
+    pub balance: Option<U128>,
+}
+
 /// Wallet events. Variant names serialize as snake_case event names.
 #[near(event_json(standard = "aps_policy_wallet"))]
 pub enum WalletEvent {
@@ -130,6 +141,19 @@ pub enum WalletEvent {
         amount: U128,
         /// Destination account.
         to: AccountId,
+    },
+    /// `close` found every allowlisted balance at zero; the account
+    /// deletion follows in the same receipt chain.
+    #[event_version("1.0.0")]
+    Closed {
+        /// Receives the wallet's NEAR.
+        beneficiary: AccountId,
+    },
+    /// `close` found a non-zero or unreadable balance; nothing changed.
+    #[event_version("1.0.0")]
+    CloseRefused {
+        /// The tokens that blocked the close.
+        tokens: Vec<TokenBalance>,
     },
     /// An owner withdrawal transfer failed; no tokens left the wallet.
     #[event_version("1.0.0")]

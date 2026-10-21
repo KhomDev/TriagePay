@@ -13,14 +13,16 @@
 //! would allow it.
 //!
 //! The contract has no upgrade method. Redeploying to a new account is the
-//! upgrade path.
+//! upgrade path. The owner can `close` a paused wallet whose allowlisted
+//! token balances are all zero; that deletes the wallet account and returns
+//! its NEAR, including the storage stake, to a beneficiary.
 
 pub mod events;
 
 #[cfg(test)]
 mod tests;
 
-use events::{ReleaseStatus, WalletEvent};
+use events::{ReleaseStatus, TokenBalance, WalletEvent};
 use near_sdk::json_types::{U128, U64};
 use near_sdk::store::LookupMap;
 use near_sdk::{
@@ -44,6 +46,8 @@ pub const ERR_MEMO_TOO_LONG: &str = "ERR_MEMO_TOO_LONG";
 pub const ERR_TOO_MANY_TOKENS: &str = "ERR_TOO_MANY_TOKENS";
 /// The wallet's own account was used as an agent, payee or destination.
 pub const ERR_SELF_ACCOUNT: &str = "ERR_SELF_ACCOUNT";
+/// `close` was called while the wallet is not paused.
+pub const ERR_NOT_PAUSED: &str = "ERR_NOT_PAUSED";
 
 /// Largest accepted memo, in bytes.
 pub const MAX_MEMO_LEN: usize = 256;
@@ -58,6 +62,15 @@ pub const GAS_CALLBACK: Gas = Gas::from_tgas(10);
 /// and headroom for the calling method itself. Below this the callback
 /// could run out of gas and leave a reservation unreleased.
 pub const GAS_MIN_PREPAID: Gas = Gas::from_tgas(35);
+/// Gas attached to each `ft_balance_of` query made by `close`.
+pub const GAS_BALANCE_QUERY: Gas = Gas::from_tgas(5);
+/// Gas attached to the `close` callback (balance checks plus the delete).
+pub const GAS_CLOSE_CALLBACK: Gas = Gas::from_tgas(15);
+/// Headroom `close` keeps for its own execution on top of the queries and
+/// the callback.
+pub const GAS_CLOSE_OVERHEAD: Gas = Gas::from_tgas(10);
+/// Largest `ft_balance_of` result accepted (a JSON-quoted u128).
+const MAX_BALANCE_RESULT_LEN: usize = 48;
 
 /// One yoctoNEAR, the deposit NEP-141 `ft_transfer` requires.
 const ONE_YOCTO: NearToken = NearToken::from_yoctonear(1);
@@ -67,6 +80,8 @@ const ONE_YOCTO: NearToken = NearToken::from_yoctonear(1);
 pub trait FungibleToken {
     /// NEP-141 transfer; requires exactly 1 yoctoNEAR attached.
     fn ft_transfer(&mut self, receiver_id: AccountId, amount: U128, memo: Option<String>);
+    /// NEP-141 balance query.
+    fn ft_balance_of(&self, account_id: AccountId) -> U128;
 }
 
 #[near]
@@ -464,6 +479,98 @@ impl PolicyWallet {
             WalletEvent::WithdrawFailed { token, amount, to }.emit();
             false
         }
+    }
+
+    // ----- close ------------------------------------------------------------
+
+    /// Delete the wallet account and send its NEAR (including the storage
+    /// stake) to `beneficiary`. Owner only, exactly 1 yoctoNEAR, and only
+    /// while paused. Queries `ft_balance_of(wallet)` on every allowlisted
+    /// token; the callback deletes the account only if every balance is
+    /// zero, and otherwise emits `close_refused` and changes nothing.
+    ///
+    /// Tokens held but no longer allowlisted are not checked: withdraw them
+    /// first. `beneficiary` must be an existing account; NEAR sent by an
+    /// account deletion to a missing account is not recoverable.
+    #[payable]
+    pub fn close(&mut self, beneficiary: AccountId) -> PromiseOrValue<bool> {
+        self.assert_owner();
+        if !self.paused {
+            fail_with(ERR_NOT_PAUSED, "pause the wallet before closing");
+        }
+        let me = env::current_account_id();
+        if beneficiary == me {
+            fail_with(ERR_SELF_ACCOUNT, "the wallet cannot be its own beneficiary");
+        }
+        let tokens = self.tokens.clone();
+        let Some((first, rest)) = tokens.split_first() else {
+            // Nothing to check: close at once.
+            WalletEvent::Closed {
+                beneficiary: beneficiary.clone(),
+            }
+            .emit();
+            return PromiseOrValue::Promise(Promise::new(me).delete_account(beneficiary));
+        };
+        let needed = GAS_BALANCE_QUERY
+            .saturating_mul(tokens.len() as u64)
+            .saturating_add(GAS_CLOSE_CALLBACK)
+            .saturating_add(GAS_CLOSE_OVERHEAD);
+        if env::prepaid_gas() < needed {
+            fail_with(
+                ERR_INSUFFICIENT_GAS,
+                "attach 25 TGas plus 5 TGas per allowlisted token",
+            );
+        }
+        let query = |token: &AccountId| {
+            ext_ft::ext(token.clone())
+                .with_static_gas(GAS_BALANCE_QUERY)
+                .ft_balance_of(me.clone())
+        };
+        let balances = rest
+            .iter()
+            .fold(query(first), |all, token| all.and(query(token)));
+        PromiseOrValue::Promise(
+            balances.then(
+                Self::ext(me.clone())
+                    .with_static_gas(GAS_CLOSE_CALLBACK)
+                    .on_close_check(beneficiary, tokens),
+            ),
+        )
+    }
+
+    /// Callback for `close`. Deletes the wallet account when every queried
+    /// balance is zero; a failed or unreadable query counts as non-zero.
+    #[private]
+    pub fn on_close_check(
+        &mut self,
+        beneficiary: AccountId,
+        tokens: Vec<AccountId>,
+    ) -> PromiseOrValue<bool> {
+        let held: Vec<TokenBalance> = tokens
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, token)| {
+                let balance = env::promise_result_checked(i as u64, MAX_BALANCE_RESULT_LEN)
+                    .ok()
+                    .and_then(|bytes| near_sdk::serde_json::from_slice::<U128>(&bytes).ok());
+                match balance {
+                    Some(U128(0)) => None,
+                    other => Some(TokenBalance {
+                        token,
+                        balance: other,
+                    }),
+                }
+            })
+            .collect();
+        if !held.is_empty() {
+            WalletEvent::CloseRefused { tokens: held }.emit();
+            return PromiseOrValue::Value(false);
+        }
+        WalletEvent::Closed {
+            beneficiary: beneficiary.clone(),
+        }
+        .emit();
+        PromiseOrValue::Promise(Promise::new(env::current_account_id()).delete_account(beneficiary))
     }
 
     // ----- funding ----------------------------------------------------------

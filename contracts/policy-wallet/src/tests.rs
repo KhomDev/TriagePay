@@ -83,12 +83,15 @@ impl Ctx {
         testing_env!(self.build());
     }
     fn set_with_result(self, result: PromiseResult) {
+        self.set_with_results(vec![result]);
+    }
+    fn set_with_results(self, results: Vec<PromiseResult>) {
         testing_env!(
             self.build(),
             near_sdk::test_vm_config(),
             RuntimeFeesConfig::test(),
             Default::default(),
-            vec![result]
+            results
         );
     }
 }
@@ -509,6 +512,12 @@ agent_cannot_call!(agent_full_key_cannot_set_agent, 1, "ERR_NOT_OWNER", |w| w
 agent_cannot_call!(agent_full_key_cannot_withdraw, 1, "ERR_NOT_OWNER", |w| w
     .withdraw(usdc(), U128(1), agent())
     .detach());
+agent_cannot_call!(fc_key_cannot_close, 0, "exactly 1 yoctoNEAR", |w| w
+    .close(agent())
+    .detach());
+agent_cannot_call!(agent_full_key_cannot_close, 1, "ERR_NOT_OWNER", |w| w
+    .close(agent())
+    .detach());
 
 #[test]
 #[should_panic(expected = "Requires attached deposit of exactly 1 yoctoNEAR")]
@@ -709,6 +718,164 @@ fn ft_on_transfer_refuses_other_tokens() {
     let mut w = setup();
     Ctx::new(dai()).set();
     let _ = w.ft_on_transfer(owner(), U128(1), String::new());
+}
+
+// ----- close ----------------------------------------------------------------------------
+
+/// A paused wallet with USDC and DAI allowlisted.
+fn paused_two_token_wallet() -> PolicyWallet {
+    let mut w = setup();
+    as_owner().set();
+    w.set_tokens(vec![usdc(), dai()]);
+    w.pause();
+    w
+}
+
+fn delete_beneficiaries() -> Vec<AccountId> {
+    get_created_receipts()
+        .iter()
+        .flat_map(|r| r.actions.iter())
+        .filter_map(|a| match a {
+            near_sdk::mock::MockAction::DeleteAccount { beneficiary_id, .. } => {
+                Some(beneficiary_id.clone())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn balance(b: u128) -> PromiseResult {
+    PromiseResult::Successful(format!("\"{b}\"").into_bytes())
+}
+
+fn close_check(w: &mut PolicyWallet, results: Vec<PromiseResult>) -> Option<bool> {
+    as_self().set_with_results(results);
+    match w.on_close_check(owner(), vec![dai(), usdc()]) {
+        PromiseOrValue::Value(v) => Some(v),
+        PromiseOrValue::Promise(p) => {
+            p.detach();
+            None
+        }
+    }
+}
+
+#[test]
+#[should_panic(expected = "exactly 1 yoctoNEAR")]
+fn close_requires_one_yocto_from_owner() {
+    let mut w = paused_two_token_wallet();
+    Ctx::new(owner()).set();
+    w.close(owner()).detach();
+}
+
+#[test]
+#[should_panic(expected = "ERR_NOT_PAUSED")]
+fn close_requires_paused() {
+    let mut w = setup();
+    as_owner().set();
+    w.close(owner()).detach();
+}
+
+#[test]
+#[should_panic(expected = "ERR_SELF_ACCOUNT")]
+fn close_rejects_wallet_as_beneficiary() {
+    let mut w = paused_two_token_wallet();
+    as_owner().set();
+    w.close(wallet()).detach();
+}
+
+#[test]
+#[should_panic(expected = "ERR_INSUFFICIENT_GAS")]
+fn close_requires_gas_for_every_query() {
+    let mut w = paused_two_token_wallet();
+    as_owner().gas(34).set();
+    w.close(owner()).detach();
+}
+
+#[test]
+fn close_queries_every_allowlisted_token_then_checks() {
+    let mut w = paused_two_token_wallet();
+    as_owner().set();
+    w.close(owner()).detach();
+    let receipts = get_created_receipts();
+    let calls: Vec<(AccountId, String)> = receipts
+        .iter()
+        .map(|r| (r.receiver_id.clone(), function_call(r).0))
+        .collect();
+    assert_eq!(
+        calls,
+        vec![
+            (dai(), "ft_balance_of".to_string()),
+            (usdc(), "ft_balance_of".to_string()),
+            (wallet(), "on_close_check".to_string()),
+        ]
+    );
+    let (_, deposit, args) = function_call(&receipts[0]);
+    assert_eq!(deposit, 0);
+    assert_eq!(args, r#"{"account_id":"agent-wallet.owner.near"}"#);
+    assert!(delete_beneficiaries().is_empty());
+}
+
+#[test]
+fn close_check_with_all_zero_balances_deletes_the_account() {
+    let mut w = paused_two_token_wallet();
+    assert_eq!(close_check(&mut w, vec![balance(0), balance(0)]), None);
+    assert_eq!(event_names(), vec!["closed"]);
+    assert_eq!(
+        events()[0],
+        r#"{"standard":"aps_policy_wallet","version":"1.0.0","event":"closed","data":{"beneficiary":"owner.near"}}"#
+    );
+    assert_eq!(delete_beneficiaries(), vec![owner()]);
+}
+
+#[test]
+fn close_check_with_a_nonzero_balance_refuses() {
+    let mut w = paused_two_token_wallet();
+    assert_eq!(
+        close_check(&mut w, vec![balance(0), balance(7)]),
+        Some(false)
+    );
+    assert_eq!(
+        events(),
+        vec![
+            r#"{"standard":"aps_policy_wallet","version":"1.0.0","event":"close_refused","data":{"tokens":[{"token":"usdc.near","balance":"7"}]}}"#
+        ]
+    );
+    assert!(delete_beneficiaries().is_empty());
+    assert!(w.get_config().paused);
+}
+
+#[test]
+fn close_check_with_a_failed_query_refuses() {
+    let mut w = paused_two_token_wallet();
+    assert_eq!(
+        close_check(&mut w, vec![PromiseResult::Failed, balance(0)]),
+        Some(false)
+    );
+    assert!(events()[0].contains(r#"{"token":"dai.near","balance":null}"#));
+    assert!(delete_beneficiaries().is_empty());
+}
+
+#[test]
+fn close_check_with_an_unreadable_balance_refuses() {
+    let mut w = paused_two_token_wallet();
+    let garbage = PromiseResult::Successful(b"\"not a number\"".to_vec());
+    assert_eq!(close_check(&mut w, vec![balance(0), garbage]), Some(false));
+    assert_eq!(event_names(), vec!["close_refused"]);
+    assert!(delete_beneficiaries().is_empty());
+}
+
+#[test]
+fn close_with_no_tokens_deletes_at_once() {
+    let mut w = setup();
+    as_owner().set();
+    w.set_tokens(vec![]);
+    w.pause();
+    match w.close(owner()) {
+        PromiseOrValue::Promise(p) => p.detach(),
+        PromiseOrValue::Value(_) => panic!("expected the delete promise"),
+    }
+    assert_eq!(event_names(), vec!["tokens_set", "paused", "closed"]);
+    assert_eq!(delete_beneficiaries(), vec![owner()]);
 }
 
 // ----- views --------------------------------------------------------------------------
