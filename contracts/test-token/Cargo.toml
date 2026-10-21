@@ -1,0 +1,18 @@
+[package]
+name = "test-token"
+description = "Minimal NEP-141 token over near-contract-standards' FungibleToken, for sandbox tests only; never deployed to a public network"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version = "1.93"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = "=5.29.1"
+near-contract-standards = "=5.29.1"
+
+[dev-dependencies]
+near-sdk = { version = "=5.29.1", features = ["unit-testing"] }
