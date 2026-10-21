@@ -2,15 +2,19 @@
 
     python -m knowledge_compiler compile --source DIR --out FILE
         [--ruleset-id ID] [--version SEMVER] [--timestamp N] [--check]
+    python -m knowledge_compiler digest < terms.txt
+    python -m knowledge_compiler scan-tree --root DIR [--require-private]
 
 Exit codes: 0 success (and, with --check, byte-identical artifact);
-2 validation, leakage, or check mismatch failure.
+2 validation, leakage, or check mismatch failure. scan-tree exits 1 when
+a denylisted term is found in a tracked file (it prints path:line only).
 """
 
 import argparse
 import pathlib
 import sys
 
+from . import leakage
 from .compiler import compile_ruleset, read_artifact, write_artifact
 
 
@@ -36,7 +40,14 @@ def _build_parser():
     return parser
 
 
+LEAKAGE_COMMANDS = ("digest", "scan-tree")
+
+
 def main(argv=None):
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if argv and argv[0] in LEAKAGE_COMMANDS:
+        # Denylist helpers live in the leakage module (see its docstring).
+        return leakage.main(argv)
     args = _build_parser().parse_args(argv)
     try:
         artifact = compile_ruleset(

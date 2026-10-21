@@ -30,7 +30,7 @@ explicitly against mainnet.
 | 14 | SSRF via evidence URLs | the engine never fetches URLs | design; no fetch code exists (grep-verified) | none | - |
 | 15 | Idempotency across concurrent scans | ledger rejects the second settlement as illegal transition | concurrency.rs concurrent_scan_single_settlement (exactly one charge) | none known | - |
 | 16 | Ruleset tampering | payload hash must match the compiled gates; unknown evaluator fails closed | test_ruleset tampered-hash + unknown-evaluator + missing-file tests | artifact is committed, not signed (roadmap: signed releases) | operator |
-| 17 | Private knowledge leakage via compiled rulesets | compiler leakage scanner refuses to emit artifacts carrying protocol names, private markers, host paths, non-allowlisted URLs, account ids, secrets | test_leakage poisoned-source matrix (6 classes, all abort) | allowlist is small and explicit by design | operator |
+| 17 | Private knowledge leakage via compiled rulesets | compiler leakage scanner refuses to emit artifacts carrying denylisted terms (private names are published only as SHA-256 token digests; extra digests load from the off-repo file named by APS_PRIVATE_DENYLIST), host paths, non-allowlisted URLs, account ids, secrets | test_leakage poisoned-source matrix (8 cases with synthetic stand-ins, all abort) + published-denylist golden test | allowlist is small and explicit by design; a digest of a short, guessable name is recoverable by dictionary hashing, so truly secret names belong only in the private list | operator |
 
 ## Findings fixed during this review
 
