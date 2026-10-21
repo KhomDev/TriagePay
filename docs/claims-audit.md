@@ -10,11 +10,13 @@ code, never the audit.**
 
 Suites verified for this audit (regenerated 2026-10-21, not hand-edited):
 aps-core 21, aps-payment 9, aps-api 37, aps-near 25 (+3 opt-in live
-read-only, ignored by default), scanner 69, knowledge-compiler 33 (+1
+read-only, ignored by default), scanner 69, knowledge-compiler 36 (+1
 local-only private-denylist tree scan, skipped unless APS_PRIVATE_DENYLIST
-is set), root OpenAPI conformance 4. Total 198 passing. Also green: cargo
+is set), root OpenAPI conformance 4. Total 201 passing. Also green: cargo
 fmt --check, clippy -D warnings, ruff, the leakage tree scan
-(`python -m knowledge_compiler scan-tree --root ..`: 0 hits), and the
+(`python -m knowledge_compiler scan-tree --root ..`: 0 hits against the
+published stand-in list in CI, and 0 hits locally with
+APS_PRIVATE_DENYLIST set to the operator's off-repo real-term list), and the
 voice check (`python scripts/voice-check.py`: 0 violations).
 
 ## README.md
@@ -24,7 +26,7 @@ voice check (`python scripts/voice-check.py`: 0 violations).
 | cargo test --workspace runs the Rust suites | gate run 2026-10-21: exit 0 | GREEN |
 | Rust test count | 92 tests across 4 crates (21 core, 9 payment, 37 api, 25 near-adapter) + 3 opt-in live tests | GREEN |
 | Python scanner tests | cd scanner && python -m pytest -q: 69 passed | GREEN |
-| Knowledge-compiler tests | cd knowledge-compiler && python -m pytest -q: 33 passed, 1 skipped (local-only) | GREEN |
+| Knowledge-compiler tests | cd knowledge-compiler && python -m pytest -q: 36 passed, 1 skipped (local-only) | GREEN |
 | OpenAPI conformance | python -m pytest tests -q (root): 4 passed | GREEN |
 | No keys or external services needed for the default run | mock provider default; secret scan of the tree: 0 hits | GREEN |
 | Scanner is stdlib-only Python | scanner/pyproject.toml dependencies = [] | GREEN |
@@ -35,7 +37,8 @@ voice check (`python scripts/voice-check.py`: 0 violations).
 | Payment covers the scan, not the verdict | scan_flow settle tests (rejected verdicts settle identically) | GREEN |
 | Credit funds only from provider-observed confirmations | payment_flow + provider_rpc + near_flow suites | GREEN |
 | Privacy: no protocol names/paths/corpus content in output | test_engine_golden privacy test (digest denylist + host-path prefixes, with a non-vacuity control) + error_hygiene canaries | GREEN |
-| Private terms are never published, not even in the privacy tests | published list is SHA-256 digests only (test_published_denylist_contains_only_digests); stand-in poisons in test_leakage; scan-tree of the tracked tree: 0 hits against the published list, and 0 hits with a local APS_PRIVATE_DENYLIST on 2026-10-21 | GREEN (earlier commits still contain the literal terms; history scrub is an open human decision, ADR-0006) |
+| Private terms are never published, not even in the privacy tests | real terms are checked off-repo only (APS_PRIVATE_DENYLIST; CI runs without it); the published denylist holds only the digest of a synthetic stand-in (test_published_denylist_holds_only_synthetic_stand_ins); test_guess_list_recovers_nothing_from_the_published_denylist: 0 recovered; local scan-tree with the private list on 2026-10-21: 0 hits | GREEN (earlier commits up to and including 33b8b2f still contain the literal terms or reversible digests of them; history scrub is an open human decision, ADR-0006) |
+| Published real-term digests hide the terms (33b8b2f to 01d462e) | a published SHA-256 digest of a guessable word is reversible: a 14-word guess list recovered 10 of the 14 published digests | CORRECTED 2026-10-21 (every real-term digest moved to the operator's off-repo file; the published list keeps a synthetic stand-in only) |
 | NEAR adapter targets NEAR Intents 1Click (track fit section) | documented as the v2 roadmap in docs/integrations/near.md; v1 (direct NEP-141 verification) is implemented | GREEN (phrasing kept as target/milestone) |
 | Mock provider is the default; NEAR activates only via env | AppState construction + APS_PROVIDER gate in main.rs | GREEN |
 | Live mainnet read-only verification | aps-near live_readonly vs https://rpc.mainnet.near.org: 3/3 pass | GREEN (mainnet deposit E2E executed 2026-10-21, see the near.md section) |

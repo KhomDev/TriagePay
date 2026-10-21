@@ -7,12 +7,20 @@ or a secret-like string. Findings report the pattern class and the JSON
 path only - never the matched text itself, so diagnostics can never become
 the leak they describe.
 
-Denylisted terms (private protocol, project, and workspace names) are
-never written down in this repository. They are published only as
-SHA-256 digests of normalized tokens, one 64-hex digest per line, in
-``denylist.sha256`` next to this module. The checker tokenizes candidate
-text into word, path-segment, camel-case, and joined multi-part variants and
-compares the digest of each variant against the denylist.
+Real denylisted terms (private protocol, project, and workspace names) are
+checked off-repo only. They are never written down in this repository, not
+even as digests: a published SHA-256 digest of a short, guessable word is
+reversible by hashing candidate words, so publishing it would publish the
+word. The operator keeps the real digests in a private file (see
+``APS_PRIVATE_DENYLIST`` below); CI and every default run check only the
+structural patterns plus the synthetic stand-ins.
+
+The published ``denylist.sha256`` next to this module holds only digests of
+synthetic stand-in names (``zz-published-canary``) so the mechanism is
+exercised in every run. The format is one lowercase 64-hex digest per line.
+The checker tokenizes candidate text into word, path-segment, camel-case,
+and joined multi-part variants and compares the digest of each variant
+against the loaded digests.
 
 Normalization rule for a term before hashing (see ``normalize_term``):
 NFKC, separators (whitespace, ``_``, ``.``, ``/``, ``\\``) folded to ``-``.
@@ -23,17 +31,14 @@ never trips on the ordinary lowercase English word). Joined variants are
 compared in lowercase only, so a multi-part term must be written in
 lowercase; a case-sensitive term must be a single word.
 
-Private extension: the environment variable ``APS_PRIVATE_DENYLIST``
-names a file outside the repository with additional digests in the same
-format. The compiler loads it when the variable is set; CI runs without
-it. A set-but-missing or malformed file fails closed.
-
-Honest limit: a digest hides a term from reading and grepping, not from a
-determined dictionary attack. A short, guessable term can be recovered by
-hashing candidate words. The digest list is a publication-hygiene control
-(the privacy tests no longer publish the names they protect), not
-cryptographic secrecy for low-entropy names. Names that must stay secret
-against guessing belong only in the private, off-repo list.
+Private list: the environment variable ``APS_PRIVATE_DENYLIST`` names a
+file outside the repository with the real digests in the same format. The
+compiler, ``scan-tree`` (which checks only this list), and the privacy
+tests load it when the variable is
+set; CI runs without it, so real-term checks run only on the operator's
+host. A set-but-missing or malformed file fails closed. Even off-repo, a
+digest only spares the file from holding the plaintext; anyone who obtains
+the private file can recover guessable terms by dictionary hashing.
 
 Generic structural patterns (host-path prefixes, account-id shapes,
 secret-key shapes) stay literal below: they reveal nothing.
@@ -128,14 +133,19 @@ def read_digest_file(path, source):
     return parse_digest_lines(text, source)
 
 
-def load_denylist(environ=None, published_path=None):
-    """Published digests, plus the private file named by APS_PRIVATE_DENYLIST."""
+def load_private_denylist(environ=None):
+    """The real-term digests from APS_PRIVATE_DENYLIST, or empty when unset."""
     environ = os.environ if environ is None else environ
-    digests = set(read_digest_file(published_path or DENYLIST_PATH, "published denylist"))
     private_path = environ.get(PRIVATE_DENYLIST_ENV, "").strip()
-    if private_path:
-        digests |= read_digest_file(private_path, PRIVATE_DENYLIST_ENV)
-    return frozenset(digests)
+    if not private_path:
+        return frozenset()
+    return read_digest_file(private_path, PRIVATE_DENYLIST_ENV)
+
+
+def load_denylist(environ=None, published_path=None):
+    """Published stand-in digests, plus the private file named by APS_PRIVATE_DENYLIST."""
+    digests = set(read_digest_file(published_path or DENYLIST_PATH, "published denylist"))
+    return frozenset(digests | load_private_denylist(environ))
 
 
 def token_variants(text):
@@ -202,7 +212,7 @@ def _canonical(value):
 def scan_for_leakage(gates, migrations, provenance, denylist=None):
     """Scan the compiled artifact parts; return a list of findings.
 
-    ``denylist`` defaults to ``load_denylist()`` (published digests plus the
+    ``denylist`` defaults to ``load_denylist()`` (published stand-ins plus the
     optional private file). Structural hash fields (payload_sha256,
     provenance digests) are excluded by design: they are 64-hex digests of
     already-scanned content, not secrets.
@@ -267,11 +277,16 @@ def main(argv=None):
     if args.require_private and not os.environ.get(PRIVATE_DENYLIST_ENV, "").strip():
         print(f"scan-tree: {PRIVATE_DENYLIST_ENV} is not set", file=sys.stderr)
         return 2
+    # Real terms only: the published stand-ins legitimately appear in the
+    # tests and docs that exercise them, so they are not a tree leak.
     try:
-        digests = load_denylist()
+        digests = load_private_denylist()
     except DenylistError as err:
         print(f"scan-tree: {err}", file=sys.stderr)
         return 2
+    if not digests:
+        print(f"scan-tree: {PRIVATE_DENYLIST_ENV} is not set; no real terms to check")
+        return 0
     hits = scan_tree(args.root, digests)
     for relative, number in hits:
         print(f"{relative}:{number}: denylisted term")

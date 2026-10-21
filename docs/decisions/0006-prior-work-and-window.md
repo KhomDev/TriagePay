@@ -96,11 +96,18 @@ committer date. A judge must be able to trust the history as it stands.
   or replace them with role labels in prose and keep only transaction
   hashes. Default: keep them, because judges can verify the evidence on an
   explorer. Pending the operator's answer.
-- **(b) Git-history privacy scrub.** The literal workspace markers removed
-  from the tracked tree by the hash-based denylist change still exist in
-  earlier commits. Whether to scrub them from history before publication
-  (a history rewrite that preserves author dates) is a human decision and
-  is NOT performed by this change. Any such rewrite would also have to
-  honour the hard rule above: no date changes, no squashing of prior work.
+- **(b) Git-history privacy scrub.** Earlier commits still carry private
+  material that the tracked tree no longer holds:
+  - commits up to and including `0711fed` contain the literal workspace
+    markers and protocol canaries;
+  - commits `33b8b2f` through `01d462e` contain published SHA-256 digests
+    of those terms, which are reversible by dictionary hashing (a 14-word
+    guess list recovered 10 of the 14).
+
+  The current tree checks real terms off-repo only. Whether to scrub both
+  kinds of material from history before publication (a history rewrite
+  that preserves author dates) is a human decision and is NOT performed by
+  these changes. Any such rewrite would also have to honour the hard rule
+  above: no date changes, no squashing of prior work.
 - **(c) Organizer answer.** Pending; when it arrives, record it here and
   update the status line.

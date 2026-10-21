@@ -175,7 +175,8 @@ def test_public_json_exposes_exactly_the_spec_fields():
 # Private terms are checked by digest, never written here: the shared
 # denylist mechanism lives in the knowledge compiler (stdlib-only module,
 # loaded by path so the scanner package keeps zero dependencies). It loads
-# the published digests plus APS_PRIVATE_DENYLIST when set.
+# the published synthetic stand-in digests; real terms are checked only
+# when APS_PRIVATE_DENYLIST names the operator's off-repo digest file.
 LEAKAGE_PATH = (
     pathlib.Path(__file__).resolve().parents[2]
     / "knowledge-compiler"

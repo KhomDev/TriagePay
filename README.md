@@ -30,7 +30,7 @@ cargo test --workspace
 # Python scanner (69 tests)
 cd scanner && python -m pytest -q
 
-# Knowledge compiler (33 tests, plus 1 local-only private-denylist check)
+# Knowledge compiler (36 tests, plus 1 local-only private-denylist check)
 cd knowledge-compiler && python -m pytest -q
 
 # OpenAPI conformance (4 tests, run from the repo root)

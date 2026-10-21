@@ -3,7 +3,8 @@
 Denylisted-term poisons use synthetic stand-in names whose digests sit in a
 test-only digest file (tests/fixtures/test-denylist.sha256), loaded through
 the same APS_PRIVATE_DENYLIST hook an operator uses for the private list.
-No real private term appears in this file.
+Real terms are checked off-repo only: no real private term, and no digest
+of one, appears in this repository.
 """
 
 import json
@@ -27,6 +28,20 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 # case-sensitive single-word marker.
 STAND_IN_TERM = "zz-private-alpha"
 STAND_IN_MARKER = "ZZBRAVO"
+
+# The only names whose digests may be published (knowledge_compiler/denylist.sha256).
+PUBLISHED_STAND_INS = ("zz-published-canary",)
+
+# Synthetic guess list for the dictionary-attack test: generic security and
+# DeFi vocabulary an attacker would try first. It is NOT a list of private
+# terms; the published list must recover none of these.
+GUESS_WORDS = (
+    "vault", "bridge", "swap", "lend", "borrow", "oracle", "token", "pool",
+    "stake", "staking", "dex", "amm", "perp", "lending", "exchange", "wallet",
+    "notes", "corpus", "workspace", "doctrine", "private", "secret", "internal",
+    "review", "finding", "report", "triage", "scanner", "gateway",
+    "ledger", "agent", "hunter", "bounty", "contest", "near", "usdc", "sentinel",
+)
 
 
 def _gate_with_text(text, gate_id="impact_sink"):
@@ -112,6 +127,37 @@ def test_published_denylist_contains_only_digests():
     assert leakage.load_denylist(environ={}) == frozenset(lines)
 
 
+def test_published_denylist_holds_only_synthetic_stand_ins():
+    # Exact allowlist: any digest of a real term added to the published
+    # file fails here, because it is not the digest of a known stand-in.
+    expected = frozenset(leakage.digest_for_term(name) for name in PUBLISHED_STAND_INS)
+    assert leakage.load_denylist(environ={}) == expected
+
+
+def test_guess_list_recovers_nothing_from_the_published_denylist():
+    published = leakage.load_denylist(environ={})
+    guesses = {
+        variant
+        for word in GUESS_WORDS
+        for variant in (word, word.upper(), word.capitalize(), word + "s", word.upper() + "S")
+    }
+    recovered = [guess for guess in guesses if leakage.digest_for_term(guess) in published]
+    assert recovered == []
+
+
+def test_published_canary_aborts_compile_without_the_private_list(tmp_path, monkeypatch):
+    # The default (CI) run still exercises the digest path end to end.
+    monkeypatch.delenv(leakage.PRIVATE_DENYLIST_ENV, raising=False)
+    directory = tmp_path / "src"
+    directory.mkdir()
+    gate = _gate_with_text("a ZzPublishedCanary rounding bug")
+    (directory / "source.json").write_text(
+        json.dumps({"label": "s", "gates": [gate]}), encoding="utf-8"
+    )
+    with pytest.raises(SchemaError, match="denylisted term"):
+        compile_ruleset(directory, "r", "0.1.0")
+
+
 def test_test_denylist_matches_its_stand_ins():
     expected = {leakage.digest_for_term(STAND_IN_TERM), leakage.digest_for_term(STAND_IN_MARKER)}
     assert leakage.read_digest_file(TEST_DENYLIST, "test") == expected
@@ -148,5 +194,5 @@ def test_tracked_tree_has_no_private_term():
     listing = subprocess.run(["git", "-C", str(REPO_ROOT), "rev-parse"], capture_output=True)
     if listing.returncode != 0:
         pytest.skip("not a git checkout")
-    hits = leakage.scan_tree(REPO_ROOT, leakage.load_denylist())
+    hits = leakage.scan_tree(REPO_ROOT, leakage.load_private_denylist())
     assert hits == []
