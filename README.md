@@ -16,8 +16,8 @@ verdict never affects the charge.
 ledger is in-memory, single dev caller, mock provider by default. The
 NEAR adapter (APS_PROVIDER=near) funds credit only from on-chain-verified
 NEP-141 deposits - read-only mainnet verification is live (status,
-accounts, USDC.e metadata), and one end-to-end mainnet deposit with real
-USDC was executed and adapter-verified on 2026-10-21 (evidence in
+accounts, token metadata), and one end-to-end mainnet deposit with real
+native USDC (the settlement asset) was executed and adapter-verified on 2026-10-21 (evidence in
 docs/integrations/near.md). Every further on-chain transfer stays
 operator-gated: scripts/near-demo.ps1 / .sh.
 

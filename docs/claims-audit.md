@@ -73,7 +73,8 @@ voice check (`python scripts/voice-check.py`: 0 violations).
 |---|---|---|
 | Every facts-table row | verified live or against official docs on 2026-10-20 (cited per row) | GREEN |
 | 1RPC caveat | probed 2026-10-20: NEAR JSON-RPC methods answered -3261 | GREEN |
-| USDC.e metadata (6 decimals, Bridged USDC) | on-chain ft_metadata read at finality | GREEN |
+| USDC.e metadata (6 decimals, Bridged USDC), listed as a legacy token | on-chain ft_metadata read at finality (2026-10-20, re-read 2026-10-21) | GREEN |
+| Settlement asset is native USDC (17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1: name "USDC", symbol USDC, 6 decimals) | on-chain ft_metadata read 2026-10-21; asset of the mainnet run (tx ZonAdEjgAUM4tBnCR3nJTxe9LHiv7KcsbqRZdp9dns1) | CORRECTED 2026-10-21 (the near.md facts table, the near.md price-book paragraph, and the .env.example value named bridged USDC.e as the settlement asset, the paragraph said no native USDC existed on NEAR mainnet, and the README status cited only USDC.e metadata; USDC.e is now listed as a legacy token, not used) |
 | Adapter never signs or broadcasts | no such code path; ADR-0005 | GREEN |
 | Mainnet deposit E2E | executed 2026-10-21 with real USDC: payment tx ZonAdEjgAUM4tBnCR3nJTxe9LHiv7KcsbqRZdp9dns1 verified by the adapter, ledger funded, scan settled (evidence in docs/integrations/near.md) | GREEN |
 | Live-network E2E (testnet) | executed 2026-10-20: intent -> memo-bound ft_transfer -> adapter-verified funding -> scan -> settle, all through the real adapter; evidence in docs/integrations/near.md | GREEN |
