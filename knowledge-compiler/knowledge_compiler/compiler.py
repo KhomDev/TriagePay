@@ -151,10 +151,14 @@ def compile_ruleset(source_dir, ruleset_id, version, timestamp=0):
 
 
 def write_artifact(artifact, out_path):
-    """Write the artifact in its canonical byte-stable form."""
+    """Write the artifact in its canonical byte-stable form.
+
+    newline="\\n" pins LF line endings: text mode would otherwise translate
+    to CRLF on Windows and break the byte-stable --check gate there.
+    """
     out_path = pathlib.Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(canonical(artifact) + "\n", encoding="utf-8")
+    out_path.write_text(canonical(artifact) + "\n", encoding="utf-8", newline="\n")
     return out_path
 
 

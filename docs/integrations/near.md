@@ -19,7 +19,7 @@ The adapter implements the PaymentProvider semantics with on-chain
 - Read-only RPC access (status, view_account, view_access_key,
   ft_balance_of, ft_metadata, tx status) is unrestricted and safe.
 
-## Verified facts (2026-10-20)
+## Verified facts (2026-10-20; asset rows re-verified 2026-10-21)
 
 | Fact | Value | Source |
 |---|---|---|
@@ -28,7 +28,8 @@ The adapter implements the PaymentProvider semantics with on-chain
 | Public testnet RPC | https://rpc.testnet.near.org | https://docs.near.org/api/rpc/providers |
 | Transaction status | method "tx", params tx_hash + sender_account_id + wait_until; wait_until "FINAL" returns only when the tx block and all receipts are finalized; EXPERIMENTAL_tx_status is a deprecated alias of tx_status | https://docs.near.org/api/rpc/transactions |
 | NEP-141 transfer | ft_transfer(receiver_id, amount, memo?) as a function call on the token contract; caller must attach **exactly 1 yoctoNEAR**; args are JSON, base64-encoded in the action | https://docs.near.org/primitives/ft/standard |
-| Settlement asset on mainnet | a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.factory.bridge.near - "Bridged USDC", symbol **USDC.e**, **6 decimals**, total supply about 14.6M (verified via ft_metadata and ft_total_supply at finality) | on-chain read, 2026-10-20 |
+| Settlement asset on mainnet | 17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1 - native USDC: name "USDC", symbol **USDC**, **6 decimals**; the asset of the 2026-10-21 mainnet run | on-chain ft_metadata read, 2026-10-21 |
+| Bridged legacy token (not used) | a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.factory.bridge.near - name "Bridged USDC", symbol **USDC.e**, 6 decimals (total supply about 14.6M on 2026-10-20). Listed so it is not mistaken for the settlement asset; the opt-in live read-only tests still read its metadata | on-chain ft_metadata read, 2026-10-21 (first read 2026-10-20) |
 | Testnet faucet | POST https://faucet-near-testnet.onrender.com/api/faucet with {"accountId": "..."} (accepts named or implicit accounts) | https://docs.near.org/getting-started/faucet |
 | Access keys | view_access_key returns permission: the string "FullAccess", or an object naming the contract, method, and allowance of a function-call key | https://docs.near.org/protocol/accounts-contracts/access-keys |
 
@@ -40,11 +41,17 @@ for this adapter as configured. The official public endpoints above are
 the tested default; any configured NEAR_RPC_URL must answer the NEAR
 JSON-RPC surface.
 
-**There is no native Circle USDC on NEAR mainnet** in the verified data: the
-canonical USDC-type asset is bridged USDC.e (6 decimals). The price book's
-"1 USDC" therefore means 1 000 000 atomic units of the configured asset
-contract; the operator's deposited asset must be confirmed with
-ft_balance_of once the account id is configured.
+**The settlement asset is native USDC**
+(17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1, 6
+decimals; on-chain ft_metadata read, 2026-10-21). Bridged USDC.e
+(a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.factory.bridge.near) is a
+legacy token and is not used. The 2026-10-20 version of this paragraph
+said no native USDC existed on NEAR mainnet and named USDC.e as the
+canonical asset; that was wrong and is corrected (see
+docs/claims-audit.md). The price book's "1 USDC" means 1 000 000 atomic
+units of the configured NEAR_ASSET_CONTRACT; the adapter verifies the
+contract id on every deposit, so a transfer of any other token never
+funds credit.
 
 ## How a deposit funds credit
 
@@ -101,17 +108,31 @@ Keys are never environment variables of this service: the adapter holds no
 private keys by design. A .env.example in the repository root documents the
 full variable set with placeholders.
 
-## Security-track angle: function-call keys
+## Security-track angle: a spend-policy wallet (corrected 2026-10-21)
 
-NEAR access keys can be scoped to a single contract and method (the
-permission object's receiver_id and method_names). The recommended
-hardening for a real deployment is a **function-call key on the gateway's
-funding account restricted to ft_transfer on the asset contract**: the hot
-process that moves deposits can then only ever move the settlement asset
-in the standard transfer shape, never arbitrary contracts. This is the
-NEAR-native answer to "give an agent a payment key, not the vault key" and
-maps directly to the hackathon security track. Not yet exercised in the
-demo; listed as the first hardening milestone.
+An earlier version of this section recommended a function-call access key
+restricted to ft_transfer on the settlement asset. **That design cannot
+work**, for two platform reasons:
+
+- Function-call access keys cannot attach a deposit. The NEAR access-key
+  documentation states that function-call keys "do not allow to attach
+  NEAR tokens to the call"
+  (https://docs.near.org/protocol/accounts-contracts/access-keys,
+  accessed 2026-10-21).
+- NEP-141 ft_transfer requires exactly 1 yoctoNEAR attached
+  (NEP-141, https://github.com/near/NEPs/blob/master/neps/nep-0141.md;
+  see also ADR-0005), precisely so that a function-call key cannot call
+  it.
+
+A function-call key restricted to ft_transfer would therefore fail on
+every call. The replacement design (planned, prompt 02; not implemented)
+is a **spend-policy wallet contract**: the agent holds a function-call key
+for the wallet's own `pay` method, which takes zero deposit and is
+therefore callable with such a key. The contract enforces the spend
+policy (allowed receivers, per-call and per-period caps) and itself
+performs the ft_transfer with the required 1 yoctoNEAR from its own
+balance. The agent gets a payment key, never the vault key, and the
+policy lives on chain where a judge can read it.
 
 ## v2 roadmap: NEAR Intents (1Click API)
 
@@ -140,7 +161,8 @@ README names Intents as the adapter target):
 - Indexer/listener-based deposit observation (the caller supplies the tx
   hash hint; a listener would remove that step).
 - NEAR Intents 1Click adapter (v2, documented above).
-- Function-call-key hardening of a dedicated gateway account.
+- The spend-policy wallet contract (planned; see "Security-track angle"
+  above for why a bare function-call key on ft_transfer is infeasible).
 
 ## Operator-gated next steps (from the session plan)
 
@@ -157,6 +179,9 @@ README names Intents as the adapter target):
 ---
 
 ## Operator wallet state (verified read-only, 2026-10-20)
+
+History note: this section predates the Base-to-NEAR swap; native USDC
+(17208628f84f…) is the settlement asset from 2026-10-21 on.
 
 Account **hlpok1lad.tg** on mainnet:
 
@@ -184,15 +209,15 @@ Consequences for the demo flow:
 The agent does not hold (and must never hold) the Base-side key, so this
 step belongs to the operator. Two supported routes:
 
-**Route A - NEAR Intents (recommended, and it exercises our v2 target):**
+**Route A - NEAR Intents (recommended, and it exercises the project's v2 target):**
 1. Open the NEAR Intents flow (https://intents.near.org or a 1Click-integrated
    frontend) and sign in with **hlpok1lad.tg** (the HOT/.tg wallet can
    authenticate it).
 2. Request a quote: swap Base USDC -> NEAR-side USDC, exact input 1 USDC.
    The UI returns a deposit address on Base (with a memo) plus the quote.
 3. Send the 1 USDC from the Base wallet to that address with the memo.
-4. When the intent settles, the USDC (USDC.e or the current canonical
-   USDC token on NEAR) lands under the intents account; withdraw to
+4. When the intent settles, the USDC (on 2026-10-21 this was native
+   USDC, 17208628f84f…) lands under the intents account; withdraw to
    hlpok1lad.tg if the UI holds it in intents (the mt_batch_balance_of
    view on intents.near shows parked balances).
 5. Run: python scripts/near-wait-for-deposit.py --account hlpok1lad.tg

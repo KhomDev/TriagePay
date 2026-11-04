@@ -16,7 +16,9 @@ verdict never affects the charge.
 ledger is in-memory, single dev caller, mock provider by default. The
 NEAR adapter (APS_PROVIDER=near) funds credit only from on-chain-verified
 NEP-141 deposits - read-only mainnet verification is live (status,
-accounts, USDC.e metadata), and the end-to-end deposit walkthrough is
+accounts, token metadata), and one end-to-end mainnet deposit with real
+native USDC (the settlement asset) was executed and adapter-verified on 2026-10-21 (evidence in
+docs/integrations/near.md). Every further on-chain transfer stays
 operator-gated: scripts/near-demo.ps1 / .sh.
 
 ## Quickstart
@@ -25,10 +27,10 @@ operator-gated: scripts/near-demo.ps1 / .sh.
 # Rust core, payment, API, and near adapter (92 tests)
 cargo test --workspace
 
-# Python scanner (68 tests)
+# Python scanner (69 tests)
 cd scanner && python -m pytest -q
 
-# Knowledge compiler (23 tests)
+# Knowledge compiler (37 tests, plus 1 local-only private-denylist check)
 cd knowledge-compiler && python -m pytest -q
 
 # OpenAPI conformance (4 tests, run from the repo root)

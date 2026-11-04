@@ -3,12 +3,12 @@
 Adversarial QA record for the current milestone: every threat from
 docs/threat-model.md mapped to its control, the test that verifies it,
 the residual risk, and the owner. Generated from the real test inventory
-(all counts verified on 2026-10-20).
+(all counts regenerated on 2026-10-21).
 
 **Suites:** aps-core 21, aps-payment 9, aps-api 37, aps-near 25 (+3
-opt-in live read-only tests), scanner 68, knowledge-compiler 23, root
-OpenAPI conformance 4. Total 187 passing, plus the 3 live tests run
-explicitly against mainnet.
+opt-in live read-only tests), scanner 69, knowledge-compiler 37 (+1
+local-only private-denylist check), root OpenAPI conformance 4. Total 202
+passing, plus the 3 live tests run explicitly against mainnet.
 
 ## Threat → control → verification
 
@@ -30,7 +30,7 @@ explicitly against mainnet.
 | 14 | SSRF via evidence URLs | the engine never fetches URLs | design; no fetch code exists (grep-verified) | none | - |
 | 15 | Idempotency across concurrent scans | ledger rejects the second settlement as illegal transition | concurrency.rs concurrent_scan_single_settlement (exactly one charge) | none known | - |
 | 16 | Ruleset tampering | payload hash must match the compiled gates; unknown evaluator fails closed | test_ruleset tampered-hash + unknown-evaluator + missing-file tests | artifact is committed, not signed (roadmap: signed releases) | operator |
-| 17 | Private knowledge leakage via compiled rulesets | compiler leakage scanner refuses to emit artifacts carrying protocol names, private markers, host paths, non-allowlisted URLs, account ids, secrets | test_leakage poisoned-source matrix (6 classes, all abort) | allowlist is small and explicit by design | operator |
+| 17 | Private knowledge leakage via compiled rulesets | compiler leakage scanner refuses to emit artifacts carrying denylisted terms, host paths, non-allowlisted URLs, account ids, secrets. Real private terms are checked off-repo only: their digests live in the operator's file named by APS_PRIVATE_DENYLIST, never in the repository, because a published digest of a guessable word is reversible by dictionary hashing. The published denylist holds synthetic stand-ins only | test_leakage poisoned-source matrix (8 cases with synthetic stand-ins, all abort), published-list allowlist test, guess-list test (0 recovered), canary compile test; scan-tree with the private list run locally | CI cannot check real terms (by design); the allowlist is small and explicit; anyone holding the private file can recover guessable terms | operator |
 
 ## Findings fixed during this review
 

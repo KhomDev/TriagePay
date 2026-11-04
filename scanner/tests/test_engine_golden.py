@@ -1,5 +1,7 @@
 """Golden decision cases, differential renaming, privacy, and replay."""
 
+import importlib.util
+import pathlib
 import re
 
 import pytest
@@ -170,17 +172,47 @@ def test_public_json_exposes_exactly_the_spec_fields():
     assert set(payload["gate_results"][0]) == {"gate", "status", "reason"}
 
 
-FORBIDDEN_ANY_CASE = ["redacted", "redacted", "redacted", "redacted", "c:\\", "/users/"]
-FORBIDDEN_EXACT_CASE = ["redacted", "redacted", "redacted"]
+# Private terms are checked by digest, never written here: the shared
+# denylist mechanism lives in the knowledge compiler (stdlib-only module,
+# loaded by path so the scanner package keeps zero dependencies). It loads
+# the published synthetic stand-in digests; real terms are checked only
+# when APS_PRIVATE_DENYLIST names the operator's off-repo digest file.
+LEAKAGE_PATH = (
+    pathlib.Path(__file__).resolve().parents[2]
+    / "knowledge-compiler"
+    / "knowledge_compiler"
+    / "leakage.py"
+)
+# Host-path prefixes are structural and reveal nothing, so they stay literal.
+FORBIDDEN_HOST_PATHS = ["c:\\", "/users/", "/home/"]
+
+
+def _load_leakage():
+    spec = importlib.util.spec_from_file_location("aps_leakage_for_tests", LEAKAGE_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_public_json_leaks_nothing_private():
+    leakage = _load_leakage()
+    digests = leakage.load_denylist()
+    assert digests, "the published denylist must not be empty"
     text = scan(golden_envelope()).to_public_json_string()
+    assert leakage.count_denylisted(text, digests) == 0
     lowered = text.lower()
-    for token in FORBIDDEN_ANY_CASE:
+    for token in FORBIDDEN_HOST_PATHS:
         assert token not in lowered
-    for token in FORBIDDEN_EXACT_CASE:
-        assert token not in text
+
+
+def test_privacy_check_is_not_vacuous():
+    # Positive control with a synthetic stand-in: the same check that
+    # passes above fires when a denylisted token is present.
+    leakage = _load_leakage()
+    stand_in = frozenset({leakage.digest_for_term("zz-private-alpha")})
+    text = scan(golden_envelope()).to_public_json_string()
+    assert leakage.count_denylisted(text, stand_in) == 0
+    assert leakage.count_denylisted(text + " ZzPrivateAlpha", stand_in) == 1
 
 
 def test_replay_is_bit_stable():

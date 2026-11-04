@@ -15,8 +15,28 @@ fn live_rpc() -> Option<NearRpc> {
     Some(NearRpc::new(&url, Duration::from_secs(20)).expect("valid endpoint"))
 }
 
-/// The candidate bridged-USDC contract on mainnet; verified per run.
-const USDC_CANDIDATE: &str = "a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.factory.bridge.near";
+/// Native USDC on mainnet: the settlement asset (docs/integrations/near.md).
+const USDC_NATIVE_MAINNET: &str =
+    "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1";
+
+/// Bridged USDC.e on mainnet: a legacy token, not the settlement asset.
+/// Checked only so its distinct symbol stays documented.
+const USDC_E_LEGACY_MAINNET: &str = "a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.factory.bridge.near";
+
+/// Read (symbol, decimals) from a token contract's ft_metadata.
+fn symbol_and_decimals(rpc: &NearRpc, contract: &str) -> (String, i64) {
+    let metadata = rpc.ft_metadata(contract).expect("ft_metadata succeeds");
+    let symbol = metadata
+        .get("symbol")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+    let decimals = metadata
+        .get("decimals")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(-1);
+    (symbol, decimals)
+}
 
 #[test]
 #[ignore = "live read-only test; requires NEAR_RPC_URL"]
@@ -41,22 +61,19 @@ fn core_account_is_readable() {
 
 #[test]
 #[ignore = "live read-only test; requires NEAR_RPC_URL"]
-fn usdc_candidate_reports_ft_metadata() {
+fn usdc_contracts_report_expected_ft_metadata() {
     let Some(rpc) = live_rpc() else { return };
-    let metadata = rpc
-        .ft_metadata(USDC_CANDIDATE)
-        .expect("ft_metadata succeeds");
-    let symbol = metadata
-        .get("symbol")
-        .and_then(|v| v.as_str())
-        .unwrap_or_default();
-    let decimals = metadata
-        .get("decimals")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(-1);
-    // Record what the chain actually says; the assertion is deliberately
-    // loose - the point is that the call parses and the facts are captured
-    // for docs/integrations/near.md.
-    assert!(!symbol.is_empty(), "metadata must carry a symbol");
-    assert!(decimals >= 0, "metadata must carry decimals");
+    // Mainnet-only contracts: skip the asset checks on testnet.
+    if rpc.status().expect("status call succeeds").chain_id != "mainnet" {
+        return;
+    }
+    let (symbol, decimals) = symbol_and_decimals(&rpc, USDC_NATIVE_MAINNET);
+    assert_eq!(symbol, "USDC", "native USDC symbol");
+    assert_eq!(decimals, 6, "native USDC decimals");
+
+    // The legacy bridged token reports a distinct symbol, which is how a
+    // reader tells it apart from the settlement asset.
+    let (legacy_symbol, legacy_decimals) = symbol_and_decimals(&rpc, USDC_E_LEGACY_MAINNET);
+    assert_eq!(legacy_symbol, "USDC.e", "legacy bridged USDC symbol");
+    assert_eq!(legacy_decimals, 6, "legacy bridged USDC decimals");
 }

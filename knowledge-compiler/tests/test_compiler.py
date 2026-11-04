@@ -40,6 +40,16 @@ def test_compile_is_byte_deterministic(tmp_path):
     assert first["payload_sha256"] == second["payload_sha256"]
 
 
+def test_written_artifact_is_lf_and_matches_the_committed_bytes(tmp_path):
+    # Text mode would write CRLF on Windows; the artifact must be LF on
+    # every platform so --check is byte-stable everywhere.
+    _artifact, path = compile_sample(tmp_path)
+    written = path.read_bytes()
+    assert b"\r" not in written
+    committed = SAMPLE.parents[2] / "scanner" / "rulesets" / "rules-v0.synthetic.1.json"
+    assert written == committed.read_bytes()
+
+
 def test_read_artifact_round_trips(tmp_path):
     _artifact, path = compile_sample(tmp_path)
     loaded = read_artifact(path)
