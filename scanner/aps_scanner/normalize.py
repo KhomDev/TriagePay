@@ -122,3 +122,82 @@ def normalize_envelope(envelope: FindingEnvelope) -> NormalizedEnvelope:
         _contains_embedded_instructions(text) for text in texts
     )
     return normalized
+
+
+# --- envelope v2 -----------------------------------------------------------
+
+_INLINE_SPACE_RUN = re.compile(r"[^\S\n]+")
+_BLANK_LINE_RUN = re.compile(r"\n{3,}")
+_KEPT_CONTROLS = ("\n", "\t")
+
+
+def _replace_controls_keep_lines(text: str) -> str:
+    return "".join(
+        REPLACEMENT if unicodedata.category(ch) == "Cc" and ch not in _KEPT_CONTROLS else ch
+        for ch in text
+    )
+
+
+def _scrub_multiline(text: str) -> str:
+    """Like _scrub_text but line structure survives.
+
+    CRLF and CR fold to LF, inline whitespace runs collapse to one space,
+    each line is stripped, and runs of blank lines collapse to one. Used
+    for program_rules, whose section headers and list items carry meaning.
+    """
+    folded = unicodedata.normalize("NFC", text).replace("\r\n", "\n").replace("\r", "\n")
+    cleaned = _strip_zero_width(_replace_controls_keep_lines(folded))
+    lines = [_INLINE_SPACE_RUN.sub(" ", line).strip() for line in cleaned.split("\n")]
+    return _BLANK_LINE_RUN.sub("\n\n", "\n".join(lines)).strip("\n")
+
+
+def _scrub_code_keep_lines(text: str) -> str:
+    """Code context: verbatim apart from control chars (LF and TAB kept)."""
+    folded = unicodedata.normalize("NFC", text).replace("\r\n", "\n").replace("\r", "\n")
+    return _strip_zero_width(_replace_controls_keep_lines(folded))
+
+
+@dataclass
+class NormalizedEnvelopeV2(NormalizedEnvelope):
+    """Normalized v2 envelope: the v1 fields plus the v2 additions."""
+
+    envelope_version: int = 2
+    hypothesis: str = ""
+    source_ref: dict | None = None
+    code_context: str = ""
+    program_rules: str = ""
+
+
+def _normalize_source_ref(source_ref):
+    if source_ref is None:
+        return None
+    return {
+        "repo_url": _scrub_text(source_ref.get("repo_url", "")),
+        "commit": _scrub_text(source_ref.get("commit", "")).lower(),
+    }
+
+
+def normalize_envelope_v2(envelope) -> NormalizedEnvelopeV2:
+    """Deterministic normalized form of a (validated) v2 envelope.
+
+    The injection flag covers every v1 field plus hypothesis, code_context,
+    program_rules and source_ref. It stays advisory: no gate reads it.
+    """
+    base = normalize_envelope(envelope)
+    base_fields = {
+        name: getattr(base, name) for name in NormalizedEnvelope.__dataclass_fields__
+    }
+    normalized = NormalizedEnvelopeV2(
+        **base_fields,
+        hypothesis=_scrub_text(envelope.hypothesis),
+        source_ref=_normalize_source_ref(envelope.source_ref),
+        code_context=_scrub_code_keep_lines(envelope.code_context),
+        program_rules=_scrub_multiline(envelope.program_rules),
+    )
+    extra = [normalized.hypothesis, normalized.code_context, normalized.program_rules]
+    if normalized.source_ref is not None:
+        extra.extend(normalized.source_ref.values())
+    normalized.contains_embedded_instructions = base.contains_embedded_instructions or any(
+        _contains_embedded_instructions(text) for text in extra
+    )
+    return normalized
