@@ -1,0 +1,5 @@
+# near-sdk's `unit-testing` feature pulls near-crypto -> aws-lc-rs ->
+# aws-lc-sys, whose Windows build needs NASM. The crate ships prebuilt NASM
+# objects for Windows; this switch uses them. Ignored on other hosts.
+[env]
+AWS_LC_SYS_PREBUILT_NASM = "1"

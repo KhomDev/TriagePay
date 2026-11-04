@@ -1,0 +1,20 @@
+[package]
+name = "policy-wallet"
+description = "NEAR spend-policy wallet: an agent pays allowlisted payees within per-call and daily limits; only the owner can change policy or withdraw"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+# near-sdk 5.29.1 declares MSRV 1.93.
+rust-version = "1.93"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Exact pin: 5.29.1 targets protocol version 84; 5.30.0-rc.1 targets 88,
+# above the current mainnet protocol version.
+near-sdk = "=5.29.1"
+policy-core = { path = "../../policy-core" }
+
+[dev-dependencies]
+near-sdk = { version = "=5.29.1", features = ["unit-testing"] }
