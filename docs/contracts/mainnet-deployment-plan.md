@@ -46,8 +46,14 @@ The wallet keeps no access keys after deployment, so its NEAR cannot be
 moved by any key. It is not locked forever: the wallet is closable by the
 owner after withdrawing all tokens (T8), and the account deletion returns
 its NEAR, stake included, to a beneficiary. Recovery of the storage stake
-by account deletion is to be confirmed on testnet. Fund it with the stake
-plus a small headroom only.
+by account deletion was confirmed on testnet on 2026-11-06
+(`docs/contracts/policy-wallet.md`, "Testnet evidence"). Fund it with the
+stake plus a small headroom only.
+
+Measured on testnet with the same wasm: the account used 174,791 bytes
+after deploy and `new`, and 174,951 bytes after one `set_agent` with one
+payee and a settled payment, that is 368 bytes above the code, within the
+600-byte estimate above.
 
 ## Transactions
 
@@ -81,8 +87,9 @@ cost at the current gas price is one tenth of that.
 
 `new` is `#[private]`, so it must be called by the wallet account itself in
 this batch. After T2 the account has no access keys and the code cannot be
-replaced. Confirm on testnet first that a batch may delete its own signing
-key as its last action. Verify after T2: `view_code` hash equals the wasm
+replaced. A batch deleting its own signing key as its last action was
+confirmed on testnet on 2026-11-06 (the same batch burnt 14.8 TGas there).
+Verify after T2: `view_code` hash equals the wasm
 hash, `view_access_key_list` is empty, `get_config` shows the owner and the
 USDC token.
 
@@ -194,8 +201,10 @@ wallet's USDC storage deposit (0.00125 NEAR) stays with the USDC contract.
 - Final account names (`<operator>`, `<gateway>`, `<agent-account>`) per
   the ADR-0006 naming decision.
 - The reproducible-build hash and size that replace the host-build values.
-- The wallet stays keyless and immutable; it is closable by the owner
-  after withdrawing all tokens, and recovery of the storage stake by
-  account deletion is to be confirmed on testnet.
 - Funding amount and campaign length.
-- Testnet confirmation of T2's self-deleting batch.
+- Mainnet RPC: `rpc.mainnet.near.org` is deprecated (HTTP 429 on
+  2026-11-06); `scripts/wallet-provision.py` defaults to
+  `https://free.rpc.fastnear.com` and accepts `--rpc`.
+
+Settled on testnet 2026-11-06: T2's self-deleting batch, and recovery of
+the storage stake by `close` (T8). The wallet stays keyless and immutable.

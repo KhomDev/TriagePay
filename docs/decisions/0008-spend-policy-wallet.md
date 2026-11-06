@@ -109,12 +109,19 @@ upgrade, migrate or redeploy path.
   Tokens held but no longer allowlisted are not checked by `close` and
   must be withdrawn first, and the beneficiary must exist.
 
-## Open items
+## Confirmed on testnet (2026-11-06)
 
-- Confirm on testnet that recovery of the storage stake by account
-  deletion behaves as expected (`close` after withdrawing all tokens).
+The zero-value testnet run (`docs/contracts/policy-wallet.md`, "Testnet
+evidence") confirmed the two platform behaviours this design relies on:
+
+- A deploy + `new` + `DeleteKey` batch may delete its own signing key as
+  its last action; the wallet ended with zero access keys and the expected
+  code hash.
+- `close` after withdrawing every token deletes the wallet and returns its
+  whole NEAR balance, storage stake included, to the beneficiary.
+
+## Open items
 
 - Reproducible wasm build (`cargo near build reproducible-wasm`) with a
   pinned image, so the deployed code hash can be re-derived by anyone.
 - First sandbox run on Linux CI (the sandbox does not run on Windows).
-- Testnet end-to-end with throwaway accounts (prompt 02 work item 6).

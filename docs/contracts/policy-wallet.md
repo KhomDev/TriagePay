@@ -11,8 +11,9 @@ a member of the root workspace) and the `contracts/` Cargo workspace
 
 Status: unit and property tests pass on the Windows build host; the sandbox
 integration tests are written but have only been compiled, not run (the
-sandbox has no Windows build; Linux CI runs them). Nothing has been
-deployed to mainnet.
+sandbox has no Windows build; Linux CI runs them). A zero-value testnet
+end-to-end run passed all 28 steps on 2026-11-06 (see "Testnet evidence").
+Nothing has been deployed to mainnet.
 
 ## Interface
 
@@ -106,14 +107,15 @@ Every refusal panics with `CODE: description`; the code is stable.
 
 ## Provisioning walkthrough (plan)
 
-The exact mainnet plan, with costs, is `docs/contracts/mainnet-deployment-plan.md`.
-In order:
+The exact mainnet plan, with costs, is `docs/contracts/mainnet-deployment-plan.md`;
+`python scripts/wallet-provision.py` prints it from the built wasm (it never
+signs on mainnet). In order:
 
 1. Create the wallet account with one temporary full-access key.
 2. One batch signed by that key: deploy the wasm, call `new(owner, tokens)`,
-   delete the key. The wallet now has no access keys. (Deleting the signing
-   key as the last action of its own batch is to be confirmed on testnet
-   before mainnet.)
+   delete the key. The wallet now has no access keys. (A batch deleting its
+   own signing key as its last action was confirmed on testnet, step 5
+   below.)
 3. Owner: `storage_deposit` on each token for the wallet (and for any payee
    not yet registered).
 4. Owner: fund with `ft_transfer_call(receiver_id = wallet, msg = "")`.
@@ -133,3 +135,62 @@ In order:
 | `policy-wallet` unit (near-sdk mocked runtime) | 62 | any host |
 | `test-token` unit | 3 | any host |
 | Sandbox integration (near-workspaces) | 18 | Linux CI only; written, not yet executed |
+| Testnet end-to-end (`scripts/testnet/wallet-e2e.mjs`) | 28 steps | testnet, 2026-11-06; all passed |
+
+## Testnet evidence (2026-11-06)
+
+A zero-value run on NEAR testnet with throwaway accounts, signed by
+`scripts/testnet/wallet-e2e.mjs` (near-api-js 7.3.1) through
+`python scripts/wallet-provision.py --network testnet --execute`. Keys
+stayed outside the repository; the full evidence file (balances, events,
+gas) is kept off-repo. Every step carries an expectation that the script
+checked; all 28 passed.
+
+| Item | Value |
+|---|---|
+| Wasm | 174,583 bytes, SHA-256 `7a599a50b37fc25961da3e0e2c97a9108eb483ef1b591d1506e08e44bf13a6a2` (base58 `9Ebz6ABpWwNkjgst6YoZ48yvkYcbcowRYiBK186Lt9RB`), the build in `docs/contracts/build.md` |
+| Accounts | owner `apsw-27c724-owner.testnet`, agent `apsw-27c724-agent.testnet`, payee `apsw-27c724-payee.testnet`, wallet `apsw-27c724-wallet.testnet` (deleted by step 28) |
+| Token | `wrap.testnet` (wNEAR, 24 decimals); policy per-call 0.001, daily 0.003, payees `[payee]` |
+| Funding | official testnet faucet (5 NEAR to an implicit funder account); the 2026-10-21 attempt had been rate-limited |
+| RPC | `https://test.rpc.fastnear.com` (`rpc.testnet.near.org` is deprecated and answered HTTP 429; steps 1-19 completed on it before the limit, steps 20-28 ran on FASTNEAR) |
+
+Transactions (explorer: `https://testnet.nearblocks.io/txns/<hash>`):
+
+| # | Step | Signer key | Tx hash | Expected | Observed |
+|---|---|---|---|---|---|
+| 1 | Create owner | funder | `5PFitFwHYej7WhvEAb1uCQvtTTM6JKp2D2PsXukTfote` | success | success |
+| 2 | Create agent | funder | `G7TZjeg2Bt4h6ymiTQ38zRApSr6ApnwYUjfU88u1Ri7N` | success | success |
+| 3 | Create payee | funder | `BdHPwxkjokTXwoHbwRnvsHAaoTBLRhURssaaPnGSyXFd` | success | success |
+| 4 | Create wallet (stake + 0.1 NEAR) | funder | `DM7mRLzyKW9XkBSg3TLvMQCd3WeixCu9xa95LjVd2ktC` | success | success |
+| 5 | Deploy + `new` + delete its own key, one batch | wallet (temporary full access) | `7921vAGsGs38jJsueBAQ7oLCcHMnyJ1NG5oJZNqpVBHp` | zero keys left, code hash = wasm hash | 0 access keys; code hash `9Ebz6ABp...` matches; `get_config` shows the owner and `wrap.testnet` |
+| 6 | Owner registers on `wrap.testnet` and wraps 0.05 NEAR | owner | `6Jpkum6xGCndcTfJn66KWjTMBc3uQef6A3a9HdYmGzT6` | success | success |
+| 7 | `storage_deposit` for the wallet | owner | `6xo2fXoc9bbhkmG4zxjHSySwGzps5W8bfuwNE2X1bVj6` | success | success |
+| 8 | `storage_deposit` for the payee | owner | `FBkFdnVVwjarM3TUWEVnjLsR7jmwDQW9A5kLYgK1LukX` | success | success |
+| 9 | Fund 0.01 wNEAR via `ft_transfer_call` | owner | `A9cP4Q7QciFDxnrn4oNyGa758LBx9ms2XD3ULc2P4snJ` | `funded`; wallet holds 0.01 | `funded`; 0.01 |
+| 10 | `set_agent` | owner | `HijhV6qw3hr36VFKQZ8NhKkfojVtt5MxyaG7Ah7pfUdG` | `agent_set` | `agent_set` |
+| 11 | Add the agent's function-call key (`pay` only, 0.25 NEAR allowance) | agent (full access) | `Pkk29Uen8FRbyYU34XaBjhoWzGeoRAEutFsEaBHCwYv` | success | success |
+| 12 | Pay 0.001 within limits | agent function-call key | `A1ieTUo78rAq8Ycmktd9YwmnmYimHnby5PqneKspenVe` | `pay_settled`; payee +0.001 | `pay_requested`, `pay_settled`; payee delta exactly 10^21 atomic units |
+| 13 | Pay 0.001 + 1 atomic unit | agent function-call key | `7696qZ8xHEK6My8giw4CKEbWX5CiQXtwJdeAq8KJnEXQ` | `ERR_PER_CALL_LIMIT`, no balance moves | `ERR_PER_CALL_LIMIT`; wallet balance unchanged |
+| 14 | Pay a non-allowlisted account | agent function-call key | `5ctCc9xq6eQMMVmYXoDCkLrzaEcqwnWMH8zevR5LTTTT` | `ERR_PAYEE_NOT_ALLOWED`, no balance moves | `ERR_PAYEE_NOT_ALLOWED`; unchanged |
+| 15 | `set_agent` with 1 yocto | agent function-call key | none (rejected before execution) | node rejection | "Deposit is not allowed with function call" |
+| 16 | `set_agent` with 1 yocto | agent (full access) | `3t7kFxPuroXSyMyqA5com6AitYdVxsoqD7G3JFHnFLRQ` | `ERR_NOT_OWNER` | `ERR_NOT_OWNER` |
+| 17 | Owner adds a function-call key for the wallet, any method | owner | `CBahYkwq4zZPipRGf1gAEB3PVkBTUAmgAv1ZpFjbrLdP` | success | success |
+| 18 | `pause` with zero deposit | owner function-call key | `HXwaHgjKfHgN3zN6Lcw1FoQufoj9CJuEUSQgNDz7ec3n` | 1-yocto assertion | "Requires attached deposit of exactly 1 yoctoNEAR" |
+| 19 | `pause` with 1 yocto | owner function-call key | none (rejected before execution) | node rejection | "Deposit is not allowed with function call" |
+| 20 | Delete the owner's function-call key | owner | `9f8PZ4GPP1LVuTY1rRDSmGrfYzWtGBnXBbGrTCLZLz4L` | success | success |
+| 21 | `revoke_agent` | owner | `A5tiKRPwMtWwTWWqcaPp3hAfz92Jmggqk6V1u72jFiHK` | `agent_revoked` | `agent_revoked` |
+| 22 | Pay after revoke (key still present) | agent function-call key | `5hTceNecd8wtkTSnqNVyRRb39rVx9rqjbXDJjzdxRa5p` | `ERR_AGENT_INACTIVE`, no balance moves | `ERR_AGENT_INACTIVE`; unchanged |
+| 23 | Delete the agent's function-call key | agent (full access) | `8kSrfdvnNSkiCQVphxxFLKVzjufJWQ5DC85S4Cd9wfkp` | success | success |
+| 24 | Pay with the deleted key | deleted key | none (rejected before execution) | access key not found | "Access key ... does not exist" |
+| 25 | `pause` | owner | `25wipgJoCAWtDjgmsYP986DpmGp8G1r6ZnkyH5ryF9SH` | `paused` | `paused` |
+| 26 | `close` while 0.009 wNEAR remains | owner | `8LDKyHziGHsAfr5z5psxHjYBpRaax43NqqihqG2KBngm` | `close_refused`, wallet kept | `close_refused`; wallet exists |
+| 27 | `withdraw` the full 0.009 wNEAR to the owner | owner | `HrUt851j8dGffzt1WBfxNPv6dXJMeZpv7g2HQZMNvo6F` | `withdrawn`; wallet wNEAR 0 | `withdrawn`; 0 |
+| 28 | `close(owner)` | owner | `8KiGDgPDFmr2wjMXvkhr6xXb3ifqbgDMijsNeHcNxb93` | `closed`; account deleted; owner gains at least the stake | see below |
+
+Storage recovery (step 28). Before the close the wallet held 1.844369 NEAR
+and used 174,951 bytes, a storage stake of 1.74951 NEAR at 1e19 yocto per
+byte. After it, `view_account` reports the wallet missing, and the owner's
+balance rose by 1.843813 NEAR: the wallet's whole balance returned by the
+deletion (the stake plus the unused headroom) minus about 0.00056 NEAR of
+gas for the close transaction itself. Deleting a 175 KB contract account
+worked; no large-state deletion limit applied.
