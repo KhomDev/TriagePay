@@ -21,6 +21,9 @@ DEFAULT_BASE_URL = "https://cloud-api.near.ai/v1"
 DEFAULT_TIMEOUT_SECS = 60
 DEFAULT_MAX_TOKENS = 1024
 USER_AGENT = "aps-triage-model/0.1"
+# json_schema: strict structured output (default); json_object: JSON mode
+# for models without structured outputs; none: plain text, strict parse.
+RESPONSE_FORMATS = ("json_schema", "json_object", "none")
 
 
 class ModelCallError(RuntimeError):
@@ -64,6 +67,7 @@ class ChatClient:
         base_url: str = DEFAULT_BASE_URL,
         timeout: float = DEFAULT_TIMEOUT_SECS,
         max_tokens: int = DEFAULT_MAX_TOKENS,
+        response_format: str = "json_schema",
         transport=urllib_transport,
     ):
         if not api_key:
@@ -74,27 +78,34 @@ class ChatClient:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.max_tokens = max_tokens
+        if response_format not in RESPONSE_FORMATS:
+            raise ValueError(f"response_format must be one of {RESPONSE_FORMATS}")
+        self.response_format = response_format
         self._transport = transport
 
     def __repr__(self):
         return f"ChatClient(base_url={self.base_url!r}, api_key=<redacted>)"
 
     def request_body(self, messages, model_id: str, response_schema: dict) -> dict:
-        return {
+        body = {
             "model": model_id,
             "messages": messages,
             "temperature": 0,
             "stream": False,
             "max_tokens": self.max_tokens,
-            "response_format": {
+        }
+        if self.response_format == "json_schema":
+            body["response_format"] = {
                 "type": "json_schema",
                 "json_schema": {
                     "name": "triage_verdict",
                     "strict": True,
                     "schema": response_schema,
                 },
-            },
-        }
+            }
+        elif self.response_format == "json_object":
+            body["response_format"] = {"type": "json_object"}
+        return body
 
     def complete(self, messages, *, model_id: str, response_schema: dict) -> Completion:
         body = json.dumps(self.request_body(messages, model_id, response_schema)).encode("utf-8")

@@ -103,3 +103,15 @@ def test_construction_guards():
         ChatClient("")
     with pytest.raises(ValueError):
         ChatClient(FAKE_KEY, base_url="http://cloud-api.near.ai/v1")
+    with pytest.raises(ValueError):
+        ChatClient(FAKE_KEY, response_format="xml")
+
+
+@pytest.mark.parametrize(
+    "mode, expected",
+    [("json_object", {"type": "json_object"}), ("none", None)],
+)
+def test_response_format_modes(mode, expected):
+    body = ChatClient(FAKE_KEY, response_format=mode).request_body([], "m", OUTPUT_SCHEMA)
+    assert body.get("response_format") == expected
+    assert body["temperature"] == 0
