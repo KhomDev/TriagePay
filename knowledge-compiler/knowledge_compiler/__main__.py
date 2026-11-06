@@ -6,6 +6,11 @@
     python -m knowledge_compiler compile --all       (rewrite every committed build)
     python -m knowledge_compiler digest < terms.txt
     python -m knowledge_compiler scan-tree --root DIR [--require-private]
+    python -m knowledge_compiler compile-private [--out FILE]
+
+compile-private reads the operator's sources from APS_PRIVATE_SOURCES and
+writes rules-v1.private to --out or APS_PRIVATE_RULESET_OUT; both must lie
+outside the repository, and only the manifest hash is printed.
 
 Exit codes: 0 success (and, with --check, byte-identical artifact);
 2 validation, leakage, or check mismatch failure. scan-tree exits 1 when
@@ -16,7 +21,7 @@ import argparse
 import pathlib
 import sys
 
-from . import leakage
+from . import leakage, private
 from .compiler import compile_ruleset, read_artifact, write_artifact
 
 PACKAGE_ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -62,6 +67,10 @@ def _build_parser():
     compile_cmd.add_argument(
         "--all", action="store_true", help="rewrite every committed build in place"
     )
+    private_cmd = subparsers.add_parser(
+        "compile-private", help="compile rules-v1.private outside the repository"
+    )
+    private_cmd.add_argument("--out", help=f"output file (default: ${private.OUT_ENV})")
     return parser
 
 
@@ -113,6 +122,8 @@ def main(argv=None):
         # Denylist helpers live in the leakage module (see its docstring).
         return leakage.main(argv)
     args = _build_parser().parse_args(argv)
+    if args.command == "compile-private":
+        return private.main(args.out)
     if args.source is None and args.out is None:
         if args.check or args.all:
             return _committed(check=args.check)
