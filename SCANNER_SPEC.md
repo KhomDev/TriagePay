@@ -112,3 +112,61 @@ knowledge is a compiler-side, leakage-scanned operation.
 ## Done criteria
 
 cd scanner then python -m pytest -q is all green. Small scoped commits touching only scanner/**. No secrets, no real-world protocol or company names anywhere in the package.
+
+## v2: triage engine (ADR-0010)
+
+Everything above is the v1 specification, and it still holds for v1 envelopes: a v1 envelope sent with no CLI arguments runs the v1 engine and returns the nine-field v1 report, byte for byte. The v2 engine is specified below. The design narrative is in docs/engine/overview.md, and the public categories are in docs/engine/taxonomy.md.
+
+### Envelope v2 (scanner/aps_scanner/envelope_v2.py)
+
+- FindingEnvelopeV2 extends FindingEnvelope with: envelope_version (must be 2), hypothesis (max 12000), source_ref (None or exactly {repo_url max 300, commit max 64}, both non-empty strings), code_context (max 16000), program_rules (max 8000). Every v1 limit still applies. At least one of title, hypothesis, claimed_impact or mechanism must be non-empty.
+- A payload is v2 when envelope_version is 2 or any of hypothesis, source_ref, code_context, program_rules is present. envelope_version 1 together with a v2 field is an error. Unknown fields are counted, never named.
+- from_v1 copies every v1 field and leaves the v2 fields at their defaults. from_benchmark_row maps {id, title, hypothesis} by truncating title to 200 and hypothesis to 12000. The id never enters the envelope.
+- Normalization (normalize_envelope_v2): hypothesis is scrubbed like a v1 text field. program_rules keeps its line structure (CRLF folded to LF, inline whitespace collapsed, blank-line runs collapsed). code_context is verbatim apart from control characters (LF and TAB kept). The source_ref commit is lowercased. The advisory injection flag covers the new fields too.
+
+### Stage A (scanner/aps_scanner/stage_a.py)
+
+- Runs a schema 2 ruleset: rules-v1.public by default, or the file named by APS_RULESET_V2_PATH.
+- Schema 2 rules:
+  - each gate names exactly one public taxonomy category;
+  - a branch may carry a penalty in [0, 1], and a Pass branch never carries one;
+  - Held is a legal status;
+  - the six structured evaluators are allowed (phrase_affirmed, privilege_required, quantified_impact, concession_present, rules_section_match, evidence_format), with their params validated at load time.
+- Decision: any Fail gives rejected; else any Held gives held; else any NeedsEvidence gives needs_evidence; else supported.
+- taxonomy_hits are the categories of every non-passing gate, in taxonomy order. penalty_factor is the product of the matched non-passing branches' penalties.
+
+### Stage B contract
+
+- A judge is any callable judge(request) -> dict. The request carries the normalized finding, Stage A's taxonomy hits, the injection flag, the envelope hash and the ruleset hash.
+- An ok result carries bountiable_probability, severity_call, taxonomy_hits (public ids only), missing_evidence, public_rationale (max 600), response_digest, model_id, prompt_hash, and optionally model_verifiable.
+- The scanner re-validates every result. Anything malformed, and any exception, becomes status fail_closed.
+
+### Combiner (scanner/aps_scanner/combiner.py)
+
+- Order: rejected < held < needs_evidence < supported. The final decision is min(Stage A, Stage B), and equals Stage A when Stage B did not run.
+- Stage B decision: probability < t_low gives rejected; probability > t_high gives supported; otherwise needs_evidence. A non-ok status gives needs_evidence. The defaults t_low 0.35 and t_high 0.65 are untuned until prompt 05.
+- Confidence band:
+  - low for rejected or held;
+  - for needs_evidence: low when Stage B failed closed or was unavailable, else medium;
+  - for supported: high only when both stages ran and both say supported, else medium.
+- Score: Stage B probability times penalty_factor; the penalty_factor alone when Stage B did not run; null when Stage B failed.
+
+### Report v2
+
+- Fields:
+  - every v1 field, plus report_version (2) and held_gates;
+  - gate_results entries carry category;
+  - stage_a {decision, taxonomy_hits, penalty_factor};
+  - stage_b {status, decision, bountiable_probability, severity_call, taxonomy_hits, missing_evidence, public_rationale, rationale_withheld, response_digest, failure};
+  - taxonomy_hits (the union of both stages), model_id, model_verifiable, prompt_hash, thresholds {t_low, t_high, status}, score, and evidence_check ("format-only").
+- Leakage guard: gate ids, reasons, missing-evidence ids, model id, failure code and rationale pass knowledge_compiler.leakage.scan_public_text. A leaking rationale is replaced by "" with rationale_withheld true. Any other leak refuses the report (exit 1). Hash fields are not scanned.
+
+### CLI (python -m aps_scanner)
+
+- Optional arguments: --sku scan.v1|triage.v2 (default scan.v1) and --engine auto|v1|v2 (default auto). A bad command line exits 1 with nothing on stdout.
+- A v2 envelope, or --engine v2, runs Stage A only. --sku triage.v2 adds the Stage B judge from the sibling triage-model package (or APS_TRIAGE_MODEL_DIR), mapping a v1 envelope into v2 first. With no configured model, Stage B is unavailable and the decision is at most needs_evidence.
+- --engine v1 with v2 input exits 2. Exit codes are otherwise unchanged: 0 report, 2 validation errors, 1 internal error.
+
+### Demo
+
+demo/envelope.json is a v2 envelope. Its deployment reference 0x1234567890abcdef has 16 hex digits, so it is neither an address (40) nor a hash (64). The demo therefore lands on needs_evidence, with the single taxonomy hit unverified-deployment-evidence and confidence medium.

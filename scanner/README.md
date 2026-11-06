@@ -18,8 +18,40 @@ never echoes the submitted envelope back.
 - `aps_scanner/gates.py` - the nine deterministic gates, executed from the ruleset
 - `aps_scanner/engine.py` - pipeline and decision matrix
 - `aps_scanner/report.py` - `ScanReport` and public JSON serialization
-- `rulesets/` - the committed sample ruleset artifact (compiled, hash-addressed)
-- `tests/` - pytest suite (schema, injection corpus, gates, ruleset, golden cases)
+- `aps_scanner/envelope_v2.py` - envelope v2 (v1 superset) and the v1 / benchmark-row mappings
+- `aps_scanner/textmatch.py` - Stage A text primitives (negation, privilege, quantity, concession, scope, evidence format)
+- `aps_scanner/stage_a.py` - Stage A of the v2 engine over a schema 2 ruleset
+- `aps_scanner/combiner.py` - minimum-of-stages combiner, thresholds, confidence, score
+- `aps_scanner/engine_v2.py` - `triage()` and the v2 report
+- `aps_scanner/public_guard.py` - leakage guard for the v2 report
+- `aps_scanner/stage_b_bridge.py` - loads the Stage B judge from ../triage-model for `--sku triage.v2`
+- `aps_scanner/taxonomy.py` - the public category ids
+- `rulesets/` - the committed ruleset artifacts: `rules-v0.synthetic.1` (v1) and `rules-v1.public` (v2)
+- `tests/` - pytest suite (schema, injection corpus, gates, rulesets, golden cases, v2 engine, combiner, CLI)
+
+## Engine v2 (triage)
+
+The v2 engine accepts envelope v2 and runs Stage A, the deterministic gates of `rules-v1.public`.
+With `--sku triage.v2` it also asks the advisory Stage B model judge from `../triage-model`. The
+final decision is the minimum of the two stages, so the model can never raise a decision past
+Stage A. See `../docs/engine/overview.md` and `../SCANNER_SPEC.md` (v2 section).
+
+```
+python -m aps_scanner < ../demo/envelope.json                  # v2 envelope: Stage A only
+python -m aps_scanner --sku triage.v2 < ../demo/envelope.json  # Stage A + Stage B
+```
+
+The demo envelope lands on `needs_evidence` with the taxonomy hit
+`unverified-deployment-evidence`, because its deployment reference is not a well-formed address or
+hash. A v1 envelope sent without arguments still gets the v1 report, unchanged.
+
+```python
+from aps_scanner.envelope_v2 import FindingEnvelopeV2
+from aps_scanner.engine_v2 import triage
+
+report = triage(FindingEnvelopeV2(title="...", hypothesis="..."))
+print(report.to_public_json()["decision"])
+```
 
 Runtime is stdlib-only. No network, no side effects, fully deterministic:
 the same envelope always produces the same report and the same content hash.
