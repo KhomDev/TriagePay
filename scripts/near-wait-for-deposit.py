@@ -54,7 +54,8 @@ def is_usdc(entry):
         }
     ).encode("utf-8")
     request = urllib.request.Request(
-        "https://rpc.mainnet.near.org",
+        # FASTNEAR free tier; rpc.mainnet.near.org is deprecated (HTTP 429).
+        "https://free.rpc.fastnear.com",
         data=body,
         headers={"Content-Type": "application/json"},
     )
