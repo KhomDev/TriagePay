@@ -23,7 +23,25 @@ EXPECTED_PATHS = {
     "/payment/intents/{intent_id}",
     "/payment/intents/{intent_id}/observations",
     "/payment/intents/{intent_id}/refunds",
+    "/v2/scan",
+    "/x402/supported",
+    "/x402/verify",
+    "/x402/settle",
 }
+
+ROUTER = pathlib.Path(__file__).resolve().parent.parent / "crates" / "api" / "src" / "lib.rs"
+
+
+def _router_paths():
+    """Route literals registered in crates/api/src/lib.rs."""
+    import re
+
+    text = ROUTER.read_text(encoding="utf-8")
+    paths = set(re.findall(r'\.route\(\s*"([^"]+)"', text))
+    # The x402 resource is registered through its constant.
+    if "x402::RESOURCE_PATH" in text:
+        paths.add("/v2/scan")
+    return paths
 
 
 def test_spec_loads_with_required_metadata():
@@ -44,8 +62,9 @@ def test_every_operation_documents_non_2xx_with_the_error_body():
         for method, operation in item.items():
             if method not in ("get", "post", "put", "delete", "patch"):
                 continue
-            # The liveness probe has no failure contract by design.
-            if path == "/health":
+            # The liveness probe and the static facilitator capability
+            # list have no failure contract by design.
+            if path in ("/health", "/x402/supported"):
                 continue
             statuses = {
                 code
@@ -57,9 +76,47 @@ def test_every_operation_documents_non_2xx_with_the_error_body():
                 response = operation["responses"][code]
                 schema = response.get("content", {}).get("application/json", {}).get("schema")
                 assert schema is not None, f"{method} {path} {code} has no JSON body"
+                ref = schema.get("$ref", "")
+                if ref.startswith("#/components/schemas/") and ref != "#/components/schemas/ErrorBody":
+                    schema = spec["components"]["schemas"][ref.rsplit("/", 1)[1]]
                 assert schema.get("$ref") == "#/components/schemas/ErrorBody" or (
                     schema.get("properties", {}).get("error")
                 ), f"{method} {path} {code} is not the standard error shape"
+
+
+def test_expected_paths_are_exactly_the_router_routes():
+    assert _router_paths() == EXPECTED_PATHS
+
+
+def test_x402_resource_documents_the_v2_headers():
+    spec = json.loads(SPEC.read_text(encoding="utf-8"))
+    operation = spec["paths"]["/v2/scan"]["post"]
+    params = {p["name"] for p in operation["parameters"] if p.get("in") == "header"}
+    assert params == {"PAYMENT-SIGNATURE"}
+    assert set(operation["responses"]["402"]["headers"]) >= {
+        "PAYMENT-REQUIRED",
+        "PAYMENT-RESPONSE",
+    }
+    assert "PAYMENT-RESPONSE" in operation["responses"]["200"]["headers"]
+    # The settlement_pending reason is documented on the 402.
+    assert "settlement_pending" in operation["responses"]["402"]["description"]
+
+
+def test_facilitator_endpoints_follow_the_core_spec_shapes():
+    spec = json.loads(SPEC.read_text(encoding="utf-8"))
+    paths = spec["paths"]
+    assert set(paths["/x402/supported"]["get"]["responses"]["200"]["content"][
+        "application/json"]["schema"]["required"]) == {"kinds", "extensions", "signers"}
+    verify = paths["/x402/verify"]["post"]["responses"]["200"]
+    assert verify["content"]["application/json"]["schema"]["required"] == ["isValid"]
+    settle = paths["/x402/settle"]["post"]["responses"]["200"]
+    assert set(settle["content"]["application/json"]["schema"]["required"]) == {
+        "success",
+        "transaction",
+        "network",
+    }
+    request = spec["components"]["schemas"]["FacilitatorRequest"]
+    assert set(request["required"]) == {"x402Version", "paymentPayload", "paymentRequirements"}
 
 
 def test_money_schemas_carry_atomic_and_decimal():
