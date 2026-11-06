@@ -23,6 +23,7 @@ mod handlers;
 pub mod payment;
 mod scan;
 pub mod scanbridge;
+pub mod x402;
 
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -65,6 +66,8 @@ pub struct AppState {
     payment: Arc<tokio::sync::Mutex<Provider>>,
     /// Gateway-level link from payment intent to the account it funds.
     intent_accounts: payment::IntentAccounts,
+    /// x402 transport state: issued requirements and claimed proofs.
+    x402: Arc<x402::X402State>,
 }
 
 impl AppState {
@@ -93,7 +96,18 @@ impl AppState {
         provider: Provider,
         launcher: scanbridge::ScanLauncher,
     ) -> Self {
+        let (network, asset, _) = provider.x402_identity();
+        let price = aps_core::PriceBook::default_book()
+            .price(aps_core::SCAN_SKU)
+            .unwrap_or(aps_core::Amount::from_atomic(1_000_000));
+        let x402 = x402::X402State::new(x402::X402Config {
+            network,
+            asset,
+            price,
+            max_timeout_secs: x402::DEFAULT_MAX_TIMEOUT_SECS,
+        });
         Self {
+            x402: Arc::new(x402),
             ledger: Arc::new(tokio::sync::RwLock::new(Ledger::new())),
             job_ids: Arc::new(RwLock::new(HashMap::new())),
             caller: caller.into(),
@@ -113,6 +127,21 @@ impl AppState {
     /// The caller identity every request acts under.
     pub fn caller(&self) -> &str {
         &self.caller
+    }
+
+    /// Override the x402 price of one scan and the requirement validity
+    /// window. Call before the state is shared with the router.
+    pub fn with_x402_terms(mut self, price: aps_core::Amount, max_timeout_secs: u64) -> Self {
+        let mut config = self.x402.config().clone();
+        config.price = price;
+        config.max_timeout_secs = max_timeout_secs.max(1);
+        self.x402 = Arc::new(x402::X402State::new(config));
+        self
+    }
+
+    /// The x402 transport state.
+    pub fn x402(&self) -> &x402::X402State {
+        &self.x402
     }
 
     /// The active payment provider kind: "mock" or "near".
@@ -233,5 +262,9 @@ pub fn router(state: AppState) -> axum::Router {
         )
         .route("/jobs/{job_id}/settlements", post(handlers::settle_job))
         .route("/jobs/{job_id}/refunds", post(handlers::refund_job))
+        .route(x402::RESOURCE_PATH, post(x402::scan_v2))
+        .route("/x402/supported", get(x402::supported))
+        .route("/x402/verify", post(x402::verify))
+        .route("/x402/settle", post(x402::settle))
         .with_state(state)
 }

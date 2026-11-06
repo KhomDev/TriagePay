@@ -39,6 +39,9 @@ use crate::AppState;
 /// credit from a provider confirmation.
 const GATEWAY_CALLER: &str = "payment-gateway";
 
+/// The asset id the mock provider settles x402 requirements in.
+pub const MOCK_X402_ASSET: &str = "mock:usdc";
+
 /// The active payment provider. The mock is the default; the NEAR
 /// adapter activates only through explicit environment configuration
 /// (APS_PROVIDER=near and friends), never implicitly.
@@ -146,6 +149,73 @@ impl Provider {
                 Ok(near.intent(intent_id).cloned())
             }
         }
+    }
+
+    /// The x402 network identifier, settlement asset and payee this
+    /// provider settles in. NEAR uses the CAIP-2-style ids `near:mainnet`
+    /// and `near:testnet`; the mock provider uses `aps:mock`, a
+    /// development-only network that no real x402 client would select.
+    pub fn x402_identity(&self) -> (String, String, Option<String>) {
+        match self {
+            Provider::Mock(_) => ("aps:mock".to_string(), MOCK_X402_ASSET.to_string(), None),
+            Provider::Near(near) => {
+                let config = near.config();
+                (
+                    format!("near:{}", config.network),
+                    config.asset_contract_id.clone(),
+                    Some(config.gateway_account_id.clone()),
+                )
+            }
+        }
+    }
+
+    /// The token-receipt evidence behind a NEAR confirmation.
+    pub fn evidence(&self, intent_id: &IntentId) -> Option<aps_near::TransferEvidence> {
+        match self {
+            Provider::Mock(_) => None,
+            Provider::Near(near) => near.evidence(intent_id).cloned(),
+        }
+    }
+
+    /// Orphaned transfers recorded against a NEAR intent.
+    pub fn orphans(&self, intent_id: &IntentId) -> Vec<aps_near::OrphanTransfer> {
+        match self {
+            Provider::Mock(_) => Vec::new(),
+            Provider::Near(near) => near.orphans(intent_id).to_vec(),
+        }
+    }
+
+    /// A read-only RPC handle (NEAR only), for the facilitator /verify.
+    pub fn near_rpc(&self) -> Option<aps_near::rpc::NearRpc> {
+        match self {
+            Provider::Mock(_) => None,
+            Provider::Near(near) => Some(near.rpc()),
+        }
+    }
+
+    /// Check a transaction that is not the intent's own funding proof
+    /// (a second payment for a settled intent) and record any matching
+    /// transfer as an orphan. Never changes the funding observation.
+    pub async fn record_foreign_proof(
+        &mut self,
+        intent_id: &IntentId,
+        hint: aps_near::TxHint,
+    ) -> Result<(), ProviderError> {
+        let Provider::Near(near) = self else {
+            return Ok(());
+        };
+        let aps_near::FetchStep::Verify { rpc, intent, hint } =
+            near.prepare_probe(intent_id, hint)?
+        else {
+            return Ok(());
+        };
+        let check =
+            tokio::task::spawn_blocking(move || aps_near::verify_tx_receipts(rpc, &intent, &hint))
+                .await
+                .map_err(|err| {
+                    ProviderError::Validation(format!("verification task failed: {err}"))
+                })??;
+        near.apply_check(intent_id, check).map(|_| ())
     }
 
     /// Sync the provider clock to wall time.
@@ -318,24 +388,15 @@ pub async fn observe_intent(
     let account_id = state.intent_account(&intent_id)?;
     let hint = normalize_hint_body(&body, state.provider_kind())?;
     let intent_id = IntentId::new(intent_id.clone());
-    let now = unix_now();
-    let observation = {
-        let mut provider = state.payment().lock().await;
-        provider.sync_clock(now);
-        if let Some(hint) = hint {
-            provider
-                .submit_hint(&intent_id, hint)
-                .await
-                .map_err(provider_error)?;
-        }
-        provider.observe(&intent_id).await.map_err(provider_error)?
-    };
-    let intent = state
-        .with_payment(|provider| provider.intent(&intent_id).map_err(provider_error))
-        .await?
-        .ok_or_else(|| ApiError::unknown_intent(intent_id.as_str()))?;
-
-    let outcome = reconcile(&intent, &observation);
+    let funding = observe_and_fund(&state, &intent_id, &account_id, hint)
+        .await
+        .map_err(provider_error)?;
+    let FundingResult {
+        observation,
+        outcome,
+        deposit,
+        ..
+    } = funding;
     let mut body = json!({
         "intent_id": intent_id.as_str(),
         "provider": state.provider_kind(),
@@ -343,14 +404,7 @@ pub async fn observe_intent(
         "reconciled": outcome_name(&outcome),
         "funded": false,
     });
-    if let ReconcileOutcome::Fund { tx_ref } = &outcome {
-        let mut ledger = state.write_ledger().await;
-        let receipt = ledger.deposit(
-            GATEWAY_CALLER,
-            &account_id,
-            intent.amount,
-            &format!("intent:{intent_id}"),
-        )?;
+    if let (ReconcileOutcome::Fund { tx_ref }, Some(receipt)) = (&outcome, deposit) {
         body["funded"] = json!(true);
         body["tx_ref"] = json!(tx_ref);
         body["deposit"] = json!(DepositReceiptJson::from(receipt));
@@ -370,6 +424,63 @@ pub async fn observe_intent(
         });
     }
     Ok(Json(body))
+}
+
+/// What one observation of an intent produced.
+pub(crate) struct FundingResult {
+    pub observation: Observation,
+    pub outcome: ReconcileOutcome,
+    /// The ledger deposit, present exactly when `outcome` is Fund. It is
+    /// idempotent on the intent id: replays return the recorded receipt.
+    pub deposit: Option<aps_core::DepositReceipt>,
+    pub intent: DepositIntent,
+}
+
+/// The one funding path: submit the hint (NEAR), observe the provider,
+/// reconcile purely, and - only on an exact match - deposit the intent
+/// amount into the account under the idempotency key `intent:<id>`.
+/// Both the payment-intent routes and the x402 transport call this, so
+/// an intent can never fund twice, whichever route observes it.
+pub(crate) async fn observe_and_fund(
+    state: &AppState,
+    intent_id: &IntentId,
+    account_id: &str,
+    hint: Option<aps_near::TxHint>,
+) -> Result<FundingResult, ProviderError> {
+    let now = unix_now();
+    let observation = {
+        let mut provider = state.payment().lock().await;
+        provider.sync_clock(now);
+        if let Some(hint) = hint {
+            provider.submit_hint(intent_id, hint).await?;
+        }
+        provider.observe(intent_id).await?
+    };
+    let intent = state
+        .with_payment(|provider| provider.intent(intent_id))
+        .await?
+        .ok_or_else(|| ProviderError::UnknownIntent(intent_id.to_string()))?;
+    let outcome = reconcile(&intent, &observation);
+    let deposit = if matches!(outcome, ReconcileOutcome::Fund { .. }) {
+        let mut ledger = state.write_ledger().await;
+        let receipt = ledger
+            .deposit(
+                GATEWAY_CALLER,
+                account_id,
+                intent.amount,
+                &format!("intent:{intent_id}"),
+            )
+            .map_err(|err| ProviderError::Validation(format!("ledger deposit failed: {err}")))?;
+        Some(receipt)
+    } else {
+        None
+    };
+    Ok(FundingResult {
+        observation,
+        outcome,
+        deposit,
+        intent,
+    })
 }
 
 fn normalize_hint_body(
