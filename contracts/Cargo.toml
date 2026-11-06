@@ -1,0 +1,26 @@
+# Contract workspace. It is separate from the root workspace (which lists
+# `contracts` under `exclude`), so near-sdk never enters the root
+# dependency graph. The policy arithmetic is shared with the root
+# workspace through the dependency-free `crates/policy-core`.
+[workspace]
+resolver = "2"
+members = ["policy-wallet", "test-token", "tests"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+policy-core = { path = "../crates/policy-core" }
+
+# Contract release profile. `overflow-checks = true` keeps arithmetic
+# panics on in the deployed wasm as a second line of defence behind the
+# checked math in policy-core.
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = true
+debug = false
+panic = "abort"
+overflow-checks = true

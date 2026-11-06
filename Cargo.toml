@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["crates/core", "crates/api", "crates/payment", "crates/near-adapter"]
+members = ["crates/core", "crates/api", "crates/payment", "crates/near-adapter", "crates/policy-core"]
+exclude = ["contracts"]
 
 [workspace.package]
 version = "0.1.0"

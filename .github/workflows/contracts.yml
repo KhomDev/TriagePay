@@ -1,11 +1,22 @@
-# Linux CI for the policy-wallet spike: format, lint, unit and property
-# tests, wasm builds with printed SHA-256, and the near-workspaces sandbox
-# tests (which cannot run on Windows hosts).
+# Linux CI for the policy-wallet contracts workspace (`contracts/`): format,
+# lint, unit tests, wasm builds with printed size and SHA-256, and the
+# near-workspaces sandbox tests (which cannot run on Windows hosts).
+# `crates/policy-core` belongs to the root workspace and is covered by
+# ci.yml; it is rebuilt here as a path dependency of the contract.
 name: contracts
 
 on:
   push:
+    branches: [main]
+    paths:
+      - "contracts/**"
+      - "crates/policy-core/**"
+      - ".github/workflows/contracts.yml"
   pull_request:
+    paths:
+      - "contracts/**"
+      - "crates/policy-core/**"
+      - ".github/workflows/contracts.yml"
 
 permissions:
   contents: read
@@ -14,6 +25,10 @@ env:
   CARGO_TERM_COLOR: always
   RUST_TOOLCHAIN: "1.98.0"
   CARGO_NEAR_VERSION: "0.21.1"
+
+defaults:
+  run:
+    working-directory: contracts
 
 jobs:
   contracts:
@@ -58,5 +73,5 @@ jobs:
 
       # The sandbox tests are ignored only on Windows, so on Linux this runs
       # them; the near-workspaces build script fetches the sandbox binary.
-      - name: Unit, property and sandbox tests
+      - name: Unit and sandbox tests
         run: cargo test --workspace
