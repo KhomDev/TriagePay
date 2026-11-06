@@ -49,11 +49,14 @@ pub struct NearConfig {
 }
 
 impl NearConfig {
-    /// The official public RPC endpoint for a network.
+    /// The default public RPC endpoint for a network (FASTNEAR's free
+    /// tier). The official `rpc.{mainnet,testnet}.near.org` endpoints are
+    /// deprecated and answer every request with HTTP 429 (verified
+    /// 2026-11-06); `NEAR_RPC_URL` overrides this default.
     pub fn default_rpc_url(network: &str) -> &'static str {
         match network {
-            "testnet" => "https://rpc.testnet.near.org",
-            _ => "https://rpc.mainnet.near.org",
+            "testnet" => "https://test.rpc.fastnear.com",
+            _ => "https://free.rpc.fastnear.com",
         }
     }
 

@@ -661,7 +661,7 @@ mod tests {
     #[test]
     fn endpoint_requires_a_scheme() {
         assert!(NearRpc::new("1rpc.io/key/near", Duration::from_secs(5)).is_err());
-        assert!(NearRpc::new("https://rpc.mainnet.near.org", Duration::from_secs(5)).is_ok());
+        assert!(NearRpc::new("https://free.rpc.fastnear.com", Duration::from_secs(5)).is_ok());
     }
 
     #[test]

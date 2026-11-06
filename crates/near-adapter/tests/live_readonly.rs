@@ -1,6 +1,6 @@
 //! Live, read-only mainnet RPC tests. Opt-in: run with
 //!
-//!   NEAR_RPC_URL=https://rpc.mainnet.near.org cargo test -p aps-near --test live_readonly -- --ignored --nocapture
+//!   NEAR_RPC_URL=https://free.rpc.fastnear.com cargo test -p aps-near --test live_readonly -- --ignored --nocapture
 //!
 //! These tests never sign, broadcast, or mutate anything; they only read
 //! public chain state. They are ignored in the normal suite so CI stays
