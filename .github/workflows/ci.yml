@@ -41,15 +41,18 @@ jobs:
       - name: Install tooling
         run: python -m pip install pytest ruff
       - name: Lint
-        run: python -m ruff check scanner knowledge-compiler
+        run: python -m ruff check scanner knowledge-compiler triage-model
       - name: Scanner tests
         working-directory: scanner
         run: python -m pytest -q
       - name: Knowledge-compiler tests
         working-directory: knowledge-compiler
         run: python -m pytest -q
-      - name: Committed ruleset is byte-stable
-        run: python -m knowledge_compiler compile --source knowledge-compiler/samples/synthetic --out scanner/rulesets/rules-v0.synthetic.1.json --check
+      - name: Triage-model tests (offline; no live model calls in CI)
+        working-directory: triage-model
+        run: python -m pytest -q
+      - name: Committed rulesets are byte-stable
+        run: python -m knowledge_compiler compile --check
         working-directory: knowledge-compiler
   voice:
     name: Documentation voice
