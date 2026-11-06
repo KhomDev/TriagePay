@@ -106,9 +106,18 @@ def _merge_migrations(sources):
     return [merged[migration_id] for migration_id in merged]
 
 
+def _sources_schema_version(sources):
+    """Every source in one compile must declare the same schema version."""
+    versions = {schema.source_schema_version(document) for _label, _path, document in sources}
+    if len(versions) != 1:
+        raise schema.SchemaError("all sources in one compile must share one schema_version")
+    return versions.pop()
+
+
 def compile_ruleset(source_dir, ruleset_id, version, timestamp=0):
     """Compile a source directory into the artifact dict (validated)."""
     sources = _load_sources(pathlib.Path(source_dir))
+    schema_version = _sources_schema_version(sources)
     gates = _merge_gates(sources)
     migrations = _merge_migrations(sources)
 
@@ -136,7 +145,7 @@ def compile_ruleset(source_dir, ruleset_id, version, timestamp=0):
         )
 
     artifact = {
-        "schema_version": ARTIFACT_SCHEMA_VERSION,
+        "schema_version": schema_version,
         "ruleset_id": ruleset_id,
         "version": version,
         "created_unix": timestamp,
