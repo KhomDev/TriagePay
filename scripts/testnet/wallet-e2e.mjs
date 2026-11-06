@@ -12,10 +12,12 @@
 //
 //   node scripts/testnet/wallet-e2e.mjs [--network testnet]
 //        [--keys-dir DIR] [--evidence FILE] [--wasm FILE]
-//        [--expected-sha256 HEX]
+//        [--expected-sha256 HEX] [--rpc URL]
 //
 // Environment equivalents: APS_WALLET_KEYS_DIR, APS_WALLET_EVIDENCE,
-// APS_WALLET_WASM, APS_WALLET_WASM_SHA256, and APS_TESTNET_E2E_DIR for the
+// APS_WALLET_WASM, APS_WALLET_WASM_SHA256, APS_TESTNET_RPC (default
+// https://test.rpc.fastnear.com; the endpoint must report chain_id testnet),
+// and APS_TESTNET_E2E_DIR for the
 // off-repository folder that holds the default keys directory
 // (`wallet-keys/`) and evidence file (`wallet-EVIDENCE.json`). Without
 // APS_TESTNET_E2E_DIR the script uses the first `testnet-e2e` folder found
@@ -30,7 +32,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as n from "near-api-js";
 
-const RPC = "https://rpc.testnet.near.org";
+// rpc.testnet.near.org is deprecated and answers HTTP 429 to every request
+// (observed 2026-11-06); FASTNEAR's testnet endpoint is the default.
+const DEFAULT_RPC = "https://test.rpc.fastnear.com";
 const FAUCET = "https://faucet-near-testnet.onrender.com/api/faucet";
 const FAUCET_DOCS = "https://docs.near.org/getting-started/faucet";
 const EXPLORER = "https://testnet.nearblocks.io/txns/";
@@ -64,6 +68,9 @@ function insideRepo(p) {
   return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
 }
 
+// The RPC can be overridden (--rpc or APS_TESTNET_RPC); the script checks that
+// the endpoint reports chain_id "testnet" before it signs anything.
+const RPC = arg("--rpc") || process.env.APS_TESTNET_RPC || DEFAULT_RPC;
 const network = arg("--network") || "testnet";
 if (network !== "testnet") {
   console.log("STOP: this script runs on testnet only (got --network " + network + ")");
@@ -161,13 +168,24 @@ function accountFor(role) {
 const redact = (s) => String(s).replace(/ed25519:[1-9A-HJ-NP-Za-km-z]{30,}/g, "ed25519:<redacted>");
 
 // ----- RPC helpers -----------------------------------------------------------
+// Read-only calls back off on rate limits (HTTP 429 or JSON-RPC code -429).
 async function rpc(method, params) {
-  const r = await fetch(RPC, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: "e2e", method, params }),
-  });
-  return r.json();
+  for (let attempt = 0; ; attempt++) {
+    const r = await fetch(RPC, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: "e2e", method, params }),
+    });
+    const body = r.status === 429 ? null : await r.json();
+    const limited = r.status === 429 || (body && body.error && body.error.code === -429);
+    if (!limited) return body;
+    if (attempt >= 5) throw new Error("RPC rate limit persisted after " + attempt + " retries (" + method + ")");
+    await sleep(15000 * 2 ** attempt);
+  }
+}
+async function keyPresent(accountId, publicKey) {
+  const r = await rpc("query", { request_type: "view_access_key", finality: "final", account_id: accountId, public_key: publicKey });
+  return !!(r.result && !r.result.error);
 }
 async function viewAccount(id) {
   const r = await rpc("query", { request_type: "view_account", finality: "final", account_id: id });
@@ -250,8 +268,15 @@ function judge(entry, expect) {
   return true;
 }
 
-async function step(name, role, receiverId, actionsFn, description, expect, extra) {
+// `already` (optional) detects a state change that an earlier, interrupted run
+// already applied (the client lost the response), so a resume does not resend it.
+async function step(name, role, receiverId, actionsFn, description, expect, extra, already) {
   if (done(name)) return done(name);
+  if (already && (await already())) {
+    const entry = { step: name, description, signer: loadKey(role).account_id, receiver: receiverId, tx_hash: null, outcome: "already_applied", note: "the state change is on chain; an interrupted earlier run sent it and lost the response (RPC rate limit), so its tx hash was not observed", expected: expect ? expect.text : null, pass: true };
+    record(entry);
+    return entry;
+  }
   const res = await send(role, receiverId, actionsFn());
   const s = summarize(res);
   const entry = { step: name, description, signer: loadKey(role).account_id, receiver: receiverId, ...s };
@@ -271,6 +296,10 @@ async function rejected(name, role, receiverId, actionsFn, description) {
     const res = await send(role, receiverId, actionsFn());
     entry = { step: name, description, signer: loadKey(role).account_id, receiver: receiverId, ...summarize(res), node_rejected: false };
   } catch (e) {
+    // Only an invalid-transaction or missing-key error counts; anything else
+    // (rate limit, network) is not a rejection and propagates.
+    const raw = String((e && (e.type || e.message)) || e) + " " + String((e && e.message) || "");
+    if (/429|rate limit|deprecated|ECONN|fetch failed|timeout/i.test(raw) || !/Deposit is not allowed|DepositWithFunctionCall|MethodNameMismatch|ReceiverMismatch|RequiresFullAccess|NotEnoughAllowance|AccessKeyNotFound|InvalidAccessKey|access key|does not exist|not found/i.test(raw)) throw e;
     entry = {
       step: name,
       description,
@@ -293,7 +322,15 @@ const fc = (method, args, tgas, deposit) => n.actions.functionCall(method, args,
 
 // ----- run ---------------------------------------------------------------------
 try {
-  // 0. Wasm check.
+  // 0. The endpoint must be testnet.
+  const status = await rpc("status", []);
+  const chain = status && status.result && status.result.chain_id;
+  if (chain !== "testnet") stop("the RPC endpoint reports chain_id " + JSON.stringify(chain) + ", not testnet");
+  ev.rpc = RPC;
+  ev.rpcs_used = [...new Set([...(ev.rpcs_used || []), RPC])];
+  save();
+
+  // Wasm check.
   if (!fs.existsSync(WASM)) stop("wasm not found; build it with cargo near first (docs/contracts/build.md)");
   const wasm = fs.readFileSync(WASM);
   const sha = crypto.createHash("sha256").update(wasm).digest("hex");
@@ -484,12 +521,12 @@ try {
     code: "assert_one_yocto",
   });
   await rejected("owner_fc_key_pause_with_yocto", "owner_fc", A.wallet, () => [fc("pause", {}, 30, YOCTO1)], "owner's function-call key calls pause with 1 yocto attached");
-  await step("delete_owner_fc_key", "owner", A.owner, () => [n.actions.deleteKey(n.PublicKey.fromString(ownerFc.public_key))], "owner deletes the function-call key", ok("success"));
+  await step("delete_owner_fc_key", "owner", A.owner, () => [n.actions.deleteKey(n.PublicKey.fromString(ownerFc.public_key))], "owner deletes the function-call key", ok("success"), null, async () => !(await keyPresent(A.owner, ownerFc.public_key)));
 
   // 10. Revoke the agent, pay again (refused), delete the key, pay again (rejected by the node).
   await step("revoke_agent", "owner", A.wallet, () => [fc("revoke_agent", { agent_id: A.agent }, 30, YOCTO1)], "owner revokes the agent", ok("success; agent_revoked", "agent_revoked"));
   await step("pay_after_revoke", "agent_fc", A.wallet, payArgs(A.payee, 1n), "revoked agent pays with its still-present function-call key", { text: "failure ERR_AGENT_INACTIVE; wallet balance unchanged", outcome: "failure", code: "ERR_AGENT_INACTIVE", check: noMove }, unchanged);
-  await step("delete_agent_fc_key", "agent", A.agent, () => [n.actions.deleteKey(n.PublicKey.fromString(fcKey.public_key))], "agent account deletes the function-call key", ok("success"));
+  await step("delete_agent_fc_key", "agent", A.agent, () => [n.actions.deleteKey(n.PublicKey.fromString(fcKey.public_key))], "agent account deletes the function-call key", ok("success"), null, async () => !(await keyPresent(A.agent, fcKey.public_key)));
   await rejected("pay_with_deleted_key", "agent_fc", A.wallet, payArgs(A.payee, 1n), "pay with the deleted function-call key");
 
   // 11. Pause, close refused while funded, withdraw everything, close.

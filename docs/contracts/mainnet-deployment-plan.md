@@ -17,7 +17,7 @@ execution belongs to prompt 09). No key material appears here.
 | Token | native USDC `17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1`, 6 decimals | prompt 02 |
 | Policy | `per_call_max` = 0.05 USDC = `"50000"`; `daily_max` = 0.20 USDC = `"200000"` | prompt 02 |
 | Wasm | `policy_wallet.wasm`, 174,583 bytes, SHA-256 `7a599a50b37fc25961da3e0e2c97a9108eb483ef1b591d1506e08e44bf13a6a2` (host build with path remapping, see below) | `docs/contracts/build.md` |
-| `storage_amount_per_byte` | `10000000000000000000` yoctoNEAR (1e19; 1 NEAR per 100 KB) | read-only `EXPERIMENTAL_protocol_config` on `https://rpc.mainnet.near.org`, finality `final`, 2026-10-21T19:15Z; protocol version 86. Matches the lead's independent read and the research note `docs/research/near-contract-toolchain.md` |
+| `storage_amount_per_byte` | `10000000000000000000` yoctoNEAR (1e19; 1 NEAR per 100 KB) | read-only `EXPERIMENTAL_protocol_config`, finality `final`: on `https://rpc.mainnet.near.org` 2026-10-21T19:15Z (protocol version 86; matches the lead's independent read and the research note `docs/research/near-contract-toolchain.md`), and again on `https://free.rpc.fastnear.com` 2026-11-06T02:23Z (protocol version 87, same value). `rpc.mainnet.near.org` is deprecated and answered HTTP 429 on 2026-11-06 |
 | Gas price | `100000000` yoctoNEAR per gas (0.0001 NEAR per TGas) | read-only `gas_price` on the same endpoint, same time |
 | Prepaid-gas planning price | 0.001 NEAR per TGas (10x the burn price; unused gas is refunded) | research note `docs/research/near-contract-toolchain.md` |
 | USDC `storage_balance_bounds.min` | 0.00125 NEAR | research note; re-read with a view call at execution time |

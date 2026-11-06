@@ -18,6 +18,7 @@ Usage (stdlib only, run from anywhere inside the repository):
     python scripts/wallet-provision.py --owner OWNER --agent AGENT --gateway GW
     python scripts/wallet-provision.py --json                # plan as JSON
     python scripts/wallet-provision.py --live-storage-price  # read-only RPC read
+    python scripts/wallet-provision.py --rpc URL             # or APS_NEAR_RPC
     python scripts/wallet-provision.py --network testnet     # testnet plan only
     python scripts/wallet-provision.py --network testnet --execute
 Exit codes: 0 plan printed or run finished, 1 run failed, 2 usage error or
@@ -27,6 +28,7 @@ refused, 3 the testnet faucet refused (see wallet-e2e.mjs).
 import argparse
 import hashlib
 import json
+import os
 import pathlib
 import re
 import shutil
@@ -56,14 +58,16 @@ HOST_PATH_PATTERN = re.compile(rb"[A-Za-z]:\\|/Users/|/home/")
 
 NETWORKS = {
     "mainnet": {
-        "rpc": "https://rpc.mainnet.near.org",
+        # rpc.mainnet.near.org / rpc.testnet.near.org are deprecated and answer
+        # HTTP 429 (observed 2026-11-06); FASTNEAR is the default, --rpc overrides.
+        "rpc": "https://free.rpc.fastnear.com",
         "token": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
         "token_label": "native USDC (6 decimals)",
         "per_call": "50000",
         "daily": "200000",
     },
     "testnet": {
-        "rpc": "https://rpc.testnet.near.org",
+        "rpc": "https://test.rpc.fastnear.com",
         "token": "wrap.testnet",
         "token_label": "wNEAR (24 decimals)",
         "per_call": "1000000000000000000000",
@@ -87,7 +91,7 @@ def ceil_to(value, step):
     return -(-value // step) * step
 
 
-def live_storage_price(rpc):
+def live_storage_price(rpc, network):
     body = json.dumps(
         {
             "jsonrpc": "2.0",
@@ -99,6 +103,10 @@ def live_storage_price(rpc):
     request = urllib.request.Request(rpc, data=body, headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(request, timeout=20) as response:
         result = json.load(response)["result"]
+    if result.get("chain_id") != network:
+        raise SystemExit(
+            f"refused: {rpc} reports chain_id {result.get('chain_id')!r}, not {network}"
+        )
     return int(result["runtime_config"]["storage_amount_per_byte"]), result.get("protocol_version")
 
 
@@ -256,7 +264,7 @@ def build_plan(args, wasm_bytes, sha256_hex, price, price_source):
     return {
         "plan": "policy-wallet provisioning",
         "network": args.network,
-        "rpc": net["rpc"],
+        "rpc": args.rpc,
         "executes": False if args.network == "mainnet" else bool(args.execute),
         "accounts": {"owner": owner, "wallet": wallet, "agent": agent, "payees": [gateway]},
         "token": {"account_id": token, "label": net["token_label"]},
@@ -352,7 +360,13 @@ def main(argv=None):
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--keys-dir", help="testnet execute: off-repository keys directory")
     parser.add_argument("--evidence", help="testnet execute: off-repository evidence file")
+    parser.add_argument(
+        "--rpc",
+        help="JSON-RPC endpoint (default: APS_NEAR_RPC, else the network's FASTNEAR host); "
+        "it must report the selected network's chain_id",
+    )
     args = parser.parse_args(argv)
+    args.rpc = args.rpc or os.environ.get("APS_NEAR_RPC") or NETWORKS[args.network]["rpc"]
 
     if args.execute and args.network != "testnet":
         print("refused: --execute runs on testnet only; mainnet is plan-only", file=sys.stderr)
@@ -380,9 +394,10 @@ def main(argv=None):
         "recorded 2026-10-21 from EXPERIMENTAL_protocol_config",
     )
     if args.live_storage_price:
-        rpc = NETWORKS[args.network]["rpc"]
-        price, protocol = live_storage_price(rpc)
-        price_source = f"live read-only EXPERIMENTAL_protocol_config on {rpc}, protocol {protocol}"
+        price, protocol = live_storage_price(args.rpc, args.network)
+        price_source = (
+            f"live read-only EXPERIMENTAL_protocol_config on {args.rpc}, protocol {protocol}"
+        )
 
     plan = build_plan(args, len(data), sha256_hex, price, price_source)
     text = json.dumps(plan, indent=2) + "\n" if args.json else render(plan)
@@ -404,6 +419,8 @@ def main(argv=None):
         str(wasm_path),
         "--expected-sha256",
         sha256_hex,
+        "--rpc",
+        args.rpc,
     ]
     if args.keys_dir:
         command += ["--keys-dir", args.keys_dir]
