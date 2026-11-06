@@ -1,0 +1,23 @@
+[package]
+name = "aps-auth"
+description = "AgentPay Sentinel caller authentication: hashed API keys and NEP-413 signed requests"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "aps-admin"
+path = "src/bin/aps-admin.rs"
+
+[dependencies]
+aps-store = { path = "../store" }
+# Pinned exactly: these are the cryptographic and encoding primitives the
+# authentication decision rests on.
+ed25519-dalek = "=2.2.0"
+sha2 = "=0.10.9"
+base64 = "=0.22.1"
+bs58 = "=0.5.1"
+getrandom = "=0.2.17"
+zeroize = "=1.9.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
