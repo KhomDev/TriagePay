@@ -1,0 +1,158 @@
+{
+  "_fixture": {
+    "synthetic": true,
+    "description": "Direct ft_transfer to the gateway with another intent's memo.",
+    "expect": "StructuralMismatch (memo)",
+    "placeholders": {
+      "asset": "usdc.fixture.testnet",
+      "gateway": "gateway.fixture.testnet",
+      "memo": "aps2_fixture_00001"
+    },
+    "shape_reference": "mainnet_direct_ft_transfer.json (real EXPERIMENTAL_tx_status capture)"
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": "aps-near",
+    "result": {
+      "final_execution_status": "FINAL",
+      "transaction": {
+        "actions": [
+          {
+            "FunctionCall": {
+              "args": "eyJyZWNlaXZlcl9pZCI6ImdhdGV3YXkuZml4dHVyZS50ZXN0bmV0IiwiYW1vdW50IjoiMTAwMDAwMCIsIm1lbW8iOiJhcHMyX3NvbWVvbmVfZWxzZSJ9",
+              "deposit": "1",
+              "gas": 30000000000000,
+              "method_name": "ft_transfer"
+            }
+          }
+        ],
+        "hash": "SynthWrongMemo",
+        "nonce": 7,
+        "priority_fee": 0,
+        "public_key": "ed25519:SyntheticFixtureKey1111111111111111111111111",
+        "receiver_id": "usdc.fixture.testnet",
+        "signature": "ed25519:SyntheticSignature",
+        "signer_id": "payer.fixture.testnet"
+      },
+      "transaction_outcome": {
+        "block_hash": "SyntheticBlockTx",
+        "id": "SynthWrongMemo",
+        "outcome": {
+          "executor_id": "payer.fixture.testnet",
+          "gas_burnt": 300000000000,
+          "logs": [],
+          "metadata": {
+            "gas_profile": null,
+            "version": 1
+          },
+          "receipt_ids": [
+            "SynthWrongMemo-r1"
+          ],
+          "status": {
+            "SuccessReceiptId": "SynthWrongMemo-r1"
+          },
+          "tokens_burnt": "30000000000000000000"
+        },
+        "proof": []
+      },
+      "status": {
+        "SuccessValue": ""
+      },
+      "receipts_outcome": [
+        {
+          "block_hash": "SyntheticBlockemo-r1",
+          "id": "SynthWrongMemo-r1",
+          "outcome": {
+            "executor_id": "usdc.fixture.testnet",
+            "gas_burnt": 2400000000000,
+            "logs": [
+              "EVENT_JSON:{\"standard\":\"nep141\",\"version\":\"1.0.0\",\"event\":\"ft_transfer\",\"data\":[{\"old_owner_id\":\"payer.fixture.testnet\",\"new_owner_id\":\"gateway.fixture.testnet\",\"amount\":\"1000000\",\"memo\":\"aps2_someone_else\"}]}"
+            ],
+            "metadata": {
+              "gas_profile": [],
+              "version": 3
+            },
+            "receipt_ids": [
+              "SynthWrongMemo-r2"
+            ],
+            "status": {
+              "SuccessValue": ""
+            },
+            "tokens_burnt": "240000000000000000000"
+          },
+          "proof": []
+        },
+        {
+          "block_hash": "SyntheticBlockemo-r2",
+          "id": "SynthWrongMemo-r2",
+          "outcome": {
+            "executor_id": "payer.fixture.testnet",
+            "gas_burnt": 2400000000000,
+            "logs": [],
+            "metadata": {
+              "gas_profile": [],
+              "version": 3
+            },
+            "receipt_ids": [],
+            "status": {
+              "SuccessValue": ""
+            },
+            "tokens_burnt": "240000000000000000000"
+          },
+          "proof": []
+        }
+      ],
+      "receipts": [
+        {
+          "predecessor_id": "payer.fixture.testnet",
+          "priority": 0,
+          "receipt": {
+            "Action": {
+              "actions": [
+                {
+                  "FunctionCall": {
+                    "args": "eyJyZWNlaXZlcl9pZCI6ImdhdGV3YXkuZml4dHVyZS50ZXN0bmV0IiwiYW1vdW50IjoiMTAwMDAwMCIsIm1lbW8iOiJhcHMyX3NvbWVvbmVfZWxzZSJ9",
+                    "deposit": "1",
+                    "gas": 30000000000000,
+                    "method_name": "ft_transfer"
+                  }
+                }
+              ],
+              "gas_price": "1000000000",
+              "input_data_ids": [],
+              "is_promise_yield": false,
+              "output_data_receivers": [],
+              "signer_id": "payer.fixture.testnet",
+              "signer_public_key": "ed25519:SyntheticFixtureKey1111111111111111111111111"
+            }
+          },
+          "receipt_id": "SynthWrongMemo-r1",
+          "receiver_id": "usdc.fixture.testnet"
+        },
+        {
+          "predecessor_id": "system",
+          "priority": 0,
+          "receipt": {
+            "Action": {
+              "actions": [
+                {
+                  "Transfer": {
+                    "deposit": "1000000000000000000000"
+                  }
+                }
+              ],
+              "gas_price": "0",
+              "input_data_ids": [],
+              "is_promise_yield": false,
+              "output_data_receivers": [],
+              "signer_id": "payer.fixture.testnet",
+              "signer_public_key": "ed25519:SyntheticFixtureKey1111111111111111111111111"
+            }
+          },
+          "receipt_id": "SynthWrongMemo-r2",
+          "receiver_id": "payer.fixture.testnet"
+        }
+      ]
+    }
+  }
+}

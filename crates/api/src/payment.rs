@@ -89,14 +89,14 @@ impl Provider {
             Provider::Near(near) => match near.prepare_fetch(intent_id)? {
                 aps_near::FetchStep::Ready(observation) => Ok(observation),
                 aps_near::FetchStep::Verify { rpc, intent, hint } => {
-                    let verification = tokio::task::spawn_blocking(move || {
-                        aps_near::verify_tx(rpc, &intent, &hint)
+                    let check = tokio::task::spawn_blocking(move || {
+                        aps_near::verify_tx_receipts(rpc, &intent, &hint)
                     })
                     .await
                     .map_err(|err| {
                         ProviderError::Validation(format!("verification task failed: {err}"))
                     })??;
-                    near.apply_verification(intent_id, verification)
+                    near.apply_check(intent_id, check)
                 }
             },
         }

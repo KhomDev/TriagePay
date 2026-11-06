@@ -55,7 +55,7 @@ fn start_stub() -> (StubRpc, Cell) {
             .and_then(Value::as_str)
             .unwrap_or_default();
         match method {
-            "tx" => {
+            m if common::is_tx_status_method(m) => {
                 let stored = handler_cell.lock().map(|g| g.clone()).unwrap_or(None);
                 match stored {
                     Some(outcome) => Ok(outcome),
@@ -229,7 +229,7 @@ fn wrong_token_contract_is_a_client_error() {
         "1000000",
         "1",
     );
-    structural_error_test(outcome, "calls contract");
+    structural_error_test(outcome, "asset contract");
 }
 
 #[test]
@@ -269,21 +269,19 @@ fn malformed_amount_is_a_client_error() {
 
 #[test]
 fn no_ft_transfer_call_is_a_client_error() {
-    let outcome = json!({
-        "status": { "SuccessValue": "" },
-        "transaction": {
-            "signer_id": SIGNER,
-            "receiver_id": ASSET,
-            "actions": [ { "FunctionCall": {
-                "method_name": "ft_total_supply",
-                "args": "",
-                "gas": 1u64,
-                "deposit": "0"
-            } } ]
-        },
-        "transaction_outcome": {},
-        "receipts_outcome": []
-    });
+    let outcome = common::transfer_outcome(
+        "txhash",
+        SIGNER,
+        ASSET,
+        vec![json!({ "FunctionCall": {
+            "method_name": "ft_total_supply",
+            "args": "",
+            "gas": 1u64,
+            "deposit": "0"
+        } })],
+        json!({ "SuccessValue": "" }),
+        Vec::new(),
+    );
     structural_error_test(outcome, "no ft_transfer");
 }
 
@@ -310,29 +308,35 @@ fn not_found_transaction_stays_pending_until_it_appears() {
         provider.observe(&intent.intent_id),
         Ok(Observation::Pending)
     );
-    // The payer's wallet broadcast lands on chain; the cell is filled.
+    // The payer's broadcast lands on chain; the cell is filled.
     ft_transfer(&cell, &intent, "1000000", "1");
     let observation = provider.observe(&intent.intent_id).unwrap();
     assert!(matches!(observation, Observation::Confirmed { .. }));
-    // The request asked for FINAL finality, matching the documented API.
+    // Every status request asked for FINAL finality through a method that
+    // returns receipt bodies.
     let requests = stub.requests();
-    let tx_request = requests
+    let tx_requests: Vec<&Value> = requests
         .iter()
-        .find(|r| r.get("method").and_then(Value::as_str) == Some("tx"))
-        .expect("a tx request was made");
-    assert_eq!(
-        tx_request
-            .get("params")
-            .and_then(|p| p.get("wait_until"))
-            .and_then(Value::as_str),
-        Some("FINAL")
-    );
+        .filter(|r| {
+            r.get("method")
+                .and_then(Value::as_str)
+                .is_some_and(common::is_tx_status_method)
+        })
+        .collect();
+    assert!(!tx_requests.is_empty());
+    for request in tx_requests {
+        assert_ne!(
+            request["method"], "tx",
+            "the plain tx method omits receipts"
+        );
+        assert_eq!(request["params"]["wait_until"], "FINAL");
+    }
 }
 
 #[test]
 fn batched_transaction_with_the_matching_transfer_funds() {
-    // A batch where the first action is unrelated and only the second is
-    // the matching ft_transfer.
+    // A batch where the first action is unrelated (storage_deposit) and
+    // the second is the matching ft_transfer, executed in one receipt.
     use base64::Engine as _;
     let (stub, cell) = start_stub();
     let (mut provider, intent) = provider_with_intent(&stub);
@@ -342,29 +346,32 @@ fn batched_transaction_with_the_matching_transfer_funds() {
         "memo": intent.intent_id.as_str(),
     });
     let args_base64 = base64::engine::general_purpose::STANDARD.encode(args.to_string().as_bytes());
-    let outcome = json!({
-        "status": { "SuccessValue": "" },
-        "transaction": {
-            "signer_id": SIGNER,
-            "receiver_id": ASSET,
-            "actions": [
-                { "FunctionCall": {
-                    "method_name": "storage_deposit",
-                    "args": "e30=",
-                    "gas": 1u64,
-                    "deposit": "10000000000000000000000"
-                } },
-                { "FunctionCall": {
-                    "method_name": "ft_transfer",
-                    "args": args_base64,
-                    "gas": 30000000000000u64,
-                    "deposit": "1"
-                } }
-            ]
-        },
-        "transaction_outcome": {},
-        "receipts_outcome": []
-    });
+    let outcome = common::transfer_outcome(
+        "txhash",
+        SIGNER,
+        ASSET,
+        vec![
+            json!({ "FunctionCall": {
+                "method_name": "storage_deposit",
+                "args": "e30=",
+                "gas": 1u64,
+                "deposit": "10000000000000000000000"
+            } }),
+            json!({ "FunctionCall": {
+                "method_name": "ft_transfer",
+                "args": args_base64,
+                "gas": 30000000000000u64,
+                "deposit": "1"
+            } }),
+        ],
+        json!({ "SuccessValue": "" }),
+        vec![common::nep141_event(
+            SIGNER,
+            GATEWAY,
+            "1000000",
+            intent.intent_id.as_str(),
+        )],
+    );
     store(&cell, outcome);
     submit_hint(&mut provider, &intent);
     let observation = provider.observe(&intent.intent_id).unwrap();
@@ -375,4 +382,217 @@ fn batched_transaction_with_the_matching_transfer_funds() {
             tx_ref: "txhash".to_string()
         }
     );
+}
+
+/// A stub that answers tx_status with METHOD_NOT_FOUND (nearcore 2.13)
+/// and serves the outcome only on EXPERIMENTAL_tx_status.
+fn start_legacy_stub() -> (StubRpc, Cell) {
+    let cell: Cell = Arc::new(Mutex::new(None));
+    let handler_cell = Arc::clone(&cell);
+    let stub = StubRpc::start(Arc::new(move |request: &Value| {
+        match request.get("method").and_then(Value::as_str) {
+            Some("EXPERIMENTAL_tx_status") => {
+                let stored = handler_cell.lock().map(|g| g.clone()).unwrap_or(None);
+                stored.ok_or_else(tx_not_found_error)
+            }
+            Some(method) => Err(common::method_not_found_error(method)),
+            None => Ok(Value::Null),
+        }
+    }));
+    (stub, cell)
+}
+
+#[test]
+fn tx_status_falls_back_to_experimental_once_and_remembers() {
+    let (stub, cell) = start_legacy_stub();
+    let (mut provider, intent) = provider_with_intent(&stub);
+    submit_hint(&mut provider, &intent);
+    assert_eq!(
+        provider.observe(&intent.intent_id),
+        Ok(Observation::Pending)
+    );
+    ft_transfer(&cell, &intent, "1000000", "1");
+    assert!(matches!(
+        provider.observe(&intent.intent_id),
+        Ok(Observation::Confirmed { .. })
+    ));
+    let methods: Vec<String> = stub
+        .requests()
+        .iter()
+        .filter_map(|r| r.get("method").and_then(Value::as_str).map(str::to_string))
+        .collect();
+    // tx_status is tried exactly once; after METHOD_NOT_FOUND every lookup
+    // goes straight to EXPERIMENTAL_tx_status.
+    assert_eq!(
+        methods,
+        vec![
+            "tx_status".to_string(),
+            "EXPERIMENTAL_tx_status".to_string(),
+            "EXPERIMENTAL_tx_status".to_string()
+        ]
+    );
+}
+
+#[test]
+fn rpc_timeout_is_not_final_yet_never_failure() {
+    let stub = StubRpc::start(Arc::new(|_request: &Value| Err(common::timeout_error())));
+    let (mut provider, intent) = provider_with_intent(&stub);
+    submit_hint(&mut provider, &intent);
+    assert_eq!(
+        provider.observe(&intent.intent_id),
+        Ok(Observation::Pending)
+    );
+    assert_eq!(
+        provider.intent(&intent.intent_id).map(|i| &i.status),
+        Some(&aps_payment::IntentStatus::Pending)
+    );
+}
+
+#[test]
+fn other_rpc_errors_are_provider_unavailable() {
+    let stub = StubRpc::start(Arc::new(|_request: &Value| {
+        Err(json!({ "code": -32000, "message": "Server error", "data": "internal" }))
+    }));
+    let (mut provider, intent) = provider_with_intent(&stub);
+    submit_hint(&mut provider, &intent);
+    assert_eq!(
+        provider.observe(&intent.intent_id),
+        Err(ProviderError::ProviderUnavailable)
+    );
+}
+
+const FIXTURE_ASSET: &str = "usdc.fixture.testnet";
+const FIXTURE_GATEWAY: &str = "gateway.fixture.testnet";
+
+fn fixture_provider(stub: &StubRpc) -> (NearProvider, DepositIntent) {
+    let config = NearConfig {
+        rpc_url: stub.url.clone(),
+        network: "testnet".to_string(),
+        gateway_account_id: FIXTURE_GATEWAY.to_string(),
+        asset_contract_id: FIXTURE_ASSET.to_string(),
+        timeout_secs: 5,
+    };
+    let mut provider = NearProvider::new(config).unwrap();
+    provider.sync_clock(1_000);
+    let intent = provider
+        .create_intent(CreateIntent {
+            asset_id: AssetId::new(FIXTURE_ASSET),
+            amount: Amount::from_atomic(1_000_000),
+            expires_at_unix: 10_000,
+        })
+        .unwrap();
+    (provider, intent)
+}
+
+fn fixture_hint(provider: &mut NearProvider, intent: &DepositIntent, signer: &str, tx: &str) {
+    provider
+        .submit_hint(
+            &intent.intent_id,
+            TxHint {
+                signer_id: signer.to_string(),
+                tx_hash: tx.to_string(),
+            },
+        )
+        .unwrap();
+}
+
+#[test]
+fn wallet_payment_funds_and_records_the_wallet_as_payer() {
+    let (stub, cell) = start_stub();
+    let (mut provider, intent) = fixture_provider(&stub);
+    store(
+        &cell,
+        common::fixture_result(
+            include_str!("fixtures/synthetic_wallet_pay.json"),
+            Some(intent.intent_id.as_str()),
+        ),
+    );
+    fixture_hint(
+        &mut provider,
+        &intent,
+        "agent.fixture.testnet",
+        "SynthWalletPay",
+    );
+    let observation = provider.observe(&intent.intent_id).unwrap();
+    assert!(matches!(
+        reconcile(&intent, &observation),
+        ReconcileOutcome::Fund { .. }
+    ));
+    let evidence = provider.evidence(&intent.intent_id).expect("evidence");
+    assert_eq!(evidence.payer_id, "wallet.fixture.testnet");
+    assert_eq!(evidence.predecessor_id, "wallet.fixture.testnet");
+    assert_eq!(evidence.executor_id, FIXTURE_ASSET);
+    assert!(provider.orphans(&intent.intent_id).is_empty());
+}
+
+#[test]
+fn a_second_transaction_for_a_funded_intent_becomes_an_orphan() {
+    let (stub, cell) = start_stub();
+    let (mut provider, intent) = fixture_provider(&stub);
+    let memo = intent.intent_id.as_str().to_string();
+    store(
+        &cell,
+        common::fixture_result(
+            include_str!("fixtures/synthetic_wallet_pay.json"),
+            Some(&memo),
+        ),
+    );
+    fixture_hint(
+        &mut provider,
+        &intent,
+        "agent.fixture.testnet",
+        "SynthWalletPay",
+    );
+    let funded = provider.observe(&intent.intent_id).unwrap();
+
+    // A different transaction paying the same memo arrives later.
+    let second = common::fixture_result(
+        include_str!("fixtures/synthetic_batch_storage_and_transfer.json"),
+        Some(&memo),
+    );
+    let outcome = aps_near::rpc::parse_tx_outcome("SynthBatchStorageAndTransfer", &second)
+        .expect("fixture parses");
+    let check = aps_near::check_outcome(provider.intent(&intent.intent_id).unwrap(), &outcome);
+    assert!(matches!(
+        check.verification,
+        aps_near::Verification::Confirmed { .. }
+    ));
+    let observation = provider.apply_check(&intent.intent_id, check).unwrap();
+    // The funding observation is unchanged; the second payment is an orphan.
+    assert_eq!(observation, funded);
+    let orphans = provider.orphans(&intent.intent_id);
+    assert_eq!(orphans.len(), 1);
+    assert_eq!(orphans[0].tx_hash, "SynthBatchStorageAndTransfer");
+    assert_eq!(orphans[0].amount_atomic, "1000000");
+    // Applying the same check again does not duplicate the orphan.
+    let again = aps_near::check_outcome(provider.intent(&intent.intent_id).unwrap(), &outcome);
+    provider.apply_check(&intent.intent_id, again).unwrap();
+    assert_eq!(provider.orphans(&intent.intent_id).len(), 1);
+}
+
+#[test]
+fn a_wrong_amount_is_recorded_as_an_orphan_and_never_funds() {
+    let (stub, cell) = start_stub();
+    let (mut provider, intent) = fixture_provider(&stub);
+    store(
+        &cell,
+        common::fixture_result(
+            include_str!("fixtures/synthetic_wrong_amount.json"),
+            Some(intent.intent_id.as_str()),
+        ),
+    );
+    fixture_hint(
+        &mut provider,
+        &intent,
+        "payer.fixture.testnet",
+        "SynthWrongAmount",
+    );
+    let observation = provider.observe(&intent.intent_id).unwrap();
+    assert!(matches!(
+        reconcile(&intent, &observation),
+        ReconcileOutcome::Mismatch { .. }
+    ));
+    let orphans = provider.orphans(&intent.intent_id);
+    assert_eq!(orphans.len(), 1);
+    assert_eq!(orphans[0].amount_atomic, "2000000");
 }

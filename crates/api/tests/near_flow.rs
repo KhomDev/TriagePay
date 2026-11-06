@@ -70,7 +70,7 @@ fn stub_server() -> (String, Arc<Mutex<Option<Value>>>) {
                     Err(_) => return,
                 };
                 let response = match request.get("method").and_then(Value::as_str) {
-                    Some("tx") => {
+                    Some("tx_status") | Some("EXPERIMENTAL_tx_status") => {
                         let stored = handler_cell.lock().map(|g| g.clone()).unwrap_or(None);
                         match stored {
                             Some(outcome) => json!({"jsonrpc": "2.0", "id": 1, "result": outcome}),
@@ -149,24 +149,44 @@ async fn balances_of(app: axum::Router, account: &str) -> Value {
     body_json(response).await
 }
 
+/// A finalized direct ft_transfer in the EXPERIMENTAL_tx_status shape:
+/// the token receipt carries the nep141 event the verifier binds to.
 fn store_tx(cell: &Arc<Mutex<Option<Value>>>, memo: &str, amount: &str) {
     let args = json!({"receiver_id": GATEWAY, "amount": amount, "memo": memo});
     let args_base64 = base64::engine::general_purpose::STANDARD.encode(args.to_string().as_bytes());
+    let action = json!({ "FunctionCall": {
+        "method_name": "ft_transfer",
+        "args": args_base64,
+        "gas": 30000000000000u64,
+        "deposit": "1"
+    } });
+    let event = json!({
+        "standard": "nep141", "version": "1.0.0", "event": "ft_transfer",
+        "data": [{ "old_owner_id": SIGNER, "new_owner_id": GATEWAY, "amount": amount, "memo": memo }]
+    });
     let outcome = json!({
+        "final_execution_status": "FINAL",
         "status": { "SuccessValue": "" },
         "transaction": {
             "signer_id": SIGNER,
             "receiver_id": ASSET,
-            "actions": [ { "FunctionCall": {
-                "method_name": "ft_transfer",
-                "args": args_base64,
-                "gas": 30000000000000u64,
-                "deposit": "1"
-            } } ],
+            "actions": [ action.clone() ],
             "hash": "txhash"
         },
-        "transaction_outcome": {},
-        "receipts_outcome": []
+        "transaction_outcome": {
+            "id": "txhash",
+            "outcome": { "executor_id": SIGNER, "receipt_ids": ["r1"],
+                         "status": { "SuccessReceiptId": "r1" }, "logs": [] }
+        },
+        "receipts_outcome": [{
+            "id": "r1",
+            "outcome": { "executor_id": ASSET, "status": { "SuccessValue": "" },
+                         "logs": [format!("EVENT_JSON:{event}")], "receipt_ids": [] }
+        }],
+        "receipts": [{
+            "receipt_id": "r1", "predecessor_id": SIGNER, "receiver_id": ASSET,
+            "receipt": { "Action": { "actions": [ action ], "signer_id": SIGNER } }
+        }]
     });
     *cell.lock().expect("cell lock") = Some(outcome);
 }
