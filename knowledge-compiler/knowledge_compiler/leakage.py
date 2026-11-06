@@ -234,8 +234,35 @@ def describe_findings(findings):
     return "; ".join(f"[{pattern}] at {path}" for pattern, path in findings)
 
 
+def scan_public_text(text, digests=None):
+    """Pattern classes found in one piece of public report text.
+
+    Used by the scanner's report guard on free-text report fields (gate
+    reasons, the model's public rationale). Returns class names only,
+    never the matched text. Hash fields must not be passed here: a 64-hex
+    digest is indistinguishable from an implicit account id.
+    """
+    digests = load_denylist() if digests is None else digests
+    findings: list = []
+    _check_text(text, "public", findings, digests)
+    return sorted({pattern for pattern, _path in findings})
+
+
+# Third-party lockfiles: dependency names (crate, package and module names
+# chosen by other people) are not this repository's prose and routinely
+# collide with generic words on a private list. They are skipped by basename.
+LOCKFILE_NAMES = frozenset({"Cargo.lock", "uv.lock", "package-lock.json", "pnpm-lock.yaml"})
+
+
+def is_lockfile(relative):
+    return pathlib.PurePosixPath(relative).name in LOCKFILE_NAMES
+
+
 def scan_tree(root, digests):
-    """Scan every git-tracked text file under root; return (path, line) hits."""
+    """Scan every git-tracked text file under root; return (path, line) hits.
+
+    Third-party lockfiles (LOCKFILE_NAMES) are skipped.
+    """
     listing = subprocess.run(
         ["git", "-C", str(root), "ls-files", "-z"],
         check=True,
@@ -243,6 +270,8 @@ def scan_tree(root, digests):
     ).stdout.decode("utf-8")
     hits = []
     for relative in sorted(name for name in listing.split("\0") if name):
+        if is_lockfile(relative):
+            continue
         try:
             text = (pathlib.Path(root) / relative).read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):

@@ -196,3 +196,62 @@ def test_tracked_tree_has_no_private_term():
         pytest.skip("not a git checkout")
     hits = leakage.scan_tree(REPO_ROOT, leakage.load_private_denylist())
     assert hits == []
+
+
+def _git_repo_with(tmp_path, files):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    for relative, text in files.items():
+        path = repo / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    return repo
+
+
+def test_scan_tree_skips_third_party_lockfiles(tmp_path):
+    # A dependency name that collides with a generic word on a private list
+    # (the synthetic stand-in plays that word here) must not trip the scan
+    # inside a lockfile, and must still trip it in ordinary files.
+    digests = frozenset({leakage.digest_for_term("zz-private-alpha")})
+    dependency_line = 'name = "redacted-zz-private-alpha-dalek"\n'
+    repo = _git_repo_with(
+        tmp_path,
+        {
+            "Cargo.lock": dependency_line,
+            "web/package-lock.json": '{"zz-private-alpha": "1.0.0"}\n',
+            "py/uv.lock": dependency_line,
+            "ui/pnpm-lock.yaml": "zz-private-alpha: 1.0.0\n",
+            "src/notes.md": "mentions zz-private-alpha here\n",
+        },
+    )
+    hits = leakage.scan_tree(repo, digests)
+    assert hits == [("src/notes.md", 1)]
+
+
+@pytest.mark.parametrize(
+    "relative, expected",
+    [
+        ("Cargo.lock", True),
+        ("crates/x/Cargo.lock", True),
+        ("uv.lock", True),
+        ("a/package-lock.json", True),
+        ("pnpm-lock.yaml", True),
+        ("Cargo.toml", False),
+        ("package.json", False),
+        ("notes/Cargo.lock.md", False),
+    ],
+)
+def test_lockfile_detection_is_by_basename(relative, expected):
+    assert leakage.is_lockfile(relative) is expected
+
+
+def test_scan_public_text_reports_classes_not_text():
+    stand_in = frozenset({leakage.digest_for_term("zz-private-alpha")})
+    assert leakage.scan_public_text("a generic reason", stand_in) == []
+    host_path = leakage.HOST_PATHS[-1] + "someone"
+    classes = leakage.scan_public_text("see zz-private-alpha at " + host_path, stand_in)
+    assert "denylisted term" in classes
+    assert any(c.startswith("host path") for c in classes)
+    assert all("zz-private-alpha" not in c for c in classes)
