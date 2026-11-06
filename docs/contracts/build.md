@@ -1,24 +1,28 @@
-# Policy-wallet spike notes
+# Policy wallet: build, toolchain and artifacts
 
-Pre-window spike of plan prompt 02 (spend-policy wallet contract), built
-outside the submission repository under ADR-0006 option C. Nothing here has
-been deployed or signed on any network.
+The contract started as a pre-window spike of plan prompt 02 (spend-policy
+wallet contract), built outside the submission repository under ADR-0006
+option C and imported with its history. It landed in this layout inside the
+hackathon window (2026-11-04). Nothing has been deployed to mainnet.
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `policy-core/` | Dependency-free policy arithmetic (proptest is a dev-dependency only) |
-| `contracts/policy-wallet/` | The wallet contract (near-sdk `=5.29.1`) |
+| `crates/policy-core/` | Dependency-free policy arithmetic (proptest is a dev-dependency only); a member of the root workspace |
+| `contracts/` | Its own Cargo workspace (`contracts/Cargo.toml`, `contracts/Cargo.lock`); the root workspace lists it under `exclude` |
+| `contracts/policy-wallet/` | The wallet contract (near-sdk `=5.29.1`), depending on `../crates/policy-core` by path |
 | `contracts/test-token/` | Minimal NEP-141 token for sandbox tests only |
-| `tests/` | near-workspaces sandbox integration tests (Linux-only) |
-| `docs/` | ADR-0008 draft, interface doc, mainnet deployment plan |
+| `contracts/tests/` | near-workspaces sandbox integration tests (Linux-only) |
+| `contracts/.cargo/config.toml` | Windows NASM switch (see below); applies to cargo runs inside `contracts/` |
+| `.github/workflows/contracts.yml` | Linux CI: fmt, clippy, both wasm builds with size and SHA-256, unit and sandbox tests |
+| `docs/decisions/0008-spend-policy-wallet.md` | ADR |
+| `docs/contracts/policy-wallet.md` | Interface, events, error codes, threats, testnet evidence |
+| `docs/contracts/mainnet-deployment-plan.md` | Mainnet plan (not executed) |
 
-The spike uses one Cargo workspace for convenience. When this lands in the
-submission repository, `policy-core` joins the root workspace as
-`crates/policy-core` and everything under `contracts/` (plus the sandbox
-tests) moves into its own `contracts/` workspace, so the root workspace
-never sees near-sdk.
+The root workspace never sees near-sdk: only `policy-core` is shared, and
+it has no runtime dependencies. All commands below run from `contracts/`
+unless a subdirectory is named.
 
 ## Toolchain (verified on the build host, 2026-10-21)
 
@@ -41,11 +45,19 @@ the research note on contract toolchains. Deployability is still unproven
 on this host because no sandbox runs here (see risk 2); the first Linux CI
 sandbox run is the deployability proof.
 
-Working build command (run from `contracts/policy-wallet/`):
+Working build command (run from `contracts/policy-wallet/`; the artifact
+lands in the workspace target directory, `contracts/target/near/`):
 
 ```
-cargo near build non-reproducible-wasm --locked --no-abi
+cargo near build non-reproducible-wasm --locked --no-abi \
+  --env "RUSTFLAGS=--remap-path-prefix=<cargo home>=/cargo --remap-path-prefix=<rustup home>=/rustup --remap-path-prefix=<repository root>=/src"
 ```
+
+The three placeholders are the absolute paths of the build host's cargo
+home, rustup home and repository checkout (in Git Bash on Windows, convert
+them with `cygpath -w`). The remapping is required for any wasm that is
+deployed; see "Host paths in the wasm" below. cargo-near force-appends
+`--cfg near` to these flags.
 
 `--no-abi` is required on Windows: the ABI step builds a host `cdylib` with
 `near-sdk/__abi-generate`, and the MSVC linker fails on the unresolved NEAR
@@ -56,7 +68,7 @@ different hash because the ABI is embedded in the wasm.
 ### Risk 2: near-workspaces sandbox on native Windows
 
 Result: not supported. near-sandbox ships Linux x86_64, Linux aarch64 and
-macOS arm64 binaries only. The sandbox tests in `tests/` are written, gated
+macOS arm64 binaries only. The sandbox tests in `contracts/tests/` are written, gated
 with `#![cfg(not(windows))]` so the crate compiles everywhere, and run only
 in the Linux CI workflow (`.github/workflows/contracts.yml`). They have not
 been executed on this host; treat them as unverified until a Linux run.
@@ -64,17 +76,26 @@ been executed on this host; treat them as unverified until a Linux run.
 ### Host build note: NASM
 
 near-sdk's `unit-testing` feature pulls `aws-lc-sys`, whose Windows build
-needs NASM. `.cargo/config.toml` sets `AWS_LC_SYS_PREBUILT_NASM=1` so the
-crate uses its bundled prebuilt objects; the variable is ignored elsewhere.
+needs NASM. `contracts/.cargo/config.toml` sets `AWS_LC_SYS_PREBUILT_NASM=1`
+so the crate uses its bundled prebuilt objects; the variable is ignored
+elsewhere. Cargo reads it for any command run inside `contracts/`. The root
+workspace does not need it: `policy-core` has no dependencies.
 
 ### Gate commands
 
+From `contracts/`:
+
 ```
-cargo fmt --all -- --check
+cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test
-cd contracts/policy-wallet && cargo near build non-reproducible-wasm --locked --no-abi
+(cd policy-wallet && cargo near build non-reproducible-wasm --locked --no-abi --env "RUSTFLAGS=...")
 ```
+
+with the `RUSTFLAGS` value shown above.
+
+`policy-core` is tested by the root gate (`cargo test --workspace` at the
+repository root).
 
 A plain `cargo build -p policy-wallet` fails by design: near-sdk 5.29 refuses
 non-wasm builds without the `unit-testing` feature. `cargo clippy
@@ -86,20 +107,41 @@ cargo-near wasm build cover the contract code.
 
 | Item | Value |
 |---|---|
-| File | `target/near/policy_wallet/policy_wallet.wasm` |
-| Size | 174,798 bytes |
-| SHA-256 | `22de525576ea9f8711c8db59cdee6ad06cf221d5f6f818a4499d989d29743c9c` |
-| SHA-256 (base58, as cargo-near prints) | `3M7V5UVy1QpmbFk1BzzcDGA9nsMM5zGMP5gDG56bY7Ab` |
-| Built at commit | `e1aecff` (adds `close`; the pre-`close` build at `a6b5d8b` was 165,025 bytes, SHA-256 `0e1b5272d3c03f24f3272d19fddc46751ef7aab9449a0b1295e3798ba38408fd`) |
+| File | `contracts/target/near/policy_wallet/policy_wallet.wasm` |
+| Size | 174,583 bytes |
+| SHA-256 | `7a599a50b37fc25961da3e0e2c97a9108eb483ef1b591d1506e08e44bf13a6a2` |
+| SHA-256 (base58, as cargo-near prints) | `9Ebz6ABpWwNkjgst6YoZ48yvkYcbcowRYiBK186Lt9RB` |
+| Built | 2026-11-06 on the Windows build host, from commit `e96f5d0` (the landed layout; contract source unchanged since the spike), rustc 1.98.0, cargo-near 0.21.1, with the path remapping above |
 | Imports | 37 functions, all from module `env` |
 | Exports | `new`, `pay`, `on_pay_complete`, `set_agent`, `revoke_agent`, `set_tokens`, `pause`, `unpause`, `withdraw`, `on_withdraw_complete`, `close`, `on_close_check`, `ft_on_transfer`, `get_agent`, `get_spent`, `get_config`, `contract_source_metadata` |
 
-The same hash came out of two builds from different checkout directories,
-so the host path is not embedded in the module. This is a non-reproducible
-build: a different rustc or cargo-near version can change the hash. The
-reproducible-build path (`cargo near build reproducible-wasm` with a pinned
-Docker image recorded in `[package.metadata.near.reproducible_build]`) is
-open; the image tag and digest must be taken from the cargo-near release
+Earlier builds of the same contract source, none of them deployed anywhere:
+
+| Build | Size | SHA-256 | Why it differs |
+|---|---|---|---|
+| Spike, commit `a6b5d8b` (before `close`) | 165,025 | `0e1b5272d3c03f24f3272d19fddc46751ef7aab9449a0b1295e3798ba38408fd` | No `close` |
+| Spike, commit `e1aecff` | 174,798 | `22de525576ea9f8711c8db59cdee6ad06cf221d5f6f818a4499d989d29743c9c` | Host paths embedded (see below) |
+| Landed layout `e96f5d0`, no remapping | 174,803 | `5ccf9e1bfb0f2c4e8dbca9434976e305e99643dd519c2ee3040e7a84d458f887` | Host paths embedded; the 5-byte difference from the spike build was not investigated, because both builds are superseded |
+
+### Host paths in the wasm
+
+Panic locations compiled into the wasm carry the source path of every
+crate that can panic. Without remapping, a Windows build embeds the build
+host's cargo registry path and rustup toolchain path, both under the
+user's profile folder; the spike's note that "the host path is not
+embedded" held only for the checkout directory. A deployed contract is
+public, so those strings would be published on chain. The remapped build
+above contains no string with a user profile, drive letter or checkout
+path (checked by scanning the module's printable strings); registry paths
+appear as `/cargo/registry/src/...` and standard-library paths as
+`/rustup/...`. The CI workflow applies the same remapping and fails the
+job if the runner's home path survives in either wasm.
+
+This is a non-reproducible build: a different rustc or cargo-near version,
+or another operating system (path separators differ), changes the hash.
+The reproducible-build path (`cargo near build reproducible-wasm` with a
+pinned Docker image recorded in `[package.metadata.near.reproducible_build]`)
+is open; the image tag and digest must be taken from the cargo-near release
 notes, never guessed.
 
 ## Test counts (this host)
@@ -112,19 +154,19 @@ notes, never guessed.
 | test-token unit tests | 3 | yes |
 | sandbox integration tests (near-workspaces) | 18 | compiled and reported as ignored on Windows; written for Linux CI, never executed yet |
 
-Test-token wasm (same build command, from `contracts/test-token/`): 148,419
-bytes, SHA-256
-`1085d171aac31acbc4e6005fa3eebd16ae2bf7cf26c1d80439495aa57e61a188`. It is
-built from the crates.io release of `near-contract-standards` `=5.29.1`
+Test-token wasm (spike build, same command without remapping, from
+`contracts/test-token/`): 148,419 bytes, SHA-256
+`1085d171aac31acbc4e6005fa3eebd16ae2bf7cf26c1d80439495aa57e61a188`. The test
+token is never deployed to a public network; its CI build is remapped like
+the wallet's. It is built from the crates.io release of `near-contract-standards` `=5.29.1`
 (locked in `Cargo.lock`) rather than from a git checkout of the near-sdk
 fungible-token example; the example's code shape is reproduced in
 `contracts/test-token/src/lib.rs`.
 
-Hash caveat: a non-reproducible build can embed dependency source paths
-from the build host's cargo registry, so a Linux CI build may print a
-different SHA-256 than the one above. The CI log hash is the reference for
-CI-built artifacts; the deployed hash must come from the reproducible
-build.
+Hash caveat: a Linux CI build prints a different SHA-256 than the Windows
+build above (path separators and toolchain names differ even after
+remapping). The CI log hash is the reference for CI-built artifacts; the
+mainnet hash must come from the reproducible build.
 
 ## Deviations from prompt 02
 

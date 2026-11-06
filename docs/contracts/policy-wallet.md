@@ -1,11 +1,18 @@
 # Policy wallet
 
 A NEAR contract that holds an agent's NEP-141 budget and enforces its
-spending policy. Design rationale: `ADR-0008-spend-policy-wallet.md`.
+spending policy. Design rationale: `docs/decisions/0008-spend-policy-wallet.md`.
+Build, toolchain and wasm hash: `docs/contracts/build.md`.
 
-Status: pre-window spike. Unit and property tests pass on the build host;
-the sandbox integration tests are written but have only been compiled, not
-run (the sandbox has no Windows build). Nothing has been deployed.
+Source layout: `crates/policy-core` (the dependency-free policy arithmetic,
+a member of the root workspace) and the `contracts/` Cargo workspace
+(`policy-wallet`, `test-token`, and the near-workspaces sandbox tests in
+`contracts/tests`).
+
+Status: unit and property tests pass on the Windows build host; the sandbox
+integration tests are written but have only been compiled, not run (the
+sandbox has no Windows build; Linux CI runs them). Nothing has been
+deployed to mainnet.
 
 ## Interface
 
@@ -99,8 +106,8 @@ Every refusal panics with `CODE: description`; the code is stable.
 
 ## Provisioning walkthrough (plan)
 
-The exact mainnet plan, with costs, is `mainnet-deployment-plan.md`. In
-order:
+The exact mainnet plan, with costs, is `docs/contracts/mainnet-deployment-plan.md`.
+In order:
 
 1. Create the wallet account with one temporary full-access key.
 2. One batch signed by that key: deploy the wasm, call `new(owner, tokens)`,

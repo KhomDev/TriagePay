@@ -56,19 +56,30 @@ jobs:
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
 
+      # Panic locations embed source paths. Remap the cargo home, the rustup
+      # home and the checkout so no runner path reaches the deployed code
+      # (docs/contracts/build.md, "Host paths in the wasm").
+      - name: Path remapping flags
+        run: |
+          echo "WASM_RUSTFLAGS=--remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo --remap-path-prefix=${RUSTUP_HOME:-$HOME/.rustup}=/rustup --remap-path-prefix=$GITHUB_WORKSPACE=/src" >> "$GITHUB_ENV"
+
       - name: Build policy-wallet wasm
         working-directory: contracts/policy-wallet
-        run: cargo near build non-reproducible-wasm --locked --no-abi
+        run: cargo near build non-reproducible-wasm --locked --no-abi --env "RUSTFLAGS=$WASM_RUSTFLAGS"
 
       - name: Build test-token wasm
         working-directory: contracts/test-token
-        run: cargo near build non-reproducible-wasm --locked --no-abi
+        run: cargo near build non-reproducible-wasm --locked --no-abi --env "RUSTFLAGS=$WASM_RUSTFLAGS"
 
-      - name: Print wasm size and SHA-256
+      - name: Print wasm size and SHA-256, and check for host paths
         run: |
           for f in target/near/policy_wallet/policy_wallet.wasm target/near/test_token/test_token.wasm; do
             echo "$f $(stat -c %s "$f") bytes"
             sha256sum "$f"
+            if grep -a -q -e "$HOME" -e "/home/" "$f"; then
+              echo "host path embedded in $f"
+              exit 1
+            fi
           done
 
       # The sandbox tests are ignored only on Windows, so on Linux this runs
