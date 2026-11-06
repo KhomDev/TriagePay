@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:* http://localhost:* https://test.rpc.fastnear.com https://free.rpc.fastnear.com; base-uri 'none'; form-action 'none'">
+<title>Verify a verdict - AgentPay Sentinel</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/app.js" defer></script>
+<script src="assets/verdict.js" defer></script>
+<script src="assets/verify.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site">
+  <p class="brand">AgentPay Sentinel <span>demo console (NEAR testnet)</span></p>
+  <nav class="pages" aria-label="Pages">
+    <ul>
+      <li><a href="index.html">Try it</a></li>
+      <li><a href="pay.html">Pay on NEAR</a></li>
+      <li><a href="wallet.html">Wallet policy</a></li>
+      <li><a href="ledger.html">Ledger</a></li>
+      <li><a href="verify.html" aria-current="page">Verify a verdict</a></li>
+      <li><a href="evidence.html">Evidence</a></li>
+    </ul>
+  </nav>
+</header>
+<main id="main">
+  <h1>Verify a verdict</h1>
+  <p class="lead">Paste a scan report (or the whole scan response with its settlement). The
+    checks run in this browser: structure, gate consistency, the settlement binding, and the
+    content hash recomputed from the envelope.</p>
+
+  <section class="card" aria-labelledby="h-verify">
+    <h2 id="h-verify">Report and envelope</h2>
+    <div class="actions">
+      <button id="btn-last" type="button" class="secondary">Load the last scan from Try it</button>
+      <span id="v-note" role="status" aria-live="polite"></span>
+    </div>
+    <form id="verify-form" novalidate>
+      <div class="field">
+        <label for="v-report">Report JSON</label>
+        <textarea id="v-report" spellcheck="false"></textarea>
+      </div>
+      <div class="field">
+        <label for="v-envelope">Finding envelope JSON (optional)</label>
+        <textarea id="v-envelope" spellcheck="false" aria-describedby="v-envelope-hint"></textarea>
+        <span id="v-envelope-hint" class="hint">The raw envelope that was scanned. The page
+          applies the scanner's normalization, then SHA-256 over its canonical JSON.</span>
+      </div>
+      <div class="actions"><button type="submit">Verify</button></div>
+    </form>
+    <div id="verify-out" aria-live="polite"></div>
+  </section>
+</main>
+<footer class="site">
+  <p>Nothing on this page leaves the browser.</p>
+</footer>
+</body>
+</html>

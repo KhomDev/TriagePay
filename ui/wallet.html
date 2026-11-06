@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:* http://localhost:* https://test.rpc.fastnear.com https://free.rpc.fastnear.com; base-uri 'none'; form-action 'none'">
+<title>Wallet policy - AgentPay Sentinel</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/app.js" defer></script>
+<script src="assets/samples.js" defer></script>
+<script src="assets/wallet.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site">
+  <p class="brand">AgentPay Sentinel <span>demo console (NEAR testnet)</span></p>
+  <nav class="pages" aria-label="Pages">
+    <ul>
+      <li><a href="index.html">Try it</a></li>
+      <li><a href="pay.html">Pay on NEAR</a></li>
+      <li><a href="wallet.html" aria-current="page">Wallet policy</a></li>
+      <li><a href="ledger.html">Ledger</a></li>
+      <li><a href="verify.html">Verify a verdict</a></li>
+      <li><a href="evidence.html">Evidence</a></li>
+    </ul>
+  </nav>
+</header>
+<main id="main">
+  <h1>Wallet policy</h1>
+  <p class="lead">An agent never holds a key that can move funds freely. It holds a
+    function-call key to a spend-policy wallet, which enforces a per-call cap, a daily cap and a
+    payee allowlist on chain. This page reads that policy with read-only RPC views.</p>
+
+  <section class="settings" aria-label="Connection settings">
+    <div class="field">
+      <label for="data-mode">Data source</label>
+      <select id="data-mode">
+        <option value="auto">Auto (live when a contract id is set)</option>
+        <option value="live">Live RPC</option>
+        <option value="mock">Mock data</option>
+      </select>
+    </div>
+    <p id="api-status" class="field" role="status" aria-live="polite"></p>
+  </section>
+
+  <section class="card" aria-labelledby="h-wallet">
+    <h2 id="h-wallet">Read a policy wallet</h2>
+    <form id="wallet-form" novalidate>
+      <div class="field">
+        <label for="w-network">Network</label>
+        <select id="w-network">
+          <option value="testnet">testnet</option>
+          <option value="mainnet">mainnet</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="w-contract">Wallet contract id</label>
+        <input id="w-contract" type="text" autocomplete="off" spellcheck="false"
+          aria-describedby="w-contract-hint">
+        <span id="w-contract-hint" class="hint">Leave empty to see mock data.</span>
+      </div>
+      <div class="field">
+        <label for="w-agent">Agent account id</label>
+        <input id="w-agent" type="text" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="field">
+        <label for="w-decimals">Token decimals</label>
+        <input id="w-decimals" type="number" min="0" max="24" value="6">
+      </div>
+      <div class="actions">
+        <button id="btn-wallet" type="submit">Read get_config, get_agent, get_spent</button>
+      </div>
+    </form>
+    <div id="wallet-out" aria-live="polite"></div>
+  </section>
+</main>
+<footer class="site">
+  <p>Read-only: this page calls view methods through public NEAR RPC and never signs anything.
+    Anything marked MOCK DATA is illustrative and never touched a chain.</p>
+</footer>
+</body>
+</html>

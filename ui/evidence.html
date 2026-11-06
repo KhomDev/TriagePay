@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Evidence - AgentPay Sentinel</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site">
+  <p class="brand">AgentPay Sentinel <span>demo console (NEAR testnet)</span></p>
+  <nav class="pages" aria-label="Pages">
+    <ul>
+      <li><a href="index.html">Try it</a></li>
+      <li><a href="pay.html">Pay on NEAR</a></li>
+      <li><a href="wallet.html">Wallet policy</a></li>
+      <li><a href="ledger.html">Ledger</a></li>
+      <li><a href="verify.html">Verify a verdict</a></li>
+      <li><a href="evidence.html" aria-current="page">Evidence</a></li>
+    </ul>
+  </nav>
+</header>
+<main id="main">
+  <h1>Evidence</h1>
+  <p class="lead">Where each claim can be checked. Entries marked pending are placeholders until
+    the corresponding work lands; nothing here is claimed before it exists.</p>
+
+  <section class="card" aria-labelledby="h-eval">
+    <h2 id="h-eval">Evaluation results</h2>
+    <p><span class="pill warn">pending</span> Measured accuracy of the triage engine on a public,
+      human-labelled benchmark. The repository path will be
+      <code>docs/evaluation/</code>.</p>
+  </section>
+
+  <section class="card" aria-labelledby="h-mainnet">
+    <h2 id="h-mainnet">Mainnet evidence index</h2>
+    <p><span class="pill warn">pending</span> Every mainnet transaction of the test campaign,
+      with its hash, an explorer link and what it demonstrates.</p>
+  </section>
+
+  <section class="card" aria-labelledby="h-repo">
+    <h2 id="h-repo">In the repository today</h2>
+    <ul>
+      <li><code>docs/claims-audit.md</code>: every testable claim mapped to its evidence.</li>
+      <li><code>docs/integrations/near.md</code>: the recorded testnet end-to-end run.</li>
+      <li><code>docs/operations/runbook.md</code>: the durable journal, its checks and its
+        limits.</li>
+    </ul>
+  </section>
+
+  <section class="card" aria-labelledby="h-specs">
+    <h2 id="h-specs">Specifications used</h2>
+    <ul>
+      <li><a href="https://github.com/near/NEPs/blob/master/neps/nep-0413.md" rel="noopener">NEP-413
+        signed messages</a></li>
+      <li><a href="https://github.com/near/NEPs/blob/master/neps/nep-0141.md" rel="noopener">NEP-141
+        fungible tokens</a></li>
+      <li><a href="https://github.com/x402-foundation/x402" rel="noopener">x402 v2
+        specification</a></li>
+    </ul>
+  </section>
+</main>
+<footer class="site">
+  <p>Explorer links on the other pages open nearblocks for the selected network.</p>
+</footer>
+</body>
+</html>
