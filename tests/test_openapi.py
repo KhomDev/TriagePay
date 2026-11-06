@@ -66,18 +66,17 @@ def test_every_operation_documents_non_2xx_with_the_error_body():
             # list have no failure contract by design.
             if path in ("/health", "/x402/supported"):
                 continue
-            statuses = {
-                code
-                for code in operation.get("responses", {})
-                if not code.startswith("2")
-            }
+            statuses = {code for code in operation.get("responses", {}) if not code.startswith("2")}
             assert statuses, f"{method} {path} documents no failure responses"
             for code in statuses:
                 response = operation["responses"][code]
                 schema = response.get("content", {}).get("application/json", {}).get("schema")
                 assert schema is not None, f"{method} {path} {code} has no JSON body"
                 ref = schema.get("$ref", "")
-                if ref.startswith("#/components/schemas/") and ref != "#/components/schemas/ErrorBody":
+                if (
+                    ref.startswith("#/components/schemas/")
+                    and ref != "#/components/schemas/ErrorBody"
+                ):
                     schema = spec["components"]["schemas"][ref.rsplit("/", 1)[1]]
                 assert schema.get("$ref") == "#/components/schemas/ErrorBody" or (
                     schema.get("properties", {}).get("error")
@@ -105,8 +104,11 @@ def test_x402_resource_documents_the_v2_headers():
 def test_facilitator_endpoints_follow_the_core_spec_shapes():
     spec = json.loads(SPEC.read_text(encoding="utf-8"))
     paths = spec["paths"]
-    assert set(paths["/x402/supported"]["get"]["responses"]["200"]["content"][
-        "application/json"]["schema"]["required"]) == {"kinds", "extensions", "signers"}
+    assert set(
+        paths["/x402/supported"]["get"]["responses"]["200"]["content"]["application/json"][
+            "schema"
+        ]["required"]
+    ) == {"kinds", "extensions", "signers"}
     verify = paths["/x402/verify"]["post"]["responses"]["200"]
     assert verify["content"]["application/json"]["schema"]["required"] == ["isValid"]
     settle = paths["/x402/settle"]["post"]["responses"]["200"]
