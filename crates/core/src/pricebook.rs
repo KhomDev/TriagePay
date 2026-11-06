@@ -1,7 +1,10 @@
 //! SKU price book: fixed prices for metered tool calls.
 //!
 //! Prices are integer amounts set at configuration time. The default
-//! book prices one finding scan (sku scan.v1) at exactly 1 USDC.
+//! book prices one deterministic finding scan (sku scan.v1) at exactly
+//! 1 USDC, and one two-stage triage (sku triage.v2: deterministic gates
+//! plus the advisory model judge) at a 1 USDC PLACEHOLDER until the
+//! benchmark evaluation measures the cost per call.
 
 use crate::error::CoreError;
 use crate::money::Amount;
@@ -9,6 +12,14 @@ use std::collections::HashMap;
 
 /// Canonical SKU of one finding scan.
 pub const SCAN_SKU: &str = "scan.v1";
+
+/// Canonical SKU of one two-stage triage (Stage A gates plus Stage B model).
+pub const TRIAGE_V2_SKU: &str = "triage.v2";
+
+/// Placeholder price of `triage.v2` in whole USDC. It is NOT derived from a
+/// measured cost: the benchmark evaluation (prompt 05) replaces it with the
+/// measured cost per call plus margin.
+pub const TRIAGE_V2_PLACEHOLDER_USDC: u64 = 1;
 
 /// Fixed prices for metered tool SKUs.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,7 +35,8 @@ impl PriceBook {
         }
     }
 
-    /// The default book: one scan at exactly 1 USDC.
+    /// The default book: one scan at exactly 1 USDC, and one triage.v2 call
+    /// at the placeholder price (see [`TRIAGE_V2_PLACEHOLDER_USDC`]).
     pub fn default_book() -> Self {
         let mut book = PriceBook::new();
         book.set_price(
@@ -33,6 +45,15 @@ impl PriceBook {
                 .expect("1 USDC at 6 decimals is representable"),
         )
         .expect("scan.v1 price is positive by construction");
+        book.set_price(
+            TRIAGE_V2_SKU,
+            Amount::from_whole_units(
+                TRIAGE_V2_PLACEHOLDER_USDC,
+                crate::money::SETTLEMENT_DECIMALS,
+            )
+            .expect("the placeholder at 6 decimals is representable"),
+        )
+        .expect("triage.v2 placeholder price is positive by construction");
         book
     }
 
@@ -97,7 +118,28 @@ mod tests {
     fn unknown_sku_has_no_price() {
         let book = PriceBook::default_book();
         assert!(book.price("scan.v9").is_none());
-        assert_eq!(book.len(), 1);
+        assert!(book.price("triage.v1").is_none());
+        // scan.v1 and triage.v2.
+        assert_eq!(book.len(), 2);
+    }
+
+    #[test]
+    fn default_book_prices_triage_v2_at_the_placeholder() {
+        let book = PriceBook::default_book();
+        let price = book.price(TRIAGE_V2_SKU).expect("triage.v2 is priced");
+        assert_eq!(TRIAGE_V2_SKU, "triage.v2");
+        assert_eq!(TRIAGE_V2_PLACEHOLDER_USDC, 1);
+        assert_eq!(price.atomic(), 1_000_000);
+        assert_eq!(price.format(crate::money::SETTLEMENT_DECIMALS), "1.000000");
+    }
+
+    #[test]
+    fn triage_v2_price_is_independent_of_scan_v1() {
+        let mut book = PriceBook::default_book();
+        book.set_price(TRIAGE_V2_SKU, Amount::from_whole_units(3, 6).unwrap())
+            .unwrap();
+        assert_eq!(book.price(TRIAGE_V2_SKU).unwrap().atomic(), 3_000_000);
+        assert_eq!(book.price(SCAN_SKU).unwrap().atomic(), 1_000_000);
     }
 
     #[test]
