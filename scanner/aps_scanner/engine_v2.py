@@ -73,6 +73,11 @@ def sanitize_stage_b(result) -> dict:
         if not isinstance(prompt_hash, str) or not _HEX64.fullmatch(prompt_hash):
             return _fail_closed("malformed_stage_b")
         meta["prompt_hash"] = prompt_hash
+    verifiable = result.get("model_verifiable")
+    if verifiable is not None:
+        if not isinstance(verifiable, bool):
+            return _fail_closed("malformed_stage_b")
+        meta["model_verifiable"] = verifiable
     if status != combiner.STAGE_B_OK:
         failure = result.get("failure")
         clean = {"status": status, **meta}
@@ -189,6 +194,9 @@ class TriageReport:
             "stage_b": stage_b_public,
             "taxonomy_hits": list(self.taxonomy_hits),
             "model_id": b.get("model_id"),
+            # The catalogue's TEE-verifiable flag for model_id (None when no
+            # model ran or the judge did not report it).
+            "model_verifiable": b.get("model_verifiable"),
             "prompt_hash": b.get("prompt_hash"),
             "thresholds": self.thresholds.public(),
             "score": self.score,

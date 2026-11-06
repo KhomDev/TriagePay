@@ -28,6 +28,7 @@ V2_KEYS = V1_KEYS | {
     "taxonomy_hits",
     "model_id",
     "prompt_hash",
+    "model_verifiable",
     "thresholds",
     "score",
     "evidence_check",
@@ -62,6 +63,14 @@ def test_both_stages_supported_is_high_confidence():
     assert payload["model_id"] == MODEL_ID
     assert payload["prompt_hash"] == PROMPT_HASH
     assert payload["score"] == 0.9
+    assert payload["model_verifiable"] is None  # the scripted judge does not report it
+
+
+def test_model_verifiable_flag_passes_through_and_is_type_checked():
+    payload = triage(strong(), judge=judge_returning(verdict(0.9, model_verifiable=True)))
+    assert payload.to_public_json()["model_verifiable"] is True
+    bad = triage(strong(), judge=judge_returning(verdict(0.9, model_verifiable="yes")))
+    assert bad.stage_b["status"] == "fail_closed"
 
 
 def test_v1_envelope_maps_into_v2():

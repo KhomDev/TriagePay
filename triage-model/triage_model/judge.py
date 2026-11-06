@@ -33,6 +33,7 @@ def _fail_closed(failure, model_id):
         "status": STATUS_FAIL_CLOSED,
         "failure": failure,
         "model_id": model_id,
+        "model_verifiable": config.is_verifiable(model_id),
         "prompt_hash": PROMPT_HASH,
     }
 
@@ -66,6 +67,7 @@ def judge(request: dict, *, backend, model_id: str = config.DEFAULT_MODEL_ID, ca
                     completion.content.encode("utf-8")
                 ).hexdigest(),
                 "model_id": model_id,
+                "model_verifiable": config.is_verifiable(model_id),
                 "prompt_hash": PROMPT_HASH,
             }
             if cache is not None:

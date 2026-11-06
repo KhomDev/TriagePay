@@ -67,9 +67,18 @@ def test_two_schema_violations_fail_closed():
         "status": "fail_closed",
         "failure": "schema_violation",
         "model_id": MODEL,
+        "model_verifiable": False,
         "prompt_hash": PROMPT_HASH,
     }
     assert len(backend.calls) == 2
+
+
+def test_default_model_is_tee_verifiable_and_recorded():
+    assert config.is_verifiable(config.DEFAULT_MODEL_ID)
+    result = judge(request(), backend=ScriptedBackend([reply(0.5)]))
+    assert result["model_id"] == config.DEFAULT_MODEL_ID
+    assert result["model_verifiable"] is True
+    assert run(ScriptedBackend([reply(0.5)]))["model_verifiable"] is False
 
 
 def test_timeout_fails_closed_without_retry():

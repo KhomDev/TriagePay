@@ -24,6 +24,26 @@ CACHE_DIR_ENV = "APS_TRIAGE_CACHE_DIR"
 
 DEFAULT_MODEL_ID = "z-ai/glm-5.3-flash"
 
+# Chat models the public catalogue (GET /v1/model/list, field
+# metadata.verifiable) marked TEE-verifiable on 2026-11-06. Every report
+# records model_verifiable for its model id; an id outside this set is
+# recorded as not verifiable. The privacy story needs a verifiable model,
+# so the default must be in this set (a test enforces it).
+VERIFIABLE_CHAT_MODELS = frozenset(
+    {
+        "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+        "qwen/qwen3.5-397b-a17b",
+        "z-ai/glm-5.3",
+        "z-ai/glm-5.3-flash",
+        "moonshotai/kimi-k2.6",
+        "moonshotai/kimi-k3",
+    }
+)
+
+
+def is_verifiable(model: str) -> bool:
+    return model in VERIFIABLE_CHAT_MODELS
+
 
 def live_enabled(environ) -> bool:
     return environ.get(LIVE_ENV, "") == "1" and bool(environ.get(API_KEY_ENV, "").strip())
