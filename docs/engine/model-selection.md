@@ -43,6 +43,7 @@ are excluded because the privacy story needs a verifiable model. Every report re
 | Date (UTC) | Run | Result | Spend |
 |---|---|---|---|
 | 2026-11-06 | Probe: 1 public-split row against each of `DeepSeek-V4.1-Flash-1017`, `z-ai/glm-5.3`, `z-ai/glm-5.3-flash`, `qwen/qwen3.5-397b-a17b` | Every chat completion returned HTTP 402. The account has no spending limit configured, so completions are refused before inference. The model list endpoint answers normally. | USD 0.00 |
+| 2026-11-10 | Probe after the account was funded: 1 call (4 output tokens) to `z-ai/glm-5.3-flash` | Still HTTP 402 `no_limit_configured`. Funding the account alone does not enable completions: NEAR AI Cloud applies a spend cap per API key, and this key has none. The spike waits for a key with a cap. | USD 0.00 |
 
 ## Current pin
 
