@@ -215,7 +215,7 @@ def test_scan_tree_skips_third_party_lockfiles(tmp_path):
     # (the synthetic stand-in plays that word here) must not trip the scan
     # inside a lockfile, and must still trip it in ordinary files.
     digests = frozenset({leakage.digest_for_term("zz-private-alpha")})
-    dependency_line = 'name = "redacted-zz-private-alpha-dalek"\n'
+    dependency_line = 'name = "ed25519-zz-private-alpha-dalek"\n'
     repo = _git_repo_with(
         tmp_path,
         {
