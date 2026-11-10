@@ -10,7 +10,14 @@ KNOWN_RULESETS = {
         "version": "0.1.0",
         "note": "synthetic baseline: the nine deterministic gates",
         "supersedes": None,
-    }
+    },
+    # A different engine (Stage A of triage v2), not a successor: v0 reports
+    # are not comparable with v1 reports, so nothing supersedes anything.
+    "rules-v1.public": {
+        "version": "1.0.0",
+        "note": "public generic Stage A gates mapped onto the public taxonomy",
+        "supersedes": None,
+    },
 }
 
 

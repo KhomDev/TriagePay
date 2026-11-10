@@ -14,6 +14,12 @@ def test_unknown_ids_fail_closed():
     assert "unknown ruleset" in result["note"]
 
 
+def test_v1_public_is_known_but_not_comparable_with_v0():
+    assert check("rules-v1.public", "rules-v1.public")["compatible"] is True
+    assert check("rules-v0.synthetic.1", "rules-v1.public")["compatible"] is False
+    assert check("rules-v1.public", "rules-v0.synthetic.1")["compatible"] is False
+
+
 def test_note_is_human_readable():
     result = check("rules-v0.synthetic.1", "rules-v0.synthetic.1")
     assert result["note"] == "identical rulesets"

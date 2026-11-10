@@ -12,13 +12,15 @@ from dataclasses import dataclass
 from enum import Enum
 
 from .normalize import NormalizedEnvelope
-from .ruleset import RulesetError, default_ruleset, evaluate_gate
+from .ruleset import RulesetError, default_ruleset, evaluate_gate, evaluate_gate_branch
 
 
 class GateStatus(Enum):
     PASS = "Pass"
     FAIL = "Fail"
     NEEDS_EVIDENCE = "NeedsEvidence"
+    # Schema 2 rulesets only: routes the finding to the held decision.
+    HELD = "Held"
 
 
 @dataclass
@@ -26,6 +28,10 @@ class GateResult:
     status: GateStatus
     reason: str
     gate: str = ""
+    # Schema 2 rulesets: the gate's public taxonomy category and the
+    # matched branch's penalty factor. Empty and 1.0 for schema 1.
+    category: str = ""
+    penalty: float = 1.0
 
 
 # Stable public gate ids (the ruleset's gate ids; kept as module constants
@@ -118,6 +124,14 @@ def run_gates(env: NormalizedEnvelope, ruleset: dict = None) -> list:
     active = ruleset if ruleset is not None else default_ruleset()
     results = []
     for record in active["gates"]:
-        status, reason = evaluate_gate(record, env)
-        results.append(GateResult(GateStatus(status), reason, record["id"]))
+        status, reason, penalty = evaluate_gate_branch(record, env)
+        results.append(
+            GateResult(
+                GateStatus(status),
+                reason,
+                record["id"],
+                category=record.get("category", ""),
+                penalty=penalty,
+            )
+        )
     return results
