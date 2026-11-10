@@ -1,0 +1,49 @@
+# Fly.io configuration for the hosted testnet demo.
+#
+# Deploy from the repository root (steps: docs/operations/deploy.md):
+#   fly deploy --config deploy/fly/fly.toml --dockerfile Dockerfile
+#
+# One machine only: the SQLite journal has a single writer. Do not scale
+# the app above one machine.
+
+app = "REPLACE-WITH-YOUR-APP-NAME"
+primary_region = "ams"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  APS_PORT = "8080"
+  APS_BIND = "0.0.0.0"
+  APS_DB_PATH = "/data/aps.sqlite"
+  # Testnet only. NEAR provider settings (NEAR_NETWORK, NEAR_GATEWAY_ACCOUNT,
+  # NEAR_ASSET_CONTRACT, NEAR_RPC_URL) are set with `fly secrets set` or
+  # here when they are not secret; without them the mock provider is used.
+
+[[mounts]]
+  source = "aps_data"
+  destination = "/data"
+  initial_size = "1gb"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 50
+    hard_limit = 100
+
+  [[http_service.checks]]
+    grace_period = "15s"
+    interval = "30s"
+    method = "GET"
+    path = "/health"
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

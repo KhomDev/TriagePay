@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:* http://localhost:* https://test.rpc.fastnear.com https://free.rpc.fastnear.com; base-uri 'none'; form-action 'none'">
+<title>Try it - AgentPay Sentinel</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/app.js" defer></script>
+<script src="assets/samples.js" defer></script>
+<script src="assets/verdict.js" defer></script>
+<script src="assets/try.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site">
+  <p class="brand">AgentPay Sentinel <span>demo console (NEAR testnet)</span></p>
+  <nav class="pages" aria-label="Pages">
+    <ul>
+      <li><a href="index.html" aria-current="page">Try it</a></li>
+      <li><a href="pay.html">Pay on NEAR</a></li>
+      <li><a href="wallet.html">Wallet policy</a></li>
+      <li><a href="ledger.html">Ledger</a></li>
+      <li><a href="verify.html">Verify a verdict</a></li>
+      <li><a href="evidence.html">Evidence</a></li>
+    </ul>
+  </nav>
+</header>
+<main id="main">
+  <h1>Try it</h1>
+  <p class="lead">Pick a sample security finding, get demo credit, and run one paid
+    <code>scan.v1</code>. The verdict shows every deterministic gate and the content hash the
+    payment settled against.</p>
+
+  <section class="settings" aria-label="Connection settings">
+    <div class="field">
+      <label for="api-base">API base URL</label>
+      <input id="api-base" type="url" inputmode="url" placeholder="same origin" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="data-mode">Data source</label>
+      <select id="data-mode">
+        <option value="auto">Auto (live when the API answers)</option>
+        <option value="live">Live API</option>
+        <option value="mock">Mock data</option>
+      </select>
+    </div>
+    <p id="api-status" class="field" role="status" aria-live="polite"></p>
+  </section>
+
+  <section class="card" aria-labelledby="h-credit">
+    <h2 id="h-credit">1. Demo credit</h2>
+    <div class="field">
+      <label for="account">Account id</label>
+      <input id="account" type="text" value="demo-visitor" autocomplete="off" spellcheck="false">
+      <span class="hint">A gateway-side prepaid account, not a NEAR account.</span>
+    </div>
+    <div class="actions">
+      <button id="btn-credit" type="button">Get 2 USDC demo credit</button>
+    </div>
+    <div id="credit-out" aria-live="polite"></div>
+  </section>
+
+  <section class="card" aria-labelledby="h-scan">
+    <h2 id="h-scan">2. Scan a finding (1 USDC)</h2>
+    <div class="field">
+      <label for="sample">Sample finding</label>
+      <select id="sample"></select>
+    </div>
+    <div class="field">
+      <label for="envelope">Finding envelope (JSON)</label>
+      <textarea id="envelope" spellcheck="false" aria-describedby="envelope-hint"></textarea>
+      <span id="envelope-hint" class="hint">Edit freely in live mode. The text is treated as
+        hostile data: the scanner normalizes it and never follows instructions inside it.</span>
+    </div>
+    <div class="actions">
+      <button id="btn-scan" type="button">Reserve, scan and settle</button>
+    </div>
+    <div id="verdict-out" aria-live="polite"></div>
+  </section>
+</main>
+<footer class="site">
+  <p>Testnet demonstrator. Anything marked MOCK DATA is illustrative and never touched a chain.
+    Model output is advisory; the verdict comes from deterministic gates.</p>
+</footer>
+</body>
+</html>

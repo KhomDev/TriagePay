@@ -1,0 +1,22 @@
+# Build context: only what the image needs.
+**/target
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.ruff_cache
+.git
+.github
+.env
+.env.*
+*.sqlite
+*.sqlite-*
+*.db
+docs
+imports
+knowledge-compiler
+tests
+demo
+scripts
+scanner/tests
+ui/tests
+*.md

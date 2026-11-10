@@ -1,0 +1,62 @@
+# Plain VPS: the API container behind Caddy (automatic HTTPS).
+#
+# From the repository root on the VPS (steps: docs/operations/deploy.md):
+#   APS_DOMAIN=demo.example.org docker compose -f deploy/vps/docker-compose.yml up -d --build
+#
+# Only Caddy publishes ports. The API is reachable only on the internal
+# compose network, so TLS terminates at Caddy and the API never faces the
+# internet directly.
+services:
+  aps:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    image: agentpay-sentinel:vps
+    environment:
+      APS_PORT: "8080"
+      APS_BIND: "0.0.0.0"
+      APS_DB_PATH: /data/aps.sqlite
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    volumes:
+      - aps-data:/data
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 512m
+    restart: unless-stopped
+    networks:
+      - internal
+
+  caddy:
+    image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    depends_on:
+      - aps
+    environment:
+      APS_DOMAIN: ${APS_DOMAIN:?set APS_DOMAIN to the public host name}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    restart: unless-stopped
+    networks:
+      - internal
+
+networks:
+  internal: {}
+
+volumes:
+  aps-data: {}
+  caddy-data: {}
+  caddy-config: {}

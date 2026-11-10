@@ -1,0 +1,36 @@
+# TLS-terminating reverse proxy for the API. Caddy obtains and renews the
+# certificate for {$APS_DOMAIN} automatically once DNS points at the VPS.
+{$APS_DOMAIN} {
+	encode zstd gzip
+
+	# Request bodies are capped at the proxy as well as in the API.
+	request_body {
+		max_size 256KB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		X-Frame-Options "DENY"
+		-Server
+	}
+
+	reverse_proxy aps:8080 {
+		health_uri /health
+		health_interval 30s
+	}
+
+	# Access logs carry method, path, status and timing; never bodies, and
+	# no request headers (API keys and NEP-413 signature headers stay out).
+	log {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request>headers delete
+				request>remote_ip ip_mask 16 32
+			}
+		}
+	}
+}

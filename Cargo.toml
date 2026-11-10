@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/core", "crates/api", "crates/payment", "crates/near-adapter", "crates/policy-core"]
+members = ["crates/core", "crates/api", "crates/payment", "crates/near-adapter", "crates/policy-core", "crates/store", "crates/auth"]
 exclude = ["contracts"]
 
 [workspace.package]

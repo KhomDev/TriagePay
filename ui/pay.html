@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:* http://localhost:* https://test.rpc.fastnear.com https://free.rpc.fastnear.com https://archival-rpc.testnet.fastnear.com https://archival-rpc.mainnet.fastnear.com; base-uri 'none'; form-action 'none'">
+<title>Pay on NEAR - AgentPay Sentinel</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/app.js" defer></script>
+<script src="assets/samples.js" defer></script>
+<script src="assets/pay.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site">
+  <p class="brand">AgentPay Sentinel <span>demo console (NEAR testnet)</span></p>
+  <nav class="pages" aria-label="Pages">
+    <ul>
+      <li><a href="index.html">Try it</a></li>
+      <li><a href="pay.html" aria-current="page">Pay on NEAR</a></li>
+      <li><a href="wallet.html">Wallet policy</a></li>
+      <li><a href="ledger.html">Ledger</a></li>
+      <li><a href="verify.html">Verify a verdict</a></li>
+      <li><a href="evidence.html">Evidence</a></li>
+    </ul>
+  </nav>
+</header>
+<main id="main">
+  <h1>Pay on NEAR</h1>
+  <p class="lead">How an agent pays for one call with x402 v2 headers and a NEAR token
+    transfer, and how the gateway checks the payment on chain before doing the work.</p>
+
+  <section class="card" aria-labelledby="h-flow">
+    <h2 id="h-flow">The x402 flow, step by step</h2>
+    <div id="flow"></div>
+  </section>
+
+  <section class="card" aria-labelledby="h-tx">
+    <h2 id="h-tx">Check a real transaction</h2>
+    <p>Read any NEAR transaction from public RPC (read-only) and list its token events.</p>
+    <form id="tx-form" novalidate>
+      <div class="field">
+        <label for="tx-network">Network</label>
+        <select id="tx-network">
+          <option value="testnet">testnet</option>
+          <option value="mainnet">mainnet</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="tx-hash">Transaction hash</label>
+        <input id="tx-hash" type="text" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="field">
+        <label for="tx-sender">Signer account id</label>
+        <input id="tx-sender" type="text" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="actions">
+        <button id="btn-tx" type="submit">Read transaction</button>
+      </div>
+    </form>
+    <div id="tx-out" aria-live="polite"></div>
+  </section>
+</main>
+<footer class="site">
+  <p>Testnet demonstrator. Anything marked MOCK DATA is illustrative and never touched a chain.
+    Wallet connection for real testnet payment from this page is planned.</p>
+</footer>
+</body>
+</html>

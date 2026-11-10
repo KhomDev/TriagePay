@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:* http://localhost:* https://test.rpc.fastnear.com https://free.rpc.fastnear.com; base-uri 'none'; form-action 'none'">
+<title>Ledger - AgentPay Sentinel</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/app.js" defer></script>
+<script src="assets/samples.js" defer></script>
+<script src="assets/ledger.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site">
+  <p class="brand">AgentPay Sentinel <span>demo console (NEAR testnet)</span></p>
+  <nav class="pages" aria-label="Pages">
+    <ul>
+      <li><a href="index.html">Try it</a></li>
+      <li><a href="pay.html">Pay on NEAR</a></li>
+      <li><a href="wallet.html">Wallet policy</a></li>
+      <li><a href="ledger.html" aria-current="page">Ledger</a></li>
+      <li><a href="verify.html">Verify a verdict</a></li>
+      <li><a href="evidence.html">Evidence</a></li>
+    </ul>
+  </nav>
+</header>
+<main id="main">
+  <h1>Ledger</h1>
+  <p class="lead">Prepaid balances in integer atomic units, the receipts of each job, and the
+    conservation invariant the ledger enforces.</p>
+
+  <section class="settings" aria-label="Connection settings">
+    <div class="field">
+      <label for="api-base">API base URL</label>
+      <input id="api-base" type="url" inputmode="url" placeholder="same origin" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="data-mode">Data source</label>
+      <select id="data-mode">
+        <option value="auto">Auto (live when the API answers)</option>
+        <option value="live">Live API</option>
+        <option value="mock">Mock data</option>
+      </select>
+    </div>
+    <p id="api-status" class="field" role="status" aria-live="polite"></p>
+  </section>
+
+  <section class="card" aria-labelledby="h-global">
+    <h2 id="h-global">Conservation</h2>
+    <div id="global-out"></div>
+  </section>
+
+  <section class="card" aria-labelledby="h-account">
+    <h2 id="h-account">Account balances</h2>
+    <form id="account-form" novalidate>
+      <div class="field">
+        <label for="l-account">Account id</label>
+        <input id="l-account" type="text" value="demo-visitor" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="actions"><button type="submit">Show balances</button></div>
+    </form>
+    <div id="account-out" aria-live="polite"></div>
+  </section>
+
+  <section class="card" aria-labelledby="h-job">
+    <h2 id="h-job">Job and receipts</h2>
+    <form id="job-form" novalidate>
+      <div class="field">
+        <label for="l-job">Job id</label>
+        <input id="l-job" type="text" value="job_0000000000000001" autocomplete="off"
+          spellcheck="false">
+      </div>
+      <div class="actions"><button type="submit">Show job</button></div>
+    </form>
+    <div id="job-out" aria-live="polite"></div>
+  </section>
+</main>
+<footer class="site">
+  <p>Testnet demonstrator. Anything marked MOCK DATA is illustrative.</p>
+</footer>
+</body>
+</html>
