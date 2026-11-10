@@ -1,6 +1,6 @@
 # Operator runbook
 
-Scope: running the AgentPay Sentinel gateway as the hosted testnet demo. Deployment steps are in
+Scope: running the TriagePay gateway as the hosted testnet demo. Deployment steps are in
 `deploy.md`, and the authentication profile is in `auth.md`. The design and its limits are in
 ADR-0012.
 

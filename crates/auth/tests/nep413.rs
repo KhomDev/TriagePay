@@ -12,7 +12,7 @@ use aps_auth::{
 };
 use ed25519_dalek::SigningKey;
 
-const RECIPIENT: &str = "agentpay-sentinel.test";
+const RECIPIENT: &str = "triagepay.test";
 const NOW: u64 = 1_762_000_000_000;
 const BODY: &[u8] = br#"{"account_id":"alice.testnet","sku":"scan.v1"}"#;
 

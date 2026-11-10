@@ -1,4 +1,4 @@
-//! AgentPay Sentinel core: a prepaid, idempotent payment ledger for metered
+//! TriagePay core: a prepaid, idempotent payment ledger for metered
 //! agent-tool calls.
 //!
 //! Design rules enforced in this crate:

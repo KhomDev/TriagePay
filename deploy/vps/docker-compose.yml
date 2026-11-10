@@ -11,7 +11,7 @@ services:
     build:
       context: ../..
       dockerfile: Dockerfile
-    image: agentpay-sentinel:vps
+    image: triagepay:vps
     environment:
       APS_PORT: "8080"
       APS_BIND: "0.0.0.0"

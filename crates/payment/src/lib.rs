@@ -1,4 +1,4 @@
-//! Payment provider abstraction for AgentPay Sentinel.
+//! Payment provider abstraction for TriagePay.
 //!
 //! The gateway funds credit exclusively from provider-observed
 //! confirmations; a client assertion of payment is never sufficient.

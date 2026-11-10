@@ -94,7 +94,7 @@ rebuilds.
 
 ## After any deploy
 
-- The public URL, the image digest (`docker image inspect agentpay-sentinel:vps --format
+- The public URL, the image digest (`docker image inspect triagepay:vps --format
   '{{.Id}}'`, or the digest `fly deploy` prints), and the deploy steps actually performed go into
   the status tracker.
 - Only read-only checks run against the public URL from automation. `deploy/smoke.py

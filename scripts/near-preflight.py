@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only NEAR preflight for AgentPay Sentinel.
+"""Read-only NEAR preflight for TriagePay.
 
 Checks, without signing or mutating anything: RPC connectivity, the
 wallet account (and its NEAR balance for gas), the access key type, the

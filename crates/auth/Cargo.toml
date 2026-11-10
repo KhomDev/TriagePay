@@ -1,6 +1,6 @@
 [package]
 name = "aps-auth"
-description = "AgentPay Sentinel caller authentication: hashed API keys and NEP-413 signed requests"
+description = "TriagePay caller authentication: hashed API keys and NEP-413 signed requests"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

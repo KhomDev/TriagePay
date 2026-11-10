@@ -1,6 +1,6 @@
 # aps_client (Python, standard library only)
 
-An x402 v2 client for the AgentPay Sentinel `/v2/scan` resource, using the
+An x402 v2 client for the TriagePay `/v2/scan` resource, using the
 near-tx-proof method (scheme `exact`, `paymentFlow: "upfront"`). The
 protocol profile is in [`docs/protocols/x402-near.md`](../../docs/protocols/x402-near.md).
 

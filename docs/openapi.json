@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "AgentPay Sentinel API",
+    "title": "TriagePay API",
     "version": "0.1.0",
     "description": "Prepaid, policy-guarded payment rails for AI agent tools. All money crosses the wire as u128 atomic units encoded as JSON strings plus a display-only decimal. Every money-moving request carries a caller-scoped idempotency key. One error shape everywhere: {\"error\":{\"code\",\"message\"}}.",
     "license": {

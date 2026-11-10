@@ -1,4 +1,4 @@
-# Local run of the AgentPay Sentinel API container.
+# Local run of the TriagePay API container.
 #
 #   docker compose up --build -d
 #   docker compose exec -T aps python3 - < deploy/smoke.py
@@ -9,7 +9,7 @@
 services:
   aps:
     build: .
-    image: agentpay-sentinel:local
+    image: triagepay:local
     container_name: aps
     ports:
       - "127.0.0.1:8080:8080"

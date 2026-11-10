@@ -1,6 +1,6 @@
 # aps-x402 (TypeScript reference payer)
 
-A reference payer and client for the AgentPay Sentinel x402 near-tx-proof
+A reference payer and client for the TriagePay x402 near-tx-proof
 method ([`docs/protocols/x402-near.md`](../../docs/protocols/x402-near.md)),
 built on `near-api-js` 7.3.1 (pinned exactly). It runs on Node 22.18+ with
 built-in TypeScript type stripping; there is no build step.

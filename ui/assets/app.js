@@ -1,5 +1,5 @@
 /*
- * Shared helpers for the AgentPay Sentinel demo UI.
+ * Shared helpers for the TriagePay demo UI.
  *
  * - Settings (API base URL, data source, network) persist per browser in
  *   localStorage when available; every access is guarded.

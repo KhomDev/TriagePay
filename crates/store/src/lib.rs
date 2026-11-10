@@ -1,4 +1,4 @@
-//! AgentPay Sentinel durable ledger.
+//! TriagePay durable ledger.
 //!
 //! An append-only event journal with a SHA-256 hash chain, replayed into
 //! the dependency-free `aps-core` ledger on open.

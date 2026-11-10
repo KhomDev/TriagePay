@@ -1,4 +1,4 @@
-//! AgentPay Sentinel caller authentication primitives.
+//! TriagePay caller authentication primitives.
 //!
 //! Two methods, both resolving to a caller identity that the ledger's
 //! caller-scoped idempotency already understands:

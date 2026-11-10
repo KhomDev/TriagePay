@@ -1,4 +1,4 @@
-# AgentPay Sentinel demo: prepaid scan, paid, executed, settled, refunded.
+# TriagePay demo: prepaid scan, paid, executed, settled, refunded.
 #
 # Starts the API on an ephemeral port and walks the full product flow:
 # provider-observed funding, reservation, scan, settlement against the
@@ -12,7 +12,7 @@ $runKey = [string][DateTime]::UtcNow.Ticks
 $base = "http://127.0.0.1:$port"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
-Write-Host "== AgentPay Sentinel demo =="
+Write-Host "== TriagePay demo =="
 
 Write-Host "-- starting aps-api on port $port"
 $env:APS_PORT = $port

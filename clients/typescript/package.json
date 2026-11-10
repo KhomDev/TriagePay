@@ -2,7 +2,7 @@
   "name": "aps-x402-client",
   "version": "0.1.0",
   "private": true,
-  "description": "Reference x402 payer and client for AgentPay Sentinel (near-tx-proof method): direct ft_transfer or policy-wallet pay",
+  "description": "Reference x402 payer and client for TriagePay (near-tx-proof method): direct ft_transfer or policy-wallet pay",
   "license": "MIT",
   "type": "module",
   "engines": {

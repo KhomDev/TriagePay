@@ -1,6 +1,6 @@
 [package]
 name = "aps-core"
-description = "AgentPay Sentinel prepaid ledger core: integer money, idempotent reservations, settlement, refunds"
+description = "TriagePay prepaid ledger core: integer money, idempotent reservations, settlement, refunds"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

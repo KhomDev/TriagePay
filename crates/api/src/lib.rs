@@ -1,4 +1,4 @@
-//! AgentPay Sentinel HTTP API: an axum 0.8 surface over the
+//! TriagePay HTTP API: an axum 0.8 surface over the
 //! dependency-free prepaid ledger in aps-core.
 //!
 //! Wire contract:

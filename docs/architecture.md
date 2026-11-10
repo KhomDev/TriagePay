@@ -1,6 +1,6 @@
 # Architecture
 
-AgentPay Sentinel is a prepaid payment gateway for AI agent tools. The first
+TriagePay is a prepaid payment gateway for AI agent tools. The first
 metered tool is a security-finding scanner: a caller deposits stablecoin
 credit through a payment adapter, requests a scan, and receives an
 idempotent report; every unit of credit is accounted for by an

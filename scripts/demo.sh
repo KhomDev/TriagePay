@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AgentPay Sentinel demo: prepaid scan, paid, executed, settled, refunded.
+# TriagePay demo: prepaid scan, paid, executed, settled, refunded.
 #
 # Starts the API on an ephemeral port and walks the full product flow:
 # provider-observed funding, reservation, scan, settlement against the
@@ -13,7 +13,7 @@ RUN_KEY="$(date +%s)"
 BASE="http://127.0.0.1:${PORT}"
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-echo "== AgentPay Sentinel demo =="
+echo "== TriagePay demo =="
 echo
 
 echo "-- starting aps-api on port ${PORT}"

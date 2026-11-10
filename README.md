@@ -1,4 +1,4 @@
-# AgentPay Sentinel
+# TriagePay
 
 Prepaid, policy-guarded payment rails for AI agent tools — with a
 privacy-preserving security-finding scanner as the first product built

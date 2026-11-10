@@ -1,4 +1,4 @@
-# Proposals: AgentPay Sentinel After the Hackathon
+# Proposals: TriagePay After the Hackathon
 
 Recommendations for turning the current milestone into a world-class
 project. Grounded in what exists today (see docs/claims-audit.md for the
@@ -123,7 +123,7 @@ creates any key; the repository never holds one.
 
 ## 8. The one-sentence pitch
 
-AgentPay Sentinel lets an AI agent prepay for a bounded, deterministic
+TriagePay lets an AI agent prepay for a bounded, deterministic
 security scan with on-chain-verified USDC and walk away with a
 hash-addressed receipt - and the knowledge behind the scan is sold
 without ever being exposed.

@@ -16,7 +16,7 @@ weeks, so the build-out needs one direction and an explicit cut order.
 
 ## Decision
 
-AgentPay Sentinel is **a confidential, pay-per-call triage service for AI
+TriagePay is **a confidential, pay-per-call triage service for AI
 security agents on NEAR**: an agent pays per call, under an on-chain
 spend policy, for a deterministic triage verdict on a security finding,
 and the knowledge behind the verdict is never exposed.

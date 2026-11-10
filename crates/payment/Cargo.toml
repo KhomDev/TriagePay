@@ -1,6 +1,6 @@
 [package]
 name = "aps-payment"
-description = "AgentPay Sentinel payment provider trait with a deterministic mock provider"
+description = "TriagePay payment provider trait with a deterministic mock provider"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

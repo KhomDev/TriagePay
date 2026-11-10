@@ -1,4 +1,4 @@
-//! NEAR payment adapter for AgentPay Sentinel.
+//! NEAR payment adapter for TriagePay.
 //!
 //! This crate implements the provider semantics defined by
 //! aps_payment::PaymentProvider against the NEAR Protocol JSON-RPC

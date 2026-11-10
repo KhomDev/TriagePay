@@ -1,6 +1,6 @@
 [package]
 name = "aps-near"
-description = "NEAR payment adapter for AgentPay Sentinel: on-chain deposit verification over JSON-RPC (verification-only; no autonomous transaction signing)"
+description = "NEAR payment adapter for TriagePay: on-chain deposit verification over JSON-RPC (verification-only; no autonomous transaction signing)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

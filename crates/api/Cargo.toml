@@ -1,6 +1,6 @@
 [package]
 name = "aps-api"
-description = "AgentPay Sentinel HTTP API over the prepaid ledger core"
+description = "TriagePay HTTP API over the prepaid ledger core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

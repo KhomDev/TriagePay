@@ -5,6 +5,10 @@ follows Keep a Changelog; the project has not shipped a tagged release.
 
 ## [Unreleased]
 
+### Changed
+- The product is renamed from AgentPay Sentinel to TriagePay (ADR-0013).
+  Crate, package and environment-variable names keep the `aps` prefix.
+
 ### Added
 - Prepaid ledger core: integer money, idempotent deposits, reservations,
   settlements, refunds, conservation fuzz, SKU price book.

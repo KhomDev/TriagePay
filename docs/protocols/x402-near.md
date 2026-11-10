@@ -64,9 +64,9 @@ development-only network no real client selects.
   "error": "PAYMENT-SIGNATURE header is required",
   "resource": {
     "url": "/v2/scan",
-    "description": "AgentPay Sentinel finding triage scan (scan.v1)",
+    "description": "TriagePay finding triage scan (scan.v1)",
     "mimeType": "application/json",
-    "serviceName": "AgentPay Sentinel"
+    "serviceName": "TriagePay"
   },
   "accepts": [{
     "scheme": "exact",

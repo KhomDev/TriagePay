@@ -1,4 +1,4 @@
-"""Smoke test of a running AgentPay Sentinel API (stdlib only).
+"""Smoke test of a running TriagePay API (stdlib only).
 
 Full mode walks the same flow as scripts/demo.sh: a payment intent funded
 by the mock provider, a reservation, a scan that settles against the

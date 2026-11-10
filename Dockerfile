@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 #
-# AgentPay Sentinel API image.
+# TriagePay API image.
 #
 # Stage 1 builds the Rust binaries (aps-api, aps-admin). The bundled SQLite
 # in aps-store compiles from C, which the rust image's gcc handles.

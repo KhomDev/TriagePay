@@ -1,4 +1,4 @@
-"""AgentPay Sentinel x402 client (standard library only).
+"""TriagePay x402 client (standard library only).
 
 One call pays for a scan over HTTP 402, x402 v2:
 

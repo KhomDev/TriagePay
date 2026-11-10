@@ -274,9 +274,9 @@ fn payment_required(config: &X402Config, intent: &DepositIntent, error: &str) ->
         "error": error,
         "resource": {
             "url": RESOURCE_PATH,
-            "description": "AgentPay Sentinel finding triage scan (scan.v1)",
+            "description": "TriagePay finding triage scan (scan.v1)",
             "mimeType": "application/json",
-            "serviceName": "AgentPay Sentinel",
+            "serviceName": "TriagePay",
         },
         "accepts": [requirement(config, intent)],
     })

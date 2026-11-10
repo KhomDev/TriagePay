@@ -1,6 +1,6 @@
 [package]
 name = "aps-store"
-description = "AgentPay Sentinel durable ledger: an append-only, hash-chained SQLite event journal replayed into aps-core"
+description = "TriagePay durable ledger: an append-only, hash-chained SQLite event journal replayed into aps-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
