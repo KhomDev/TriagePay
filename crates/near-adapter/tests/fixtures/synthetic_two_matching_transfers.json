@@ -1,0 +1,253 @@
+{
+  "_fixture": {
+    "synthetic": true,
+    "description": "A contract sends two separate ft_transfer receipts to the gateway, both with the intent memo.",
+    "expect": "Confirmed by the first token receipt; the second is an orphan",
+    "placeholders": {
+      "asset": "usdc.fixture.testnet",
+      "gateway": "gateway.fixture.testnet",
+      "memo": "aps2_fixture_00001"
+    },
+    "shape_reference": "mainnet_direct_ft_transfer.json (real EXPERIMENTAL_tx_status capture)"
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": "aps-near",
+    "result": {
+      "final_execution_status": "FINAL",
+      "transaction": {
+        "actions": [
+          {
+            "FunctionCall": {
+              "args": "eyJ0b2tlbiI6InVzZGMuZml4dHVyZS50ZXN0bmV0IiwicmVjZWl2ZXJfaWQiOiJnYXRld2F5LmZpeHR1cmUudGVzdG5ldCIsImFtb3VudCI6IjEwMDAwMDAiLCJtZW1vIjoiYXBzMl9maXh0dXJlXzAwMDAxIn0=",
+              "deposit": "0",
+              "gas": 100000000000000,
+              "method_name": "pay_twice"
+            }
+          }
+        ],
+        "hash": "SynthTwoTransfers",
+        "nonce": 7,
+        "priority_fee": 0,
+        "public_key": "ed25519:SyntheticFixtureKey1111111111111111111111111",
+        "receiver_id": "wallet.fixture.testnet",
+        "signature": "ed25519:SyntheticSignature",
+        "signer_id": "agent.fixture.testnet"
+      },
+      "transaction_outcome": {
+        "block_hash": "SyntheticBlockTx",
+        "id": "SynthTwoTransfers",
+        "outcome": {
+          "executor_id": "agent.fixture.testnet",
+          "gas_burnt": 300000000000,
+          "logs": [],
+          "metadata": {
+            "gas_profile": null,
+            "version": 1
+          },
+          "receipt_ids": [
+            "SynthTwoTransfers-r1"
+          ],
+          "status": {
+            "SuccessReceiptId": "SynthTwoTransfers-r1"
+          },
+          "tokens_burnt": "30000000000000000000"
+        },
+        "proof": []
+      },
+      "status": {
+        "SuccessValue": ""
+      },
+      "receipts_outcome": [
+        {
+          "block_hash": "SyntheticBlockers-r1",
+          "id": "SynthTwoTransfers-r1",
+          "outcome": {
+            "executor_id": "wallet.fixture.testnet",
+            "gas_burnt": 2400000000000,
+            "logs": [],
+            "metadata": {
+              "gas_profile": [],
+              "version": 3
+            },
+            "receipt_ids": [
+              "SynthTwoTransfers-r2",
+              "SynthTwoTransfers-r3"
+            ],
+            "status": {
+              "SuccessValue": ""
+            },
+            "tokens_burnt": "240000000000000000000"
+          },
+          "proof": []
+        },
+        {
+          "block_hash": "SyntheticBlockers-r2",
+          "id": "SynthTwoTransfers-r2",
+          "outcome": {
+            "executor_id": "usdc.fixture.testnet",
+            "gas_burnt": 2400000000000,
+            "logs": [
+              "EVENT_JSON:{\"standard\":\"nep141\",\"version\":\"1.0.0\",\"event\":\"ft_transfer\",\"data\":[{\"old_owner_id\":\"wallet.fixture.testnet\",\"new_owner_id\":\"gateway.fixture.testnet\",\"amount\":\"1000000\",\"memo\":\"aps2_fixture_00001\"}]}"
+            ],
+            "metadata": {
+              "gas_profile": [],
+              "version": 3
+            },
+            "receipt_ids": [
+              "SynthTwoTransfers-r4"
+            ],
+            "status": {
+              "SuccessValue": ""
+            },
+            "tokens_burnt": "240000000000000000000"
+          },
+          "proof": []
+        },
+        {
+          "block_hash": "SyntheticBlockers-r3",
+          "id": "SynthTwoTransfers-r3",
+          "outcome": {
+            "executor_id": "usdc.fixture.testnet",
+            "gas_burnt": 2400000000000,
+            "logs": [
+              "EVENT_JSON:{\"standard\":\"nep141\",\"version\":\"1.0.0\",\"event\":\"ft_transfer\",\"data\":[{\"old_owner_id\":\"wallet.fixture.testnet\",\"new_owner_id\":\"gateway.fixture.testnet\",\"amount\":\"1000000\",\"memo\":\"aps2_fixture_00001\"}]}"
+            ],
+            "metadata": {
+              "gas_profile": [],
+              "version": 3
+            },
+            "receipt_ids": [],
+            "status": {
+              "SuccessValue": ""
+            },
+            "tokens_burnt": "240000000000000000000"
+          },
+          "proof": []
+        },
+        {
+          "block_hash": "SyntheticBlockers-r4",
+          "id": "SynthTwoTransfers-r4",
+          "outcome": {
+            "executor_id": "agent.fixture.testnet",
+            "gas_burnt": 2400000000000,
+            "logs": [],
+            "metadata": {
+              "gas_profile": [],
+              "version": 3
+            },
+            "receipt_ids": [],
+            "status": {
+              "SuccessValue": ""
+            },
+            "tokens_burnt": "240000000000000000000"
+          },
+          "proof": []
+        }
+      ],
+      "receipts": [
+        {
+          "predecessor_id": "agent.fixture.testnet",
+          "priority": 0,
+          "receipt": {
+            "Action": {
+              "actions": [
+                {
+                  "FunctionCall": {
+                    "args": "eyJ0b2tlbiI6InVzZGMuZml4dHVyZS50ZXN0bmV0IiwicmVjZWl2ZXJfaWQiOiJnYXRld2F5LmZpeHR1cmUudGVzdG5ldCIsImFtb3VudCI6IjEwMDAwMDAiLCJtZW1vIjoiYXBzMl9maXh0dXJlXzAwMDAxIn0=",
+                    "deposit": "0",
+                    "gas": 100000000000000,
+                    "method_name": "pay_twice"
+                  }
+                }
+              ],
+              "gas_price": "1000000000",
+              "input_data_ids": [],
+              "is_promise_yield": false,
+              "output_data_receivers": [],
+              "signer_id": "agent.fixture.testnet",
+              "signer_public_key": "ed25519:SyntheticFixtureKey1111111111111111111111111"
+            }
+          },
+          "receipt_id": "SynthTwoTransfers-r1",
+          "receiver_id": "wallet.fixture.testnet"
+        },
+        {
+          "predecessor_id": "wallet.fixture.testnet",
+          "priority": 0,
+          "receipt": {
+            "Action": {
+              "actions": [
+                {
+                  "FunctionCall": {
+                    "args": "eyJyZWNlaXZlcl9pZCI6ImdhdGV3YXkuZml4dHVyZS50ZXN0bmV0IiwiYW1vdW50IjoiMTAwMDAwMCIsIm1lbW8iOiJhcHMyX2ZpeHR1cmVfMDAwMDEifQ==",
+                    "deposit": "1",
+                    "gas": 15000000000000,
+                    "method_name": "ft_transfer"
+                  }
+                }
+              ],
+              "gas_price": "1000000000",
+              "input_data_ids": [],
+              "is_promise_yield": false,
+              "output_data_receivers": [],
+              "signer_id": "agent.fixture.testnet",
+              "signer_public_key": "ed25519:SyntheticFixtureKey1111111111111111111111111"
+            }
+          },
+          "receipt_id": "SynthTwoTransfers-r2",
+          "receiver_id": "usdc.fixture.testnet"
+        },
+        {
+          "predecessor_id": "wallet.fixture.testnet",
+          "priority": 0,
+          "receipt": {
+            "Action": {
+              "actions": [
+                {
+                  "FunctionCall": {
+                    "args": "eyJyZWNlaXZlcl9pZCI6ImdhdGV3YXkuZml4dHVyZS50ZXN0bmV0IiwiYW1vdW50IjoiMTAwMDAwMCIsIm1lbW8iOiJhcHMyX2ZpeHR1cmVfMDAwMDEifQ==",
+                    "deposit": "1",
+                    "gas": 15000000000000,
+                    "method_name": "ft_transfer"
+                  }
+                }
+              ],
+              "gas_price": "1000000000",
+              "input_data_ids": [],
+              "is_promise_yield": false,
+              "output_data_receivers": [],
+              "signer_id": "agent.fixture.testnet",
+              "signer_public_key": "ed25519:SyntheticFixtureKey1111111111111111111111111"
+            }
+          },
+          "receipt_id": "SynthTwoTransfers-r3",
+          "receiver_id": "usdc.fixture.testnet"
+        },
+        {
+          "predecessor_id": "system",
+          "priority": 0,
+          "receipt": {
+            "Action": {
+              "actions": [
+                {
+                  "Transfer": {
+                    "deposit": "1000000000000000000000"
+                  }
+                }
+              ],
+              "gas_price": "0",
+              "input_data_ids": [],
+              "is_promise_yield": false,
+              "output_data_receivers": [],
+              "signer_id": "agent.fixture.testnet",
+              "signer_public_key": "ed25519:SyntheticFixtureKey1111111111111111111111111"
+            }
+          },
+          "receipt_id": "SynthTwoTransfers-r4",
+          "receiver_id": "agent.fixture.testnet"
+        }
+      ]
+    }
+  }
+}

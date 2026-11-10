@@ -84,19 +84,22 @@ def main():
     )
     args = parser.parse_args()
 
+    # The official rpc.{mainnet,testnet}.near.org endpoints are deprecated
+    # and reject every request (HTTP 429, 2026-11-06); FASTNEAR's free
+    # endpoints are the defaults.
     url = args.rpc or (
-        "https://rpc.testnet.near.org" if args.network == "testnet"
-        else "https://rpc.mainnet.near.org"
+        "https://test.rpc.fastnear.com" if args.network == "testnet"
+        else "https://free.rpc.fastnear.com"
     )
     if not url.startswith("http"):
         url = "https://" + url
 
     # Some privacy endpoints (for example 1RPC) do not expose the NEAR
     # JSON-RPC surface even though they proxy other chains. Probe first;
-    # fall back to the official public endpoint with a clear notice.
+    # fall back to the default public endpoint with a clear notice.
     official = (
-        "https://rpc.testnet.near.org" if args.network == "testnet"
-        else "https://rpc.mainnet.near.org"
+        "https://test.rpc.fastnear.com" if args.network == "testnet"
+        else "https://free.rpc.fastnear.com"
     )
     try:
         probe = rpc_call(url, "status", [])
@@ -104,7 +107,7 @@ def main():
     except Exception:  # noqa: BLE001
         if url != official:
             print(f"[warn] configured endpoint did not answer the NEAR JSON-RPC "
-                  f"status call; falling back to the official public endpoint")
+                  f"status call; falling back to the default public endpoint")
             url = official
     failures = []
 

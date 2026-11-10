@@ -1,14 +1,16 @@
 //! The NEAR provider: memo-bound deposit intents, verified on-chain.
 //!
 //! Funding model (see the crate docs and docs/integrations/near.md):
-//! the payer executes a NEP-141 ft_transfer from their own wallet to
-//! the gateway account, with the intent id as the transfer memo and
-//! exactly 1 yoctoNEAR attached. The caller then submits the transaction
-//! hash (plus the signer id needed to look it up) as a hint. Observation
-//! re-reads the transaction from the chain with wait_until "FINAL" and
-//! re-verifies every fact before producing an observation; the pure
-//! reconciliation in aps_payment decides funding, and the idempotent
-//! ledger applies it at most once per intent.
+//! the payer moves NEP-141 tokens to the gateway account with
+//! ft_transfer, with the intent id as the transfer memo and exactly 1
+//! yoctoNEAR attached - either directly from their own account or through
+//! a policy-wallet contract's `pay`. The caller then submits the
+//! transaction hash (plus the signer id needed to look it up) as a hint.
+//! Observation re-reads the transaction and its receipt tree from the
+//! chain with wait_until "FINAL" and verifies the token contract's own
+//! transfer event (see the verify module) before producing an
+//! observation; the pure reconciliation in aps_payment decides funding,
+//! and the idempotent ledger applies it at most once per intent.
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -17,9 +19,9 @@ use aps_payment::{
     AssetId, CreateIntent, DepositIntent, IntentId, IntentStatus, Observation, PaymentProvider,
     ProviderError, RefundRequest,
 };
-use serde_json::Value;
 
-use crate::rpc::{b64_decode_json, NearRpc, TxAction, TxOutcome, TxStatus};
+use crate::rpc::NearRpc;
+use crate::verify::{verify_tx_receipts, OrphanTransfer, ReceiptCheck, TransferEvidence};
 
 /// Environment variables understood by NearConfig::from_env.
 pub const ENV_PROVIDER: &str = "APS_PROVIDER";
@@ -47,11 +49,14 @@ pub struct NearConfig {
 }
 
 impl NearConfig {
-    /// The official public RPC endpoint for a network.
+    /// The default public RPC endpoint for a network (FASTNEAR's free
+    /// tier). The official `rpc.{mainnet,testnet}.near.org` endpoints are
+    /// deprecated and answer every request with HTTP 429 (verified
+    /// 2026-11-06); `NEAR_RPC_URL` overrides this default.
     pub fn default_rpc_url(network: &str) -> &'static str {
         match network {
-            "testnet" => "https://rpc.testnet.near.org",
-            _ => "https://rpc.mainnet.near.org",
+            "testnet" => "https://test.rpc.fastnear.com",
+            _ => "https://free.rpc.fastnear.com",
         }
     }
 
@@ -137,13 +142,14 @@ pub enum Verification {
     NotFinalYet,
     /// The transaction executed and failed: the payment did not happen.
     Failed(String),
-    /// The transaction does not structurally match this intent (wrong
-    /// contract, method, recipient, memo, or attached deposit). A client
-    /// error: no observation is recorded and no funds move.
+    /// The transaction does not structurally match this intent (no
+    /// token receipt, wrong method, recipient, memo, or attached deposit).
+    /// A client error: no observation is recorded and no funds move.
     StructuralMismatch(String),
-    /// A finalized ft_transfer to the gateway account carrying this
-    /// intent memo. amount_atomic is what the chain says moved - the pure
-    /// reconciliation compares it to the intent amount.
+    /// A finalized token receipt whose own nep141 ft_transfer event pays
+    /// the gateway account with this intent memo. amount_atomic is what
+    /// the event says moved - the pure reconciliation compares it to the
+    /// intent amount.
     Confirmed {
         tx_ref: String,
         amount_atomic: String,
@@ -173,6 +179,24 @@ struct NearIntent {
     hint: Option<TxHint>,
     observation: Option<Observation>,
     refunded: bool,
+    /// The token receipt behind a confirmation.
+    evidence: Option<TransferEvidence>,
+    /// Matching transfers that did not fund this intent.
+    orphans: Vec<OrphanTransfer>,
+}
+
+impl NearIntent {
+    fn add_orphans(&mut self, orphans: impl IntoIterator<Item = OrphanTransfer>) {
+        for orphan in orphans {
+            let known = self
+                .orphans
+                .iter()
+                .any(|o| o.tx_hash == orphan.tx_hash && o.receipt_id == orphan.receipt_id);
+            if !known {
+                self.orphans.push(orphan);
+            }
+        }
+    }
 }
 
 /// The NEAR payment provider: deterministic, verification-only, and
@@ -214,6 +238,100 @@ impl NearProvider {
     /// Read-only view of an intent, if present.
     pub fn intent(&self, intent_id: &IntentId) -> Option<&DepositIntent> {
         self.intents.get(intent_id).map(|entry| &entry.intent)
+    }
+
+    /// The token-receipt evidence behind an intent's confirmation.
+    pub fn evidence(&self, intent_id: &IntentId) -> Option<&TransferEvidence> {
+        self.intents
+            .get(intent_id)
+            .and_then(|entry| entry.evidence.as_ref())
+    }
+
+    /// Matching transfers recorded against an intent that did not fund
+    /// it (refundable only by an operator-approved transfer).
+    pub fn orphans(&self, intent_id: &IntentId) -> &[OrphanTransfer] {
+        self.intents
+            .get(intent_id)
+            .map(|entry| entry.orphans.as_slice())
+            .unwrap_or(&[])
+    }
+
+    /// A handle on the RPC client, for read-only checks that do not
+    /// belong to an intent (the x402 facilitator /verify).
+    pub fn rpc(&self) -> NearRpc {
+        self.rpc.clone()
+    }
+
+    /// Everything needed to check a hint that is NOT the intent's own
+    /// (for example a second payment for an already-funded intent)
+    /// without storing it. Pair with [`NearProvider::apply_check`].
+    pub fn prepare_probe(
+        &self,
+        intent_id: &IntentId,
+        hint: TxHint,
+    ) -> Result<FetchStep, ProviderError> {
+        let entry = self
+            .intents
+            .get(intent_id)
+            .ok_or_else(|| ProviderError::UnknownIntent(intent_id.to_string()))?;
+        Ok(FetchStep::Verify {
+            rpc: self.rpc.clone(),
+            intent: entry.intent.clone(),
+            hint,
+        })
+    }
+
+    /// Apply a completed receipt-level check: record its evidence and
+    /// orphans, then apply its verification.
+    ///
+    /// When the intent already has a final observation, nothing about
+    /// the funding changes: a confirmation from a different transaction
+    /// is recorded as an orphan, never as extra credit. A confirmed
+    /// amount that differs from the intent is also recorded as an
+    /// orphan (exact-amount semantics; the reconciliation never funds it).
+    pub fn apply_check(
+        &mut self,
+        intent_id: &IntentId,
+        check: ReceiptCheck,
+    ) -> Result<Observation, ProviderError> {
+        let entry = self
+            .intents
+            .get_mut(intent_id)
+            .ok_or_else(|| ProviderError::UnknownIntent(intent_id.to_string()))?;
+        entry.add_orphans(check.orphans);
+        if let Some(observation) = entry.observation.clone() {
+            if let Some(evidence) = check.evidence {
+                let same = entry
+                    .evidence
+                    .as_ref()
+                    .is_some_and(|known| known.tx_hash == evidence.tx_hash);
+                if !same {
+                    entry.add_orphans([OrphanTransfer {
+                        tx_hash: evidence.tx_hash,
+                        receipt_id: evidence.receipt_id,
+                        payer_id: evidence.payer_id,
+                        amount_atomic: evidence.amount_atomic,
+                        reason:
+                            "the intent already has a final observation from another transaction"
+                                .to_string(),
+                    }]);
+                }
+            }
+            return Ok(observation);
+        }
+        if let Some(evidence) = &check.evidence {
+            if evidence.amount_atomic != entry.intent.amount.atomic().to_string() {
+                entry.add_orphans([OrphanTransfer {
+                    tx_hash: evidence.tx_hash.clone(),
+                    receipt_id: evidence.receipt_id.clone(),
+                    payer_id: evidence.payer_id.clone(),
+                    amount_atomic: evidence.amount_atomic.clone(),
+                    reason: "the transferred amount does not match the intent".to_string(),
+                }]);
+            }
+            entry.evidence = Some(evidence.clone());
+        }
+        self.apply_verification(intent_id, check.verification)
     }
 
     /// Advance the provider clock; never moves backwards. The gateway
@@ -325,88 +443,22 @@ impl NearProvider {
     }
 }
 
-/// Verify a hinted transaction against an intent. Pure and blocking (one
-/// RPC round-trip): the API layer runs it on the blocking thread pool.
+/// Verify a hinted transaction against an intent at the receipt level.
+/// Blocking (one or two RPC round-trips): the API layer runs it on the
+/// blocking thread pool.
 ///
-/// Every fact is read from the chain: execution status, the target
-/// contract, the called method, the decoded ft_transfer arguments
-/// (recipient, memo, amount), and the attached deposit. The hint itself
-/// is only used to locate the transaction.
+/// Every fact is read from the chain: the final status, the receipt
+/// tree, the token receipt's executor, own status, method and attached
+/// deposit, and the token contract's own nep141 transfer event
+/// (recipient, memo, amount). The hint itself only locates the
+/// transaction. See [`crate::verify`] for the rules and
+/// [`crate::verify::verify_tx_receipts`] for the evidence and orphans.
 pub fn verify_tx(
     rpc: NearRpc,
     intent: &DepositIntent,
     hint: &TxHint,
 ) -> Result<Verification, ProviderError> {
-    let outcome: TxOutcome = match rpc.tx_status_final(&hint.tx_hash, &hint.signer_id) {
-        Ok(outcome) => outcome,
-        Err(err) if err.is_not_found() => return Ok(Verification::NotFinalYet),
-        Err(_) => return Err(ProviderError::ProviderUnavailable),
-    };
-    match outcome.status {
-        TxStatus::Unknown => return Ok(Verification::NotFinalYet),
-        TxStatus::Failed(reason) => return Ok(Verification::Failed(reason)),
-        TxStatus::Success => {}
-    }
-    if outcome.receiver_id != intent.asset_id.as_str() {
-        return Ok(Verification::StructuralMismatch(format!(
-            "the transaction calls contract {}, but the intent is funded in {}",
-            outcome.receiver_id, intent.asset_id
-        )));
-    }
-    let mut transfer_calls = 0u32;
-    for action in &outcome.actions {
-        if let TxAction::FunctionCall {
-            method_name,
-            args_base64,
-            deposit_yocto,
-        } = action
-        {
-            if method_name != "ft_transfer" {
-                continue;
-            }
-            transfer_calls += 1;
-            let args: Value = match b64_decode_json(args_base64) {
-                Ok(args) => args,
-                Err(message) => return Ok(Verification::StructuralMismatch(message)),
-            };
-            let receiver = args
-                .get("receiver_id")
-                .and_then(Value::as_str)
-                .unwrap_or("");
-            if receiver != intent.deposit_address {
-                continue;
-            }
-            let memo = args.get("memo").and_then(Value::as_str).unwrap_or("");
-            if memo != intent.intent_id.as_str() {
-                continue;
-            }
-            if deposit_yocto != "1" {
-                return Ok(Verification::StructuralMismatch(
-                    "ft_transfer must attach exactly 1 yoctoNEAR (NEP-141)".to_string(),
-                ));
-            }
-            let amount = args.get("amount").and_then(Value::as_str).unwrap_or("");
-            if amount.parse::<u128>().is_err() {
-                return Ok(Verification::StructuralMismatch(
-                    "ft_transfer amount is not an integer".to_string(),
-                ));
-            }
-            return Ok(Verification::Confirmed {
-                tx_ref: outcome.tx_hash.clone(),
-                amount_atomic: amount.to_string(),
-            });
-        }
-    }
-    if transfer_calls == 0 {
-        Ok(Verification::StructuralMismatch(
-            "the transaction contains no ft_transfer function call".to_string(),
-        ))
-    } else {
-        Ok(Verification::StructuralMismatch(
-            "no ft_transfer in the transaction targets the gateway account with this intent memo"
-                .to_string(),
-        ))
-    }
+    Ok(verify_tx_receipts(rpc, intent, hint)?.verification)
 }
 
 impl PaymentProvider for NearProvider {
@@ -456,6 +508,8 @@ impl PaymentProvider for NearProvider {
                 hint: None,
                 observation: None,
                 refunded: false,
+                evidence: None,
+                orphans: Vec::new(),
             },
         );
         Ok(intent)
@@ -463,11 +517,11 @@ impl PaymentProvider for NearProvider {
 
     fn observe(&mut self, intent_id: &IntentId) -> Result<Observation, ProviderError> {
         let step = self.prepare_fetch(intent_id)?;
-        let verification = match step {
+        let check = match step {
             FetchStep::Ready(observation) => return Ok(observation),
-            FetchStep::Verify { rpc, intent, hint } => verify_tx(rpc, &intent, &hint)?,
+            FetchStep::Verify { rpc, intent, hint } => verify_tx_receipts(rpc, &intent, &hint)?,
         };
-        self.apply_verification(intent_id, verification)
+        self.apply_check(intent_id, check)
     }
 
     fn request_refund(

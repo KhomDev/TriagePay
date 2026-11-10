@@ -5,6 +5,9 @@
 //! and closes the connection after each response. No network access
 //! beyond loopback; no dependencies outside the standard library.
 
+// Each integration-test crate uses a different subset of these helpers.
+#![allow(dead_code)]
+
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
@@ -117,7 +120,38 @@ pub fn tx_not_found_error() -> Value {
     })
 }
 
-/// A finalized, successful ft_transfer outcome for the stub server.
+/// The JSON-RPC error a nearcore 2.13 node returns for `tx_status`.
+pub fn method_not_found_error(method: &str) -> Value {
+    json!({
+        "name": "REQUEST_VALIDATION_ERROR",
+        "cause": { "name": "METHOD_NOT_FOUND", "info": { "method_name": method } },
+        "code": -32601,
+        "message": "Method not found",
+        "data": method
+    })
+}
+
+/// The JSON-RPC error a node returns when it gives up waiting for FINAL
+/// (or no longer holds the transaction).
+pub fn timeout_error() -> Value {
+    json!({
+        "name": "HANDLER_ERROR",
+        "cause": { "info": { "cause": "NOT_OBSERVED" }, "name": "TIMEOUT_ERROR" },
+        "code": -32000,
+        "message": "Server error",
+        "data": "Timeout"
+    })
+}
+
+/// True for the transaction-status methods the adapter may call.
+pub fn is_tx_status_method(method: &str) -> bool {
+    matches!(method, "tx_status" | "EXPERIMENTAL_tx_status" | "tx")
+}
+
+/// A finalized, successful ft_transfer outcome for the stub server, in
+/// the EXPERIMENTAL_tx_status shape: the token receipt (executor = the
+/// asset contract) carries the nep141 event, and its body carries the
+/// ft_transfer action with the given attached deposit.
 #[allow(clippy::too_many_arguments)]
 pub fn successful_ft_transfer_tx(
     tx_hash: &str,
@@ -133,46 +167,113 @@ pub fn successful_ft_transfer_tx(
         "amount": amount_atomic,
         "memo": memo,
     });
-    let args_base64 = b64_encode(args.to_string().as_bytes());
+    let action = json!({ "FunctionCall": {
+        "method_name": "ft_transfer",
+        "args": b64_encode(args.to_string().as_bytes()),
+        "gas": 30000000000000u64,
+        "deposit": deposit_yocto
+    } });
+    transfer_outcome(
+        tx_hash,
+        signer,
+        asset_contract,
+        vec![action],
+        json!({ "SuccessValue": "" }),
+        vec![nep141_event(signer, gateway, amount_atomic, memo)],
+    )
+}
+
+/// A NEP-297 nep141 ft_transfer log line.
+pub fn nep141_event(old_owner: &str, new_owner: &str, amount: &str, memo: &str) -> String {
+    let event = json!({
+        "standard": "nep141",
+        "version": "1.0.0",
+        "event": "ft_transfer",
+        "data": [{
+            "old_owner_id": old_owner,
+            "new_owner_id": new_owner,
+            "amount": amount,
+            "memo": memo
+        }]
+    });
+    format!("EVENT_JSON:{event}")
+}
+
+/// A direct transaction from `signer` to `receiver` whose single receipt
+/// executes on `receiver` with the given status and logs.
+pub fn transfer_outcome(
+    tx_hash: &str,
+    signer: &str,
+    receiver: &str,
+    actions: Vec<Value>,
+    receipt_status: Value,
+    logs: Vec<String>,
+) -> Value {
+    let receipt = format!("{tx_hash}-r1");
+    let top = if receipt_status.get("Failure").is_some() {
+        receipt_status.clone()
+    } else {
+        json!({ "SuccessValue": "" })
+    };
     json!({
-        "status": { "SuccessValue": "" },
+        "final_execution_status": "FINAL",
+        "status": top,
         "transaction": {
             "signer_id": signer,
-            "receiver_id": asset_contract,
-            "actions": [
-                { "FunctionCall": {
-                    "method_name": "ft_transfer",
-                    "args": args_base64,
-                    "gas": 30000000000000u64,
-                    "deposit": deposit_yocto
-                } }
-            ],
+            "receiver_id": receiver,
+            "actions": actions.clone(),
             "nonce": 7,
             "hash": tx_hash
         },
         "transaction_outcome": {
             "id": tx_hash,
             "block_hash": "blockhash",
-            "outcome": { "status": { "SuccessReceiptId": "receipt1" } }
+            "outcome": {
+                "executor_id": signer,
+                "receipt_ids": [receipt.clone()],
+                "status": { "SuccessReceiptId": receipt.clone() },
+                "logs": []
+            }
         },
-        "receipts_outcome": []
+        "receipts_outcome": [{
+            "id": receipt.clone(),
+            "outcome": {
+                "executor_id": receiver,
+                "status": receipt_status,
+                "logs": logs,
+                "receipt_ids": []
+            }
+        }],
+        "receipts": [{
+            "receipt_id": receipt,
+            "predecessor_id": signer,
+            "receiver_id": receiver,
+            "receipt": { "Action": { "actions": actions, "signer_id": signer } }
+        }]
     })
 }
 
 /// A finalized, failed transaction outcome.
 pub fn failed_tx(tx_hash: &str, signer: &str, receiver: &str) -> Value {
-    json!({
-        "status": { "Failure": { "Action #0": { "kind": "function_call_error" } } },
-        "transaction": {
-            "signer_id": signer,
-            "receiver_id": receiver,
-            "actions": [ { "CreateAccount": {} } ],
-            "nonce": 7,
-            "hash": tx_hash
-        },
-        "transaction_outcome": { "id": tx_hash, "outcome": {} },
-        "receipts_outcome": []
-    })
+    transfer_outcome(
+        tx_hash,
+        signer,
+        receiver,
+        vec![json!({ "CreateAccount": {} })],
+        json!({ "Failure": { "ActionError": { "index": 0, "kind": "function_call_error" } } }),
+        Vec::new(),
+    )
+}
+
+/// Load a recorded fixture's `response.result`, replacing the synthetic
+/// placeholder memo with a real intent id when one is given.
+pub fn fixture_result(raw: &str, memo: Option<&str>) -> Value {
+    let text = match memo {
+        Some(memo) => raw.replace("aps2_fixture_00001", memo),
+        None => raw.to_string(),
+    };
+    let doc: Value = serde_json::from_str(&text).expect("fixture is JSON");
+    doc["response"]["result"].clone()
 }
 
 fn b64_encode(bytes: &[u8]) -> String {

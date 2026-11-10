@@ -1,0 +1,299 @@
+{
+  "_fixture": {
+    "synthetic": true,
+    "description": "Policy-wallet pay: the agent calls wallet.pay, the wallet sends ft_transfer to the token (predecessor = wallet), the token logs the nep141 event, the wallet callback settles.",
+    "expect": "Confirmed; payer (old_owner_id) and predecessor are the wallet",
+    "placeholders": {
+      "asset": "usdc.fixture.testnet",
+      "gateway": "gateway.fixture.testnet",
+      "memo": "aps2_fixture_00001"
+    },
+    "shape_reference": "mainnet_direct_ft_transfer.json (real EXPERIMENTAL_tx_status capture)"
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": "aps-near",
+    "result": {
+      "final_execution_status": "FINAL",
+      "transaction": {
+        "actions": [
+          {
+            "FunctionCall": {
+              "args": "eyJ0b2tlbiI6InVzZGMuZml4dHVyZS50ZXN0bmV0IiwicmVjZWl2ZXJfaWQiOiJnYXRld2F5LmZpeHR1cmUudGVzdG5ldCIsImFtb3VudCI6IjEwMDAwMDAiLCJtZW1vIjoiYXBzMl9maXh0dXJlXzAwMDAxIn0=",
+              "deposit": "0",
+              "gas": 100000000000000,
+              "method_name": "pay"
+            }
+          }
+        ],
+        "hash": "SynthWalletPay",
+        "nonce": 7,
+        "priority_fee": 0,
+        "public_key": "ed25519:SyntheticFixtureKey1111111111111111111111111",
+        "receiver_id": "wallet.fixture.testnet",
+        "signature": "ed25519:SyntheticSignature",
+        "signer_id": "agent.fixture.testnet"
+      },
+      "transaction_outcome": {
+        "block_hash": "SyntheticBlockTx",
+        "id": "SynthWalletPay",
+        "outcome": {
+          "executor_id": "agent.fixture.testnet",
+          "gas_burnt": 300000000000,
+          "logs": [],
+          "metadata": {
+            "gas_profile": null,
+            "version": 1
+          },
+          "receipt_ids": [
+            "SynthWalletPay-r1"
+          ],
+          "status": {
+            "SuccessReceiptId": "SynthWalletPay-r1"
+          },
+          "tokens_burnt": "30000000000000000000"
+        },
+        "proof": []
+      },
+      "status": {
+        "SuccessValue": "dHJ1ZQ=="
+      },
+      "receipts_outcome": [
+        {
+          "block_hash": "SyntheticBlockPay-r1",
+          "id": "SynthWalletPay-r1",
+          "outcome": {
+            "executor_id": "wallet.fixture.testnet",
+            "gas_burnt": 2400000000000,
+            "logs": [
+              "EVENT_JSON:{\"standard\":\"policy_wallet\",\"version\":\"1.0.0\",\"event\":\"pay_requested\",\"data\":[{\"payment_id\":\"0\",\"agent_id\":\"agent.fixture.testnet\",\"token\":\"usdc.fixture.testnet\",\"receiver_id\":\"gateway.fixture.testnet\",\"amount\":\"1000000\"}]}"
+            ],
+            "metadata": {
+              "gas_profile": [],
+              "version": 3
+            },
+            "receipt_ids": [
+              "SynthWalletPay-r2",
+              "SynthWalletPay-r3"
+            ],
+            "status": {
+              "SuccessReceiptId": "SynthWalletPay-r3"
+            },
+            "tokens_burnt": "240000000000000000000"
+          },
+          "proof": []
+        },
+        {
+          "block_hash": "SyntheticBlockPay-r2",
+          "id": "SynthWalletPay-r2",
+          "outcome": {
+            "executor_id": "usdc.fixture.testnet",
+            "gas_burnt": 2400000000000,
+            "logs": [
+              "EVENT_JSON:{\"standard\":\"nep141\",\"version\":\"1.0.0\",\"event\":\"ft_transfer\",\"data\":[{\"old_owner_id\":\"wallet.fixture.testnet\",\"new_owner_id\":\"gateway.fixture.testnet\",\"amount\":\"1000000\",\"memo\":\"aps2_fixture_00001\"}]}"
+            ],
+            "metadata": {
+              "gas_profile": [],
+              "version": 3
+            },
+            "receipt_ids": [
+              "SynthWalletPay-r4"
+            ],
+            "status": {
+              "SuccessValue": ""
+            },
+            "tokens_burnt": "240000000000000000000"
+          },
+          "proof": []
+        },
+        {
+          "block_hash": "SyntheticBlockPay-r3",
+          "id": "SynthWalletPay-r3",
+          "outcome": {
+            "executor_id": "wallet.fixture.testnet",
+            "gas_burnt": 2400000000000,
+            "logs": [
+              "EVENT_JSON:{\"standard\":\"policy_wallet\",\"version\":\"1.0.0\",\"event\":\"pay_settled\",\"data\":[{\"payment_id\":\"0\",\"agent_id\":\"agent.fixture.testnet\",\"token\":\"usdc.fixture.testnet\",\"receiver_id\":\"gateway.fixture.testnet\",\"amount\":\"1000000\"}]}"
+            ],
+            "metadata": {
+              "gas_profile": [],
+              "version": 3
+            },
+            "receipt_ids": [
+              "SynthWalletPay-r5"
+            ],
+            "status": {
+              "SuccessValue": "dHJ1ZQ=="
+            },
+            "tokens_burnt": "240000000000000000000"
+          },
+          "proof": []
+        },
+        {
+          "block_hash": "SyntheticBlockPay-r4",
+          "id": "SynthWalletPay-r4",
+          "outcome": {
+            "executor_id": "agent.fixture.testnet",
+            "gas_burnt": 2400000000000,
+            "logs": [],
+            "metadata": {
+              "gas_profile": [],
+              "version": 3
+            },
+            "receipt_ids": [],
+            "status": {
+              "SuccessValue": ""
+            },
+            "tokens_burnt": "240000000000000000000"
+          },
+          "proof": []
+        },
+        {
+          "block_hash": "SyntheticBlockPay-r5",
+          "id": "SynthWalletPay-r5",
+          "outcome": {
+            "executor_id": "agent.fixture.testnet",
+            "gas_burnt": 2400000000000,
+            "logs": [],
+            "metadata": {
+              "gas_profile": [],
+              "version": 3
+            },
+            "receipt_ids": [],
+            "status": {
+              "SuccessValue": ""
+            },
+            "tokens_burnt": "240000000000000000000"
+          },
+          "proof": []
+        }
+      ],
+      "receipts": [
+        {
+          "predecessor_id": "agent.fixture.testnet",
+          "priority": 0,
+          "receipt": {
+            "Action": {
+              "actions": [
+                {
+                  "FunctionCall": {
+                    "args": "eyJ0b2tlbiI6InVzZGMuZml4dHVyZS50ZXN0bmV0IiwicmVjZWl2ZXJfaWQiOiJnYXRld2F5LmZpeHR1cmUudGVzdG5ldCIsImFtb3VudCI6IjEwMDAwMDAiLCJtZW1vIjoiYXBzMl9maXh0dXJlXzAwMDAxIn0=",
+                    "deposit": "0",
+                    "gas": 100000000000000,
+                    "method_name": "pay"
+                  }
+                }
+              ],
+              "gas_price": "1000000000",
+              "input_data_ids": [],
+              "is_promise_yield": false,
+              "output_data_receivers": [],
+              "signer_id": "agent.fixture.testnet",
+              "signer_public_key": "ed25519:SyntheticFixtureKey1111111111111111111111111"
+            }
+          },
+          "receipt_id": "SynthWalletPay-r1",
+          "receiver_id": "wallet.fixture.testnet"
+        },
+        {
+          "predecessor_id": "wallet.fixture.testnet",
+          "priority": 0,
+          "receipt": {
+            "Action": {
+              "actions": [
+                {
+                  "FunctionCall": {
+                    "args": "eyJyZWNlaXZlcl9pZCI6ImdhdGV3YXkuZml4dHVyZS50ZXN0bmV0IiwiYW1vdW50IjoiMTAwMDAwMCIsIm1lbW8iOiJhcHMyX2ZpeHR1cmVfMDAwMDEifQ==",
+                    "deposit": "1",
+                    "gas": 15000000000000,
+                    "method_name": "ft_transfer"
+                  }
+                }
+              ],
+              "gas_price": "1000000000",
+              "input_data_ids": [],
+              "is_promise_yield": false,
+              "output_data_receivers": [],
+              "signer_id": "agent.fixture.testnet",
+              "signer_public_key": "ed25519:SyntheticFixtureKey1111111111111111111111111"
+            }
+          },
+          "receipt_id": "SynthWalletPay-r2",
+          "receiver_id": "usdc.fixture.testnet"
+        },
+        {
+          "predecessor_id": "wallet.fixture.testnet",
+          "priority": 0,
+          "receipt": {
+            "Action": {
+              "actions": [
+                {
+                  "FunctionCall": {
+                    "args": "eyJhZ2VudF9pZCI6ImFnZW50LmZpeHR1cmUudGVzdG5ldCIsInRva2VuIjoidXNkYy5maXh0dXJlLnRlc3RuZXQiLCJyZWNlaXZlcl9pZCI6ImdhdGV3YXkuZml4dHVyZS50ZXN0bmV0IiwiYW1vdW50IjoiMTAwMDAwMCIsInBheW1lbnRfaWQiOiIwIiwid2luZG93X2luZGV4IjoiMCJ9",
+                    "deposit": "0",
+                    "gas": 10000000000000,
+                    "method_name": "on_pay_complete"
+                  }
+                }
+              ],
+              "gas_price": "1000000000",
+              "input_data_ids": [],
+              "is_promise_yield": false,
+              "output_data_receivers": [],
+              "signer_id": "agent.fixture.testnet",
+              "signer_public_key": "ed25519:SyntheticFixtureKey1111111111111111111111111"
+            }
+          },
+          "receipt_id": "SynthWalletPay-r3",
+          "receiver_id": "wallet.fixture.testnet"
+        },
+        {
+          "predecessor_id": "system",
+          "priority": 0,
+          "receipt": {
+            "Action": {
+              "actions": [
+                {
+                  "Transfer": {
+                    "deposit": "1000000000000000000000"
+                  }
+                }
+              ],
+              "gas_price": "0",
+              "input_data_ids": [],
+              "is_promise_yield": false,
+              "output_data_receivers": [],
+              "signer_id": "agent.fixture.testnet",
+              "signer_public_key": "ed25519:SyntheticFixtureKey1111111111111111111111111"
+            }
+          },
+          "receipt_id": "SynthWalletPay-r4",
+          "receiver_id": "agent.fixture.testnet"
+        },
+        {
+          "predecessor_id": "system",
+          "priority": 0,
+          "receipt": {
+            "Action": {
+              "actions": [
+                {
+                  "Transfer": {
+                    "deposit": "1000000000000000000000"
+                  }
+                }
+              ],
+              "gas_price": "0",
+              "input_data_ids": [],
+              "is_promise_yield": false,
+              "output_data_receivers": [],
+              "signer_id": "agent.fixture.testnet",
+              "signer_public_key": "ed25519:SyntheticFixtureKey1111111111111111111111111"
+            }
+          },
+          "receipt_id": "SynthWalletPay-r5",
+          "receiver_id": "agent.fixture.testnet"
+        }
+      ]
+    }
+  }
+}

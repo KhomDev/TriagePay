@@ -16,10 +16,12 @@
 //!   and re-verified before an observation is produced. A client
 //!   assertion of payment has no path into a funding decision.
 //! - Memo-bound intents. A deposit intent is bound to a unique memo
-//!   (the intent id). Only a successful, finalized ft_transfer whose
-//!   arguments name the gateway account and carry exactly that memo can
-//!   confirm the intent. A transaction can therefore never fund two
-//!   intents, and a fabricated hash funds nothing.
+//!   (the intent id). Only a finalized token receipt, executed by the
+//!   asset contract itself, whose own nep141 ft_transfer event pays the
+//!   gateway account with exactly that memo can confirm the intent. A
+//!   transaction can therefore never fund two intents, a fabricated hash
+//!   funds nothing, and an event logged by any other contract is ignored
+//!   (see the verify module).
 //! - Finality. Transaction status is requested with wait_until set to
 //!   FINAL, so a confirmation observation only exists for a transaction
 //!   whose block and receipts are finalized.
@@ -30,9 +32,16 @@
 
 pub mod provider;
 pub mod rpc;
+pub mod verify;
 
 pub use provider::{verify_tx, FetchStep, NearConfig, NearProvider, TxHint, Verification};
-pub use rpc::{AccessKeyView, AccountView, RpcError, StatusInfo, TxAction, TxOutcome, TxStatus};
+pub use rpc::{
+    AccessKeyView, AccountView, OutcomeStatus, ReceiptOutcome, ReceiptView, RpcError, StatusInfo,
+    TxAction, TxOutcome, TxStatus,
+};
+pub use verify::{
+    check_outcome, verify_tx_receipts, OrphanTransfer, ReceiptCheck, TransferEvidence,
+};
 
 /// Re-exported so callers can build a provider against the shared trait.
 pub use aps_payment::PaymentProvider;

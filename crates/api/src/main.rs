@@ -42,6 +42,28 @@ fn provider_from_env() -> Result<Provider, String> {
     }
 }
 
+/// x402 terms: APS_X402_PRICE_ATOMIC (price of one scan in atomic units
+/// of the settlement asset; default the price book's scan.v1 price) and
+/// APS_X402_MAX_TIMEOUT_SECS (requirement validity window).
+fn x402_terms_from_env(state: &AppState) -> Result<(aps_core::Amount, u64), String> {
+    let config = state.x402().config();
+    let price = match std::env::var("APS_X402_PRICE_ATOMIC") {
+        Ok(raw) => match raw.trim().parse::<u128>() {
+            Ok(units) if units > 0 => aps_core::Amount::from_atomic(units),
+            _ => return Err("APS_X402_PRICE_ATOMIC must be a positive integer".to_string()),
+        },
+        Err(_) => config.price,
+    };
+    let timeout = match std::env::var("APS_X402_MAX_TIMEOUT_SECS") {
+        Ok(raw) => raw
+            .trim()
+            .parse::<u64>()
+            .map_err(|_| "APS_X402_MAX_TIMEOUT_SECS must be a number of seconds".to_string())?,
+        Err(_) => config.max_timeout_secs,
+    };
+    Ok((price, timeout))
+}
+
 fn unix_now() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -67,7 +89,15 @@ async fn main() {
     };
     let provider_kind = provider.kind();
 
-    let app = router(AppState::with_provider(DEV_CALLER, provider));
+    let mut state = AppState::with_provider(DEV_CALLER, provider);
+    match x402_terms_from_env(&state) {
+        Ok((price, timeout)) => state = state.with_x402_terms(price, timeout),
+        Err(message) => {
+            eprintln!("aps-api: {message}");
+            std::process::exit(2);
+        }
+    }
+    let app = router(state);
     let bind_addr = ("127.0.0.1", port);
     let listener = match tokio::net::TcpListener::bind(bind_addr).await {
         Ok(listener) => listener,

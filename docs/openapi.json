@@ -701,9 +701,222 @@
           }
         }
       }
+    },
+    "/v2/scan": {
+      "post": {
+        "summary": "x402 v2 paid scan (scheme exact, near-tx-proof, upfront). Without PAYMENT-SIGNATURE: 402 with a fresh requirement in PAYMENT-REQUIRED. With it: verify the NEAR receipt tree, fund, reserve, scan, settle, 200 with PAYMENT-RESPONSE. See docs/protocols/x402-near.md",
+        "parameters": [
+          {
+            "name": "PAYMENT-SIGNATURE",
+            "in": "header",
+            "required": false,
+            "description": "base64 JSON x402 v2 PaymentPayload; payload = {network, intent_id, tx_hash, signer_id}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "The finding envelope; the scanner is the schema authority"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "paid: report, settlement and payment summary; replayed verbatim for the same proof and request",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report",
+                    "settlement",
+                    "payment"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "malformed body or PaymentPayload (invalid_payload, invalid_x402_version), or an envelope that failed validation (the payment is retained)",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "payment required (PAYMENT-REQUIRED) or payment failed (PAYMENT-RESPONSE with errorReason: settlement_pending, invalid_network, invalid_scheme, invalid_payment_requirements, invalid_payload, invalid_transaction_state, amount_mismatch, requirement_expired, proof_already_consumed)",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "base64 JSON x402 v2 PaymentRequired (on a fresh requirement)",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              },
+              "Retry-After": {
+                "description": "seconds before retrying the same proof (settlement_pending)",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402ErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "scanner infrastructure failure (the payment is retained; retry with the same proof)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/x402/supported": {
+      "get": {
+        "summary": "x402 facilitator: supported kinds (exact, near-tx-proof, upfront) on the configured network",
+        "responses": {
+          "200": {
+            "description": "SupportedResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "kinds",
+                    "extensions",
+                    "signers"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/x402/verify": {
+      "post": {
+        "summary": "x402 facilitator: read-only verification of a near-tx-proof payment against requirements (extra.memo binds the payment)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FacilitatorRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "VerifyResponse {isValid, invalidReason?, payer?}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "isValid"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "the body is not a JSON object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/x402/settle": {
+      "post": {
+        "summary": "x402 facilitator: validate a near-tx-proof payment and consume its key <network>:<tx_hash> exactly once",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FacilitatorRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SettlementResponse {success, errorReason?, payer?, transaction, network, amount?}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "transaction",
+                    "network"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "the body is not a JSON object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
+    "headers": {
+      "PaymentResponse": {
+        "description": "base64 JSON x402 v2 SettlementResponse {success, errorReason?, payer?, transaction, network, amount?, extensions?}",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
     "parameters": {
       "AccountId": {
         "name": "account_id",
@@ -936,6 +1149,55 @@
           }
         },
         "additionalProperties": false
+      },
+      "X402ErrorBody": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "description": "The standard error shape; a fresh requirement also carries payment_required (the decoded PAYMENT-REQUIRED object)",
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          "payment_required": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FacilitatorRequest": {
+        "type": "object",
+        "required": [
+          "x402Version",
+          "paymentPayload",
+          "paymentRequirements"
+        ],
+        "properties": {
+          "x402Version": {
+            "type": "integer",
+            "const": 2
+          },
+          "paymentPayload": {
+            "type": "object"
+          },
+          "paymentRequirements": {
+            "type": "object"
+          }
+        }
       }
     }
   }

@@ -1,0 +1,266 @@
+{
+  "_fixture": {
+    "synthetic": true,
+    "description": "ft_transfer_call to a plain gateway account: the token logs the outgoing event with the intent memo, ft_on_transfer fails (no contract), ft_resolve_transfer refunds with a reverse event.",
+    "expect": "StructuralMismatch (ft_transfer_call); never funds",
+    "placeholders": {
+      "asset": "usdc.fixture.testnet",
+      "gateway": "gateway.fixture.testnet",
+      "memo": "aps2_fixture_00001"
+    },
+    "shape_reference": "mainnet_direct_ft_transfer.json (real EXPERIMENTAL_tx_status capture)"
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": "aps-near",
+    "result": {
+      "final_execution_status": "FINAL",
+      "transaction": {
+        "actions": [
+          {
+            "FunctionCall": {
+              "args": "eyJyZWNlaXZlcl9pZCI6ImdhdGV3YXkuZml4dHVyZS50ZXN0bmV0IiwiYW1vdW50IjoiMTAwMDAwMCIsIm1lbW8iOiJhcHMyX2ZpeHR1cmVfMDAwMDEiLCJtc2ciOiIifQ==",
+              "deposit": "1",
+              "gas": 100000000000000,
+              "method_name": "ft_transfer_call"
+            }
+          }
+        ],
+        "hash": "SynthTransferCallRefund",
+        "nonce": 7,
+        "priority_fee": 0,
+        "public_key": "ed25519:SyntheticFixtureKey1111111111111111111111111",
+        "receiver_id": "usdc.fixture.testnet",
+        "signature": "ed25519:SyntheticSignature",
+        "signer_id": "payer.fixture.testnet"
+      },
+      "transaction_outcome": {
+        "block_hash": "SyntheticBlockTx",
+        "id": "SynthTransferCallRefund",
+        "outcome": {
+          "executor_id": "payer.fixture.testnet",
+          "gas_burnt": 300000000000,
+          "logs": [],
+          "metadata": {
+            "gas_profile": null,
+            "version": 1
+          },
+          "receipt_ids": [
+            "SynthTransferCallRefund-r1"
+          ],
+          "status": {
+            "SuccessReceiptId": "SynthTransferCallRefund-r1"
+          },
+          "tokens_burnt": "30000000000000000000"
+        },
+        "proof": []
+      },
+      "status": {
+        "SuccessValue": "IjAi"
+      },
+      "receipts_outcome": [
+        {
+          "block_hash": "SyntheticBlockund-r1",
+          "id": "SynthTransferCallRefund-r1",
+          "outcome": {
+            "executor_id": "usdc.fixture.testnet",
+            "gas_burnt": 2400000000000,
+            "logs": [
+              "EVENT_JSON:{\"standard\":\"nep141\",\"version\":\"1.0.0\",\"event\":\"ft_transfer\",\"data\":[{\"old_owner_id\":\"payer.fixture.testnet\",\"new_owner_id\":\"gateway.fixture.testnet\",\"amount\":\"1000000\",\"memo\":\"aps2_fixture_00001\"}]}"
+            ],
+            "metadata": {
+              "gas_profile": [],
+              "version": 3
+            },
+            "receipt_ids": [
+              "SynthTransferCallRefund-r2",
+              "SynthTransferCallRefund-r3"
+            ],
+            "status": {
+              "SuccessReceiptId": "SynthTransferCallRefund-r3"
+            },
+            "tokens_burnt": "240000000000000000000"
+          },
+          "proof": []
+        },
+        {
+          "block_hash": "SyntheticBlockund-r2",
+          "id": "SynthTransferCallRefund-r2",
+          "outcome": {
+            "executor_id": "gateway.fixture.testnet",
+            "gas_burnt": 2400000000000,
+            "logs": [],
+            "metadata": {
+              "gas_profile": [],
+              "version": 3
+            },
+            "receipt_ids": [],
+            "status": {
+              "Failure": {
+                "ActionError": {
+                  "index": 0,
+                  "kind": {
+                    "FunctionCallError": {
+                      "CompilationError": {
+                        "CodeDoesNotExist": {
+                          "account_id": "gateway.fixture.testnet"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "tokens_burnt": "240000000000000000000"
+          },
+          "proof": []
+        },
+        {
+          "block_hash": "SyntheticBlockund-r3",
+          "id": "SynthTransferCallRefund-r3",
+          "outcome": {
+            "executor_id": "usdc.fixture.testnet",
+            "gas_burnt": 2400000000000,
+            "logs": [
+              "EVENT_JSON:{\"standard\":\"nep141\",\"version\":\"1.0.0\",\"event\":\"ft_transfer\",\"data\":[{\"old_owner_id\":\"gateway.fixture.testnet\",\"new_owner_id\":\"payer.fixture.testnet\",\"amount\":\"1000000\",\"memo\":\"refund\"}]}"
+            ],
+            "metadata": {
+              "gas_profile": [],
+              "version": 3
+            },
+            "receipt_ids": [
+              "SynthTransferCallRefund-r4"
+            ],
+            "status": {
+              "SuccessValue": "IjAi"
+            },
+            "tokens_burnt": "240000000000000000000"
+          },
+          "proof": []
+        },
+        {
+          "block_hash": "SyntheticBlockund-r4",
+          "id": "SynthTransferCallRefund-r4",
+          "outcome": {
+            "executor_id": "payer.fixture.testnet",
+            "gas_burnt": 2400000000000,
+            "logs": [],
+            "metadata": {
+              "gas_profile": [],
+              "version": 3
+            },
+            "receipt_ids": [],
+            "status": {
+              "SuccessValue": ""
+            },
+            "tokens_burnt": "240000000000000000000"
+          },
+          "proof": []
+        }
+      ],
+      "receipts": [
+        {
+          "predecessor_id": "payer.fixture.testnet",
+          "priority": 0,
+          "receipt": {
+            "Action": {
+              "actions": [
+                {
+                  "FunctionCall": {
+                    "args": "eyJyZWNlaXZlcl9pZCI6ImdhdGV3YXkuZml4dHVyZS50ZXN0bmV0IiwiYW1vdW50IjoiMTAwMDAwMCIsIm1lbW8iOiJhcHMyX2ZpeHR1cmVfMDAwMDEiLCJtc2ciOiIifQ==",
+                    "deposit": "1",
+                    "gas": 100000000000000,
+                    "method_name": "ft_transfer_call"
+                  }
+                }
+              ],
+              "gas_price": "1000000000",
+              "input_data_ids": [],
+              "is_promise_yield": false,
+              "output_data_receivers": [],
+              "signer_id": "payer.fixture.testnet",
+              "signer_public_key": "ed25519:SyntheticFixtureKey1111111111111111111111111"
+            }
+          },
+          "receipt_id": "SynthTransferCallRefund-r1",
+          "receiver_id": "usdc.fixture.testnet"
+        },
+        {
+          "predecessor_id": "usdc.fixture.testnet",
+          "priority": 0,
+          "receipt": {
+            "Action": {
+              "actions": [
+                {
+                  "FunctionCall": {
+                    "args": "eyJzZW5kZXJfaWQiOiJwYXllci5maXh0dXJlLnRlc3RuZXQiLCJhbW91bnQiOiIxMDAwMDAwIiwibXNnIjoiIn0=",
+                    "deposit": "0",
+                    "gas": 40000000000000,
+                    "method_name": "ft_on_transfer"
+                  }
+                }
+              ],
+              "gas_price": "1000000000",
+              "input_data_ids": [],
+              "is_promise_yield": false,
+              "output_data_receivers": [],
+              "signer_id": "payer.fixture.testnet",
+              "signer_public_key": "ed25519:SyntheticFixtureKey1111111111111111111111111"
+            }
+          },
+          "receipt_id": "SynthTransferCallRefund-r2",
+          "receiver_id": "gateway.fixture.testnet"
+        },
+        {
+          "predecessor_id": "usdc.fixture.testnet",
+          "priority": 0,
+          "receipt": {
+            "Action": {
+              "actions": [
+                {
+                  "FunctionCall": {
+                    "args": "eyJzZW5kZXJfaWQiOiJwYXllci5maXh0dXJlLnRlc3RuZXQiLCJyZWNlaXZlcl9pZCI6ImdhdGV3YXkuZml4dHVyZS50ZXN0bmV0IiwiYW1vdW50IjoiMTAwMDAwMCJ9",
+                    "deposit": "0",
+                    "gas": 10000000000000,
+                    "method_name": "ft_resolve_transfer"
+                  }
+                }
+              ],
+              "gas_price": "1000000000",
+              "input_data_ids": [],
+              "is_promise_yield": false,
+              "output_data_receivers": [],
+              "signer_id": "payer.fixture.testnet",
+              "signer_public_key": "ed25519:SyntheticFixtureKey1111111111111111111111111"
+            }
+          },
+          "receipt_id": "SynthTransferCallRefund-r3",
+          "receiver_id": "usdc.fixture.testnet"
+        },
+        {
+          "predecessor_id": "system",
+          "priority": 0,
+          "receipt": {
+            "Action": {
+              "actions": [
+                {
+                  "Transfer": {
+                    "deposit": "1000000000000000000000"
+                  }
+                }
+              ],
+              "gas_price": "0",
+              "input_data_ids": [],
+              "is_promise_yield": false,
+              "output_data_receivers": [],
+              "signer_id": "payer.fixture.testnet",
+              "signer_public_key": "ed25519:SyntheticFixtureKey1111111111111111111111111"
+            }
+          },
+          "receipt_id": "SynthTransferCallRefund-r4",
+          "receiver_id": "payer.fixture.testnet"
+        }
+      ]
+    }
+  }
+}
