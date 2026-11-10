@@ -105,6 +105,34 @@ Every refusal panics with `CODE: description`; the code is stable.
 | Concurrent pays | NEAR executes one receipt at a time per account; each `pay` sees the previous reservation | None |
 | Non-standard token behaviour | Only allowlisted tokens are accepted or paid | Depends on the allowlisted token contracts |
 
+## Threat model rows
+
+Proposed rows for `docs/threat-model.md`. Each row reads threat, then
+mitigation, then the test that exercises it, then the residual risk. Test
+names refer to `crates/policy-core` (unit and property), the
+`policy-wallet` unit suite (`contracts/policy-wallet/src/tests.rs`), the
+sandbox suite (`contracts/tests/sandbox.rs`, Linux CI only, not yet
+executed), and the numbered testnet steps above.
+
+| Threat | Mitigation | Test | Residual risk |
+|---|---|---|---|
+| Agent key stolen | The key is a function-call key: receiver = wallet, methods = `pay`, zero deposit. `pay` enforces per-call and daily limits and the payee allowlist; the owner can `revoke_agent` or `pause` at once | Unit `pay_over_per_call_limit`, `pay_over_daily_limit`, `pay_to_non_allowlisted_payee`, `pay_by_revoked_agent`; sandbox `per_call_limit_is_refused_and_nothing_moves`, `daily_limit_is_refused_and_nothing_moves`, `non_allowlisted_payee_is_refused`, `revoked_agent_is_refused`; testnet steps 13, 14, 22, 24 | Up to `daily_max` per UTC day, paid only to allowlisted payees (up to 2 x `daily_max` across a midnight), plus the key's gas allowance, paid in the agent account's NEAR |
+| Agent key used on owner methods | Every owner method requires exactly 1 yoctoNEAR, which no function-call key can attach, and `predecessor == owner` | Unit `owner_with_two_yocto_is_refused`; sandbox `agent_function_call_key_cannot_call_owner_methods`, `agent_full_access_key_is_not_the_owner`; testnet steps 15 (node rejection), 16 (`ERR_NOT_OWNER`) | None known |
+| An owner function-call key (for example a dapp login key for the wallet, any method) used on owner methods | Same 1-yocto rule: with zero deposit the contract refuses, with 1 yocto the node refuses | Unit `close_requires_one_yocto_from_owner`; testnet steps 18 (`assert_one_yocto`), 19 (node rejection) | None known |
+| Owner key stolen | None on chain: the owner can withdraw everything. Keep the owner key offline; fund the wallet with a small working balance | Sandbox `owner_withdraws_tokens`; testnet step 27 (shows the power) | Full wallet balance |
+| Bug in the policy arithmetic | Pure `policy-core` crate shared by contract and simulator; checked u128 math; `overflow-checks = true` in the release profile; property tests | Properties `spend_never_exceeds_daily_max`, `reserve_then_release_restores_exact_state`, `rollover_resets_correctly`; unit `pay_overflow_adjacent_amount`; sandbox `overflow_adjacent_amount_uses_checked_math` | Funds in the wallet at the time; the code is immutable, so a fix means redeploying to a new account |
+| Third party initializes or redeploys the wallet | `new` is `#[init]` and `#[private]`; deploy, `new` and `DeleteKey` run in one batch; no upgrade method | Sandbox `init_and_callbacks_are_private`; testnet step 5 (zero access keys, code hash matches) | None while the account has no access key |
+| Forged callback (refund itself, delete the wallet) | `on_pay_complete`, `on_withdraw_complete`, `on_close_check` are `#[private]` | Sandbox `init_and_callbacks_are_private` | None known |
+| Downstream `ft_transfer` fails (receiver not registered, token paused) | The callback releases the reservation and emits `pay_failed`; a release after UTC midnight is a no-op | Unit `callback_failure_releases_the_reservation`, `callback_failure_after_rollover_does_not_touch_new_window`; sandbox `unregistered_receiver_failure_releases_the_reservation` | None; tokens never left the wallet |
+| Callback runs out of gas | `pay` and `withdraw` refuse less than 35 TGas prepaid; the callback never panics | Unit `pay_with_too_little_gas` | Fails closed: if a callback still failed, the reservation stays counted (budget lost for the day, no tokens lost) |
+| Concurrent pays in one block | NEAR executes one receipt at a time per account; each `pay` sees the previous reservation | Unit `two_pays_in_the_same_block_both_count`; sandbox `concurrent_pays_cannot_exceed_the_daily_limit` | None |
+| Limit-window edge at UTC midnight | Window = UTC day of the block timestamp; a backwards clock keeps counting; revoke and re-add keeps the window | Unit `window_rolls_over_at_utc_midnight`, `set_agent_reconfigure_keeps_the_window`; sandbox `window_rolls_over_after_fast_forward`; property `rollover_resets_correctly` | Up to 2 x `daily_max` within minutes across midnight |
+| Premature or hostile `close` | Owner only, exactly 1 yocto, paused only; deletes only when every allowlisted token balance reads zero; a failed or unreadable query refuses | Unit `close_requires_paused`, `close_check_with_a_nonzero_balance_refuses`, `close_check_with_a_failed_query_refuses`; sandbox `close_is_owner_only_and_requires_paused`, `close_is_refused_while_tokens_remain`; testnet step 26 | Tokens held but no longer allowlisted are not checked (withdraw them first); a non-existent beneficiary loses the NEAR |
+| Storage stake locked forever in a keyless wallet | `close` deletes the account and returns its whole NEAR balance to the beneficiary | Unit `close_check_with_all_zero_balances_deletes_the_account`; sandbox `close_after_withdrawing_everything_deletes_the_wallet`; testnet step 28 (1.74951 NEAR stake returned) | The wallet's NEP-145 storage deposit on each token (0.00125 NEAR for USDC) stays with the token contract |
+| Storage griefing | Only the owner adds agents; payee and token lists are bounded (32, 16); memos are not stored | Unit `set_agent_rejects_too_many_payees`, `new_rejects_too_many_tokens`, `pay_with_long_memo` | Owner-driven storage only |
+| Non-standard or hostile token | Only allowlisted tokens are accepted (`ft_on_transfer`) or paid | Unit `ft_on_transfer_refuses_other_tokens`, `pay_with_disallowed_token`; sandbox `disallowed_token_is_refused` | Depends on the allowlisted token contract; native USDC's account holds a full-access key, so its issuer can upgrade it |
+| Build-host details published with the code | The wasm is built with `--remap-path-prefix` for the cargo home, rustup home and checkout; CI fails if the runner's home path survives; both scripts refuse a wasm containing a host path | `docs/contracts/build.md` string scan (zero hits); the CI step "Print wasm size and SHA-256, and check for host paths"; testnet step 5 deployed the remapped build | The build is not reproducible yet, so a third party cannot re-derive the deployed hash from source |
+
 ## Provisioning walkthrough (plan)
 
 The exact mainnet plan, with costs, is `docs/contracts/mainnet-deployment-plan.md`;
