@@ -1,0 +1,88 @@
+# Linux CI for the policy-wallet contracts workspace (`contracts/`): format,
+# lint, unit tests, wasm builds with printed size and SHA-256, and the
+# near-workspaces sandbox tests (which cannot run on Windows hosts).
+# `crates/policy-core` belongs to the root workspace and is covered by
+# ci.yml; it is rebuilt here as a path dependency of the contract.
+name: contracts
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "contracts/**"
+      - "crates/policy-core/**"
+      - ".github/workflows/contracts.yml"
+  pull_request:
+    paths:
+      - "contracts/**"
+      - "crates/policy-core/**"
+      - ".github/workflows/contracts.yml"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_TOOLCHAIN: "1.98.0"
+  CARGO_NEAR_VERSION: "0.21.1"
+
+defaults:
+  run:
+    working-directory: contracts
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal \
+            --component rustfmt --component clippy --target wasm32-unknown-unknown
+          rustup default "$RUST_TOOLCHAIN"
+          rustc --version
+          cargo --version
+
+      - name: Install cargo-near
+        run: |
+          cargo install cargo-near --version "$CARGO_NEAR_VERSION" --locked
+          cargo near --version
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      # Panic locations embed source paths. Remap the cargo home, the rustup
+      # home and the checkout so no runner path reaches the deployed code
+      # (docs/contracts/build.md, "Host paths in the wasm").
+      - name: Path remapping flags
+        run: |
+          echo "WASM_RUSTFLAGS=--remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo --remap-path-prefix=${RUSTUP_HOME:-$HOME/.rustup}=/rustup --remap-path-prefix=$GITHUB_WORKSPACE=/src" >> "$GITHUB_ENV"
+
+      - name: Build policy-wallet wasm
+        working-directory: contracts/policy-wallet
+        run: cargo near build non-reproducible-wasm --locked --no-abi --env "RUSTFLAGS=$WASM_RUSTFLAGS"
+
+      - name: Build test-token wasm
+        working-directory: contracts/test-token
+        run: cargo near build non-reproducible-wasm --locked --no-abi --env "RUSTFLAGS=$WASM_RUSTFLAGS"
+
+      - name: Print wasm size and SHA-256, and check for host paths
+        run: |
+          for f in target/near/policy_wallet/policy_wallet.wasm target/near/test_token/test_token.wasm; do
+            echo "$f $(stat -c %s "$f") bytes"
+            sha256sum "$f"
+            if grep -a -q -e "$HOME" -e "/home/" "$f"; then
+              echo "host path embedded in $f"
+              exit 1
+            fi
+          done
+
+      # The sandbox tests are ignored only on Windows, so on Linux this runs
+      # them; the near-workspaces build script fetches the sandbox binary.
+      - name: Unit and sandbox tests
+        run: cargo test --workspace

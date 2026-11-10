@@ -4,11 +4,12 @@
 //! Windows every test is compiled and reported as ignored; none of these
 //! tests has been executed on a Windows host.
 //!
-//! Prerequisite: build both contracts first (see NOTES.md):
+//! Prerequisite: build both contracts first (see docs/contracts/build.md).
+//! From the `contracts/` workspace root:
 //!
 //! ```text
-//! (cd contracts/policy-wallet && cargo near build non-reproducible-wasm --locked --no-abi)
-//! (cd contracts/test-token    && cargo near build non-reproducible-wasm --locked --no-abi)
+//! (cd policy-wallet && cargo near build non-reproducible-wasm --locked --no-abi)
+//! (cd test-token    && cargo near build non-reproducible-wasm --locked --no-abi)
 //! cargo test -p sandbox-tests
 //! ```
 //!

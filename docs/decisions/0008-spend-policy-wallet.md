@@ -1,11 +1,11 @@
-# ADR-0008: Spend-policy wallet (draft)
+# ADR 0008: Spend-policy wallet
 
 | Field | Value |
 |---|---|
-| Status | Draft (pre-window spike; lands as `docs/decisions/0008-spend-policy-wallet.md`) |
-| Date | 2026-10-21 |
+| Status | Accepted |
+| Date | 2026-10-21 (drafted in the pre-window spike); accepted 2026-11-04 |
 | Supersedes | The function-call-key-on-the-asset-contract proposal (corrected under prompt 01) |
-| Related | `docs/policy-wallet.md`, `docs/mainnet-deployment-plan.md` |
+| Related | `docs/contracts/policy-wallet.md`, `docs/contracts/mainnet-deployment-plan.md`, `docs/contracts/build.md` |
 
 ## Context
 
@@ -21,6 +21,15 @@ gives it everything in the account. The settlement asset is a NEP-141 token
 
 So no function-call key on the agent's own account can ever call
 `ft_transfer`, and a full-access key cannot be limited.
+
+The upstream x402 NEAR `exact` scheme has the same gap: its delegate
+action must be a single `ft_transfer` signed by a full-access payer key, so
+it rejects function-call keys (`docs/research/x402-v2-and-near-profile.md`,
+section 6). An agent paying through upstream x402 on NEAR therefore holds a
+key that can move everything. Closing that gap is the purpose of this
+wallet; the trade-off is that an agent holding only a wallet key cannot use
+upstream `@x402/near` clients and pays through a client-submitted payment
+proof instead.
 
 ## Decision
 
@@ -100,12 +109,19 @@ upgrade, migrate or redeploy path.
   Tokens held but no longer allowlisted are not checked by `close` and
   must be withdrawn first, and the beneficiary must exist.
 
-## Open items
+## Confirmed on testnet (2026-11-06)
 
-- Confirm on testnet that recovery of the storage stake by account
-  deletion behaves as expected (`close` after withdrawing all tokens).
+The zero-value testnet run (`docs/contracts/policy-wallet.md`, "Testnet
+evidence") confirmed the two platform behaviours this design relies on:
+
+- A deploy + `new` + `DeleteKey` batch may delete its own signing key as
+  its last action; the wallet ended with zero access keys and the expected
+  code hash.
+- `close` after withdrawing every token deletes the wallet and returns its
+  whole NEAR balance, storage stake included, to the beneficiary.
+
+## Open items
 
 - Reproducible wasm build (`cargo near build reproducible-wasm`) with a
   pinned image, so the deployed code hash can be re-derived by anyone.
 - First sandbox run on Linux CI (the sandbox does not run on Windows).
-- Testnet end-to-end with throwaway accounts (prompt 02 work item 6).
