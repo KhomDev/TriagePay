@@ -39,11 +39,17 @@ pub async fn get_account(
 ///
 /// 201 when the deposit is new, 200 when the idempotency key replays the
 /// recorded receipt. No funds move on replay.
+///
+/// Development only: the credit rests on the caller's word, so the route
+/// answers 403 `dev_only_route` unless the mock provider is active.
 pub async fn deposit(
     State(state): State<AppState>,
     Path(account_id): Path<String>,
     body: Result<Json<DepositRequest>, JsonRejection>,
 ) -> Result<(StatusCode, Json<DepositReceiptJson>), ApiError> {
+    if !state.dev_routes_enabled() {
+        return Err(ApiError::dev_only_route());
+    }
     let Json(request) = body.map_err(rejected_json)?;
     let amount = parse_amount_atomic(&request.amount_atomic)?;
     let mut ledger = state.write_ledger().await;
@@ -138,11 +144,19 @@ pub async fn start_job(
 ///
 /// 201 when the settlement is new, 200 when the same hash replays the
 /// recorded receipt, 409 for a different hash on a settled job.
+///
+/// Development only: the hash is the caller's, not a report's, so the
+/// route answers 403 `dev_only_route` unless the mock provider is active.
+/// `POST /jobs/{job_id}/scan` and `POST /v2/scan` settle against the hash
+/// of the report the scanner produced.
 pub async fn settle_job(
     State(state): State<AppState>,
     Path(job_id): Path<String>,
     body: Result<Json<SettlementRequest>, JsonRejection>,
 ) -> Result<(StatusCode, Json<SettlementJson>), ApiError> {
+    if !state.dev_routes_enabled() {
+        return Err(ApiError::dev_only_route());
+    }
     let Json(request) = body.map_err(rejected_json)?;
     // Validate the hash before resolving the job: bad input outranks
     // unknown references.

@@ -149,6 +149,17 @@ impl AppState {
         self.provider_kind
     }
 
+    /// Whether the development-only routes answer: the direct credit
+    /// deposit and the settlement against a caller-supplied hash. Both
+    /// move ledger state on the caller's word alone, so they exist only
+    /// with the mock provider. With a provider that settles real
+    /// payments, credit enters an account only from a provider-observed
+    /// confirmation, and a job settles only against the hash of a report
+    /// the scanner produced.
+    pub(crate) fn dev_routes_enabled(&self) -> bool {
+        self.provider_kind == "mock"
+    }
+
     /// The scanner subprocess launcher.
     pub(crate) fn scan_launcher(&self) -> &scanbridge::ScanLauncher {
         &self.scan

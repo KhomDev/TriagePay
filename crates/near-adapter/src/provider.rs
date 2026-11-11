@@ -210,7 +210,6 @@ pub struct NearProvider {
     next_intent: u64,
     next_refund: u64,
     unix_now: u64,
-    process_tag: u32,
 }
 
 impl NearProvider {
@@ -226,7 +225,6 @@ impl NearProvider {
             next_intent: 0,
             next_refund: 0,
             unix_now: 0,
-            process_tag: std::process::id(),
         })
     }
 
@@ -288,7 +286,9 @@ impl NearProvider {
     /// the funding changes: a confirmation from a different transaction
     /// is recorded as an orphan, never as extra credit. A confirmed
     /// amount that differs from the intent is also recorded as an
-    /// orphan (exact-amount semantics; the reconciliation never funds it).
+    /// orphan (exact-amount semantics; the reconciliation never funds it)
+    /// and is not kept as the intent's evidence: the intent stays open
+    /// for the exact payment (see [`NearProvider::apply_verification`]).
     pub fn apply_check(
         &mut self,
         intent_id: &IntentId,
@@ -320,7 +320,11 @@ impl NearProvider {
             return Ok(observation);
         }
         if let Some(evidence) = &check.evidence {
-            if evidence.amount_atomic != entry.intent.amount.atomic().to_string() {
+            let exact =
+                evidence.amount_atomic.parse::<u128>().ok() == Some(entry.intent.amount.atomic());
+            if exact {
+                entry.evidence = Some(evidence.clone());
+            } else {
                 entry.add_orphans([OrphanTransfer {
                     tx_hash: evidence.tx_hash.clone(),
                     receipt_id: evidence.receipt_id.clone(),
@@ -329,7 +333,6 @@ impl NearProvider {
                     reason: "the transferred amount does not match the intent".to_string(),
                 }]);
             }
-            entry.evidence = Some(evidence.clone());
         }
         self.apply_verification(intent_id, check.verification)
     }
@@ -398,6 +401,21 @@ impl NearProvider {
     /// Second half of an observation: apply a completed verification.
     /// Idempotent - if the intent already has a final observation, it is
     /// returned unchanged.
+    ///
+    /// Only an exact-amount confirmation is final. Two results are
+    /// reported for the hinted transaction and leave the intent open, so
+    /// that a hint anyone can submit never decides the intent's fate:
+    ///
+    /// - a failed transaction (`Rejected`): nothing binds a failed
+    ///   transaction to this intent, so any failed transaction on chain
+    ///   could otherwise be used to close a requirement someone else is
+    ///   paying;
+    /// - a confirmed transfer of the wrong amount (`Confirmed`, which
+    ///   reconciles to a mismatch): a one-unit transfer carrying the memo
+    ///   could otherwise block the exact payment.
+    ///
+    /// In both cases a later hint for the real payment still funds the
+    /// intent, until it expires.
     pub fn apply_verification(
         &mut self,
         intent_id: &IntentId,
@@ -410,17 +428,11 @@ impl NearProvider {
         if let Some(observation) = &entry.observation {
             return Ok(observation.clone());
         }
-        let observation = match verification {
-            Verification::NotFinalYet => return Ok(Observation::Pending),
-            Verification::Failed(reason) => {
-                entry.intent.status = IntentStatus::Rejected {
-                    reason: reason.clone(),
-                };
-                Observation::Rejected { reason }
-            }
-            Verification::StructuralMismatch(message) => {
-                return Err(ProviderError::Validation(message));
-            }
+        match verification {
+            Verification::NotFinalYet => Ok(Observation::Pending),
+            // Not final: reported for this hint only (see the method docs).
+            Verification::Failed(reason) => Ok(Observation::Rejected { reason }),
+            Verification::StructuralMismatch(message) => Err(ProviderError::Validation(message)),
             Verification::Confirmed {
                 tx_ref,
                 amount_atomic,
@@ -428,18 +440,22 @@ impl NearProvider {
                 let units: u128 = amount_atomic.parse().map_err(|_| {
                     ProviderError::Validation("observed amount is not an integer".to_string())
                 })?;
-                entry.intent.status = IntentStatus::Confirmed {
+                let amount = aps_core::Amount::from_atomic(units);
+                let observation = Observation::Confirmed {
                     tx_ref: tx_ref.clone(),
-                };
-                Observation::Confirmed {
-                    tx_ref,
                     asset_id: AssetId::new(entry.intent.asset_id.as_str()),
-                    amount: aps_core::Amount::from_atomic(units),
+                    amount,
+                };
+                if amount != entry.intent.amount {
+                    // Not final: the reconciliation reports the mismatch
+                    // and the intent stays open for the exact payment.
+                    return Ok(observation);
                 }
+                entry.intent.status = IntentStatus::Confirmed { tx_ref };
+                entry.observation = Some(observation.clone());
+                Ok(observation)
             }
-        };
-        entry.observation = Some(observation.clone());
-        Ok(observation)
+        }
     }
 }
 
@@ -484,14 +500,21 @@ impl PaymentProvider for NearProvider {
                 self.config.asset_contract_id
             )));
         }
+        // Intent ids double as NEAR transfer memos and as the x402 request
+        // binding, so they must be unguessable as well as unique. Whoever
+        // knows a memo before the payer has paid can aim a transfer at
+        // it; a clock and a counter alone would let anyone compute the
+        // next memo from the last one. The 128-bit nonce comes from the
+        // operating system; the clock and the counter stay in the id only
+        // to make it readable in logs.
+        let mut nonce = [0u8; 16];
+        getrandom::getrandom(&mut nonce).map_err(|_| ProviderError::ProviderUnavailable)?;
         self.next_intent += 1;
-        // Intent ids double as NEAR transfer memos, so they must be
-        // collision-free across process restarts: the process tag and the
-        // synced clock make ids unique in practice, the counter keeps them
-        // unique within a run.
         let id = IntentId::new(format!(
-            "aps2_{:x}_{:x}_{:05x}",
-            self.process_tag, self.unix_now, self.next_intent
+            "aps2_{:x}_{:05x}_{:032x}",
+            self.unix_now,
+            self.next_intent,
+            u128::from_be_bytes(nonce)
         ));
         let intent = DepositIntent {
             intent_id: id.clone(),
@@ -640,6 +663,26 @@ mod tests {
     }
 
     #[test]
+    fn intent_ids_end_in_a_128_bit_nonce_that_is_not_a_counter() {
+        let mut provider = NearProvider::new(config()).unwrap();
+        provider.sync_clock(100);
+        let nonces: Vec<u128> = (0..64)
+            .map(|_| {
+                let intent = provider.create_intent(request(1, 200)).unwrap();
+                let (_, nonce) = intent.intent_id.as_str().rsplit_once('_').unwrap();
+                assert_eq!(nonce.len(), 32, "the nonce is 32 hex characters");
+                u128::from_str_radix(nonce, 16).unwrap()
+            })
+            .collect();
+        for pair in nonces.windows(2) {
+            assert_ne!(pair[0], pair[1]);
+            assert_ne!(pair[1], pair[0].wrapping_add(1), "nonces must not count up");
+        }
+        let distinct: std::collections::HashSet<u128> = nonces.iter().copied().collect();
+        assert_eq!(distinct.len(), nonces.len());
+    }
+
+    #[test]
     fn missing_hint_is_a_client_error() {
         let mut provider = NearProvider::new(config()).unwrap();
         provider.sync_clock(100);
@@ -740,7 +783,7 @@ mod tests {
     }
 
     #[test]
-    fn failed_verification_is_recorded_as_rejected() {
+    fn a_failed_transaction_is_reported_but_never_closes_the_intent() {
         let mut provider = NearProvider::new(config()).unwrap();
         provider.sync_clock(100);
         let intent = provider.create_intent(request(1_000_000, 400)).unwrap();
@@ -751,6 +794,62 @@ mod tests {
             )
             .unwrap();
         assert!(matches!(observation, Observation::Rejected { .. }));
+        // The intent is still pending: the real payment funds it.
+        assert!(matches!(
+            provider.intent(&intent.intent_id).map(|i| &i.status),
+            Some(IntentStatus::Pending)
+        ));
+        let funded = provider
+            .apply_verification(
+                &intent.intent_id,
+                Verification::Confirmed {
+                    tx_ref: "real".to_string(),
+                    amount_atomic: "1000000".to_string(),
+                },
+            )
+            .unwrap();
+        assert!(matches!(funded, Observation::Confirmed { .. }));
+        assert!(matches!(
+            provider.intent(&intent.intent_id).map(|i| &i.status),
+            Some(IntentStatus::Confirmed { .. })
+        ));
+    }
+
+    #[test]
+    fn a_wrong_amount_is_reported_but_never_closes_the_intent() {
+        let mut provider = NearProvider::new(config()).unwrap();
+        provider.sync_clock(100);
+        let intent = provider.create_intent(request(1_000_000, 400)).unwrap();
+        let dust = provider
+            .apply_verification(
+                &intent.intent_id,
+                Verification::Confirmed {
+                    tx_ref: "dust".to_string(),
+                    amount_atomic: "1".to_string(),
+                },
+            )
+            .unwrap();
+        assert!(matches!(
+            aps_payment::reconcile(&intent, &dust),
+            aps_payment::ReconcileOutcome::Mismatch { .. }
+        ));
+        assert!(matches!(
+            provider.intent(&intent.intent_id).map(|i| &i.status),
+            Some(IntentStatus::Pending)
+        ));
+        let exact = provider
+            .apply_verification(
+                &intent.intent_id,
+                Verification::Confirmed {
+                    tx_ref: "real".to_string(),
+                    amount_atomic: "1000000".to_string(),
+                },
+            )
+            .unwrap();
+        assert!(matches!(
+            aps_payment::reconcile(&intent, &exact),
+            aps_payment::ReconcileOutcome::Fund { .. }
+        ));
     }
 
     #[test]

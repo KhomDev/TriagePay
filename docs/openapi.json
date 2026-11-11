@@ -66,7 +66,7 @@
     },
     "/accounts/{account_id}/deposits": {
       "post": {
-        "summary": "Idempotent credit deposit (201 new, 200 replay)",
+        "summary": "Idempotent credit deposit (201 new, 200 replay). Development only: answers 403 dev_only_route unless the mock payment provider is active",
         "parameters": [
           {
             "$ref": "#/components/parameters/AccountId"
@@ -107,6 +107,16 @@
           },
           "400": {
             "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "dev_only_route: a provider that settles real payments is active, so credit enters an account only from a provider-observed confirmation",
             "content": {
               "application/json": {
                 "schema": {
@@ -285,7 +295,7 @@
     },
     "/jobs/{job_id}/settlements": {
       "post": {
-        "summary": "Settle against a 64-hex report hash (201 new, 200 replay, 409 different hash)",
+        "summary": "Settle against a caller-supplied 64-hex report hash (201 new, 200 replay, 409 different hash). Development only: answers 403 dev_only_route unless the mock payment provider is active",
         "parameters": [
           {
             "$ref": "#/components/parameters/JobId"
@@ -326,6 +336,16 @@
           },
           "400": {
             "description": "error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "dev_only_route: a provider that settles real payments is active, so a job settles only against the hash of a report the scanner produced",
             "content": {
               "application/json": {
                 "schema": {

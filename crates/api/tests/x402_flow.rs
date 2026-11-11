@@ -701,3 +701,189 @@ async fn facilitator_rejects_mismatches_and_this_servers_own_intents() {
     let reply = send(&app, "POST", "/x402/verify", None, Some(json!([]))).await;
     assert_eq!(reply.status, 400);
 }
+
+// ----- a hint anyone can submit never decides a requirement's fate -----------
+
+/// A finalized transaction that failed and has nothing to do with the
+/// settlement asset, the gateway or any memo: a plain NEAR transfer by
+/// another account to an account that does not exist.
+fn unrelated_failed_tx(tx_hash: &str) -> Value {
+    let failure = json!({ "Failure": { "ActionError": { "index": 0,
+        "kind": { "AccountDoesNotExist": { "account_id": "nobody.testnet" } } } } });
+    let action = json!({ "Transfer": { "deposit": "1" } });
+    json!({
+        "final_execution_status": "FINAL",
+        "status": failure.clone(),
+        "transaction": { "signer_id": "mallory.testnet", "receiver_id": "nobody.testnet",
+            "actions": [action.clone()], "hash": tx_hash },
+        "transaction_outcome": { "id": tx_hash, "outcome": {
+            "executor_id": "mallory.testnet", "receipt_ids": ["f1"],
+            "status": { "SuccessReceiptId": "f1" }, "logs": [] } },
+        "receipts_outcome": [{ "id": "f1", "outcome": {
+            "executor_id": "nobody.testnet", "status": failure,
+            "logs": [], "receipt_ids": [] } }],
+        "receipts": [{ "receipt_id": "f1", "predecessor_id": "mallory.testnet",
+            "receiver_id": "nobody.testnet",
+            "receipt": { "Action": { "actions": [action], "signer_id": "mallory.testnet" } } }]
+    })
+}
+
+/// A third party hints a transaction at someone else's pending
+/// requirement through the observation route.
+async fn third_party_hint(app: &axum::Router, memo: &str, tx_hash: &str) -> Reply {
+    send(
+        app,
+        "POST",
+        &format!("/payment/intents/{memo}/observations"),
+        None,
+        Some(json!({ "signer_id": "mallory.testnet", "tx_hash": tx_hash })),
+    )
+    .await
+}
+
+#[tokio::test]
+async fn an_unrelated_failed_transaction_does_not_block_the_real_payment() {
+    let (url, cell) = stub_server();
+    let app = router(near_state(&url));
+    let accepted = require(&app).await["accepts"][0].clone();
+    let memo = accepted["extra"]["memo"].as_str().unwrap().to_string();
+
+    // The failed transaction is reported for that hint, by both routes...
+    store(&cell, unrelated_failed_tx("tx-unrelated-failed"));
+    let hinted = third_party_hint(&app, &memo, "tx-unrelated-failed").await;
+    assert_eq!(hinted.status, 200, "{}", hinted.body);
+    assert_eq!(hinted.body["reconciled"], "rejected");
+    assert_eq!(hinted.body["funded"], false);
+    let presented = send(
+        &app,
+        "POST",
+        "/v2/scan",
+        Some(&signature(&accepted, "tx-unrelated-failed")),
+        Some(envelope()),
+    )
+    .await;
+    assert_eq!(presented.status, 402);
+    assert_eq!(
+        presented.header_json("payment-response")["errorReason"],
+        "invalid_transaction_state"
+    );
+
+    // ...and the requirement is still open: the real payment settles it.
+    store(&cell, transfer("tx-good", GATEWAY, &memo, PRICE));
+    let paid = send(
+        &app,
+        "POST",
+        "/v2/scan",
+        Some(&signature(&accepted, "tx-good")),
+        Some(envelope()),
+    )
+    .await;
+    assert_eq!(paid.status, 200, "{}", paid.body);
+    assert_eq!(
+        paid.header_json("payment-response")["transaction"],
+        "tx-good"
+    );
+    let b = balances(&app).await;
+    assert_eq!(b["deposited_total"]["atomic"], PRICE);
+    assert_eq!(b["settled_total"]["atomic"], PRICE);
+}
+
+#[tokio::test]
+async fn a_dust_transfer_with_the_memo_does_not_block_the_exact_payment() {
+    let (url, cell) = stub_server();
+    let app = router(near_state(&url));
+    let accepted = require(&app).await["accepts"][0].clone();
+    let memo = accepted["extra"]["memo"].as_str().unwrap().to_string();
+
+    // One atomic unit to the gateway with the memo: a mismatch, no credit.
+    store(&cell, transfer("tx-dust", GATEWAY, &memo, "1"));
+    let hinted = third_party_hint(&app, &memo, "tx-dust").await;
+    assert_eq!(hinted.status, 200, "{}", hinted.body);
+    assert_eq!(hinted.body["reconciled"], "mismatch");
+    assert_eq!(hinted.body["funded"], false);
+    assert_eq!(balances(&app).await["error"]["code"], "unknown_account");
+
+    // The exact payment still funds and settles the requirement, once.
+    store(&cell, transfer("tx-good", GATEWAY, &memo, PRICE));
+    let paid = send(
+        &app,
+        "POST",
+        "/v2/scan",
+        Some(&signature(&accepted, "tx-good")),
+        Some(envelope()),
+    )
+    .await;
+    assert_eq!(paid.status, 200, "{}", paid.body);
+    let b = balances(&app).await;
+    assert_eq!(b["deposited_total"]["atomic"], PRICE);
+    assert_eq!(b["settled_total"]["atomic"], PRICE);
+
+    // Presenting the dust transfer again changes nothing.
+    store(&cell, transfer("tx-dust", GATEWAY, &memo, "1"));
+    let again = send(
+        &app,
+        "POST",
+        "/v2/scan",
+        Some(&signature(&accepted, "tx-dust")),
+        Some(envelope()),
+    )
+    .await;
+    assert_eq!(again.status, 402);
+    assert_eq!(
+        again.header_json("payment-response")["errorReason"],
+        "proof_already_consumed"
+    );
+    assert_eq!(balances(&app).await["deposited_total"]["atomic"], PRICE);
+}
+
+#[tokio::test]
+async fn requirement_memos_carry_an_unguessable_nonce() {
+    let (url, _cell) = stub_server();
+    let app = router(near_state(&url));
+    let mut nonces = Vec::new();
+    for _ in 0..16 {
+        let accepted = require(&app).await["accepts"][0].clone();
+        let memo = accepted["extra"]["memo"].as_str().unwrap().to_string();
+        assert_eq!(accepted["extra"]["intentId"], memo.as_str());
+        let (_, nonce) = memo.rsplit_once('_').expect("memo segments");
+        assert_eq!(nonce.len(), 32, "a 128-bit nonce in hex: {memo}");
+        nonces.push(u128::from_str_radix(nonce, 16).expect("hex nonce"));
+    }
+    for pair in nonces.windows(2) {
+        assert_ne!(pair[0], pair[1]);
+        assert_ne!(pair[1], pair[0].wrapping_add(1), "memos must not count up");
+    }
+}
+
+#[tokio::test]
+async fn dev_only_routes_refuse_under_the_near_provider() {
+    let (url, _cell) = stub_server();
+    let app = router(near_state(&url));
+
+    // Direct credit: no payment, so no credit and no account.
+    let reply = send(
+        &app,
+        "POST",
+        "/accounts/freeloader/deposits",
+        None,
+        Some(json!({ "amount_atomic": "1000000000", "idempotency_key": "free-1" })),
+    )
+    .await;
+    assert_eq!(reply.status, 403, "{}", reply.body);
+    assert_eq!(reply.body["error"]["code"], "dev_only_route");
+    let account = send(&app, "GET", "/accounts/freeloader", None, None).await;
+    assert_eq!(account.status, 404);
+
+    // Settlement against a caller-supplied hash: refused before the job
+    // lookup, whatever the job id.
+    let reply = send(
+        &app,
+        "POST",
+        "/jobs/job_0000000000000001/settlements",
+        None,
+        Some(json!({ "report_hash_hex": "ab".repeat(32) })),
+    )
+    .await;
+    assert_eq!(reply.status, 403, "{}", reply.body);
+    assert_eq!(reply.body["error"]["code"], "dev_only_route");
+}

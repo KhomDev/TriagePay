@@ -109,7 +109,7 @@ Full details: [docs/architecture.md](docs/architecture.md),
 |---|---|
 | `GET /health` | liveness |
 | `GET /accounts/{id}` | balances |
-| `POST /accounts/{id}/deposits` | direct idempotent credit |
+| `POST /accounts/{id}/deposits` | direct idempotent credit (mock provider only; 403 otherwise) |
 | `POST /payment/intents` | create a deposit intent |
 | `GET /payment/intents/{id}` | intent status |
 | `POST /payment/intents/{id}/observations` | poll the provider; funds only on an exactly matching confirmation |
@@ -118,7 +118,7 @@ Full details: [docs/architecture.md](docs/architecture.md),
 | `GET /jobs/{id}` | job snapshot |
 | `POST /jobs/{id}/start` | begin work |
 | `POST /jobs/{id}/scan` | run the scanner and settle against the report hash |
-| `POST /jobs/{id}/settlements` | settle against an externally supplied hash |
+| `POST /jobs/{id}/settlements` | settle against an externally supplied hash (mock provider only; 403 otherwise) |
 | `POST /jobs/{id}/refunds` | return reserved credit |
 
 All money crosses the wire as u128 atomic units encoded as JSON strings
@@ -152,7 +152,9 @@ everywhere: `{"error":{"code","message"}}`.
    never executed, and never change an outcome (enforced by an
    injection corpus test).
 6. Credit funds only from provider-observed confirmations; a client
-   assertion of payment has no route into the ledger.
+   assertion of payment has no route into the ledger. (The direct
+   deposit route is a development aid and answers only with the mock
+   provider.)
 7. Nothing private leaks: no protocol names, private paths, or corpus
    content in code, fixtures, logs, or reports (enforced by privacy
    tests on serialized output).

@@ -87,6 +87,16 @@ impl ApiError {
         )
     }
 
+    /// 403: a development-only route was called while a provider that
+    /// settles real payments is active.
+    pub(crate) fn dev_only_route() -> Self {
+        Self::new(
+            StatusCode::FORBIDDEN,
+            "dev_only_route",
+            "this route exists only with the mock payment provider",
+        )
+    }
+
     /// 409: the request conflicts with recorded state.
     pub(crate) fn conflict(code: &'static str, message: impl Into<String>) -> Self {
         Self::new(StatusCode::CONFLICT, code, message)

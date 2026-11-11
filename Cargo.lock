@@ -50,6 +50,7 @@ dependencies = [
  "aps-core",
  "aps-payment",
  "base64",
+ "getrandom 0.2.17",
  "serde_json",
  "ureq",
 ]

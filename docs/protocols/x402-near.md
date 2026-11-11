@@ -78,8 +78,8 @@ development-only network no real client selects.
     "extra": {
       "assetTransferMethod": "near-tx-proof",
       "paymentFlow": "upfront",
-      "memo": "aps2_1a2b_6900c3d0_00001",
-      "intentId": "aps2_1a2b_6900c3d0_00001",
+      "memo": "aps2_6900c3d0_00001_9f2c61d4a7b3e05c18d2f4a6b9c7e301",
+      "intentId": "aps2_6900c3d0_00001_9f2c61d4a7b3e05c18d2f4a6b9c7e301",
       "expiresAt": 1762420000,
       "sku": "scan.v1"
     }
@@ -92,7 +92,10 @@ development-only network no real client selects.
   `authorization`.
 - `extra.memo` is the request binding: a server-issued, single-use nonce
   (the deposit-intent id, created when the `402` is issued) that the
-  payment must carry as its `ft_transfer` memo.
+  payment must carry as its `ft_transfer` memo. Its last segment is 128
+  bits from the operating system's random source, so a memo cannot be
+  computed from an earlier one; the clock and counter segments only make
+  it readable in logs.
 - The instrument's validity window is `maxTimeoutSeconds` from issue
   (`extra.expiresAt` in unix seconds). Default 900, configurable with
   `APS_X402_MAX_TIMEOUT_SECS`; the price with `APS_X402_PRICE_ATOMIC`.
@@ -120,7 +123,7 @@ rejected.
   "accepted": { "...": "the accepts[] entry, verbatim" },
   "payload": {
     "network": "near:testnet",
-    "intent_id": "aps2_1a2b_6900c3d0_00001",
+    "intent_id": "aps2_6900c3d0_00001_9f2c61d4a7b3e05c18d2f4a6b9c7e301",
     "tx_hash": "9VrJ...",
     "signer_id": "agent.example.testnet"
   }
@@ -143,7 +146,7 @@ Success (`200`, body = report, settlement and payment summary):
   "amount": "1000000",
   "extensions": {
     "aps-ledger": {
-      "intentId": "aps2_1a2b_6900c3d0_00001",
+      "intentId": "aps2_6900c3d0_00001_9f2c61d4a7b3e05c18d2f4a6b9c7e301",
       "jobId": "job_0000000000000001",
       "reportHash": "<64 hex>"
     }
@@ -217,6 +220,12 @@ Then the pure `aps_payment::reconcile` requires the event amount to equal
 the requirement exactly; anything else is `amount_mismatch` and the
 transfer is recorded as an orphan.
 
+Only an exact-amount confirmation is final for an intent. A failed
+transaction and a wrong-amount transfer are reported for the presented
+transaction and leave the requirement open until it expires. A hint
+locates a transaction and anyone can submit one, so a hint alone must
+never close a requirement that someone else is paying.
+
 ## Method declarations (client-submitted family)
 
 | Requirement (`scheme_exact.md`) | This method |
@@ -225,7 +234,7 @@ transfer is recorded as an orphan.
 | Request binding | Server-issued nonce carried in the payment (`extra.memo` = the `ft_transfer` memo). |
 | Single-use claim | Consumption key `<network>:<tx_hash>` (for example `near:testnet:9VrJ...`), claimed under a per-intent lock before the scan runs; of concurrent presentations exactly one settles and the rest replay its response. |
 | Retention bound | Consumed keys and settled responses are kept for the life of the process (the ledger is process-local in this milestone). A requirement is presentable only until it expires, which bounds the proof age for `/v2/scan`. |
-| Amount acceptance | Exact. Under- or over-payment is `amount_mismatch`; the transfer is an orphan deposit, returned only by an operator-approved `ft_transfer` (the refund-proposal path). |
+| Amount acceptance | Exact. Under- or over-payment is `amount_mismatch`; the transfer is an orphan deposit, returned only by an operator-approved `ft_transfer` (the refund-proposal path). The requirement stays open for the exact payment. |
 | Finality | `wait_until: FINAL` plus a successful token receipt. The server owns the confirmation policy. While unmet, settle answers `settlement_pending` without consuming the proof. |
 | Failure disposition | A failed transaction moves no tokens. A transfer that landed but cannot fund the intent (expired, wrong amount, second payment) is an orphan, refunded only by an operator-approved transfer; clients must not assume a return path. |
 
@@ -241,8 +250,8 @@ transfer is recorded as an orphan.
 | 402 | `invalid_scheme` | Scheme is not `exact` | Use the advertised requirement |
 | 402 | `invalid_payment_requirements` | `accepted` differs from the issued requirement (asset, `payTo`, amount, memo, method, flow) | Echo the requirement verbatim |
 | 402 | `invalid_payload` | Unknown intent, another caller's intent, or the receipts do not match (no token receipt, `ft_transfer_call`, wrong memo or recipient, spoofed event) | Request a fresh requirement and pay correctly |
-| 402 | `invalid_transaction_state` | The transaction or its token receipt failed | Pay again for a fresh requirement |
-| 402 | `amount_mismatch` | The event amount is not the required amount (orphan recorded) | Contact the operator for a refund |
+| 402 | `invalid_transaction_state` | The presented transaction or its token receipt failed. The requirement stays open | Pay again for the same requirement while it is valid, and present the new transaction |
+| 402 | `amount_mismatch` | The event amount is not the required amount (orphan recorded). The requirement stays open | Pay the exact amount for the same requirement; contact the operator for a refund of the wrong transfer |
 | 402 | `requirement_expired` | No final payment before the requirement expired | Request a fresh requirement |
 | 402 | `proof_already_consumed` | The proof funded another intent or another request, or the intent was funded by another transaction (orphan recorded) | Do not reuse proofs |
 | 400 | `validation_error` | The envelope failed validation after payment (payment retained) | Retry with the same proof and a corrected body |
@@ -275,9 +284,10 @@ For third-party x402 servers that want NEAR verification delegated:
 | **Event spoofing**: a contract on the payment path logs a perfect `nep141` `ft_transfer` event to the gateway with the memo | Only receipts with `executor_id == asset` are read; no other contract can write a log under the token's executor id. Residual trust: the token contract itself (upgradeable by its key holder), which accepting that asset already implies | `synthetic_spoofed_event.json`, `synthetic_spoofed_event_with_dust.json`, `spoof_contract_named_like_the_asset_prefix_is_still_foreign` |
 | **Refund case**: `ft_transfer_call` to the gateway logs a matching event, then `ft_resolve_transfer` refunds | Receipts carrying `ft_transfer_call` are never funding candidates; only `ft_transfer` binds | `synthetic_ft_transfer_call_refund.json` |
 | **Failed transfer under top-level success**: a wallet callback returns normally after its `ft_transfer` failed; the failed receipt kept its log line | The token receipt's own status must be a success; logs of failed receipts are ignored | `synthetic_wallet_pay_transfer_failed.json` |
-| **Memo collision**: two intents share a memo, or a memo is reused | Intent ids are unique per process (process tag, synced clock, counter); one transfer can fund only the intent its memo names; a second matching transfer is an orphan | `synthetic_two_matching_transfers.json`, `a_second_transaction_for_a_funded_intent_becomes_an_orphan` |
+| **Memo collision or guessing**: two intents share a memo, a memo is reused, or a third party computes the next memo before the payer has paid | Each intent id ends in a 128-bit nonce from the operating system (plus the synced clock and a counter for readability); one transfer can fund only the intent its memo names; a second matching transfer is an orphan | `synthetic_two_matching_transfers.json`, `a_second_transaction_for_a_funded_intent_becomes_an_orphan`, `requirement_memos_carry_an_unguessable_nonce`, `intent_ids_end_in_a_128_bit_nonce_that_is_not_a_counter` |
+| **Closing someone else's requirement**: a third party hints an unrelated failed transaction, or a one-unit transfer carrying the memo, at a pending requirement | Neither is final for the intent: the failed transaction is reported for that hint only, and the wrong-amount transfer is recorded as an orphan; the exact payment still funds the requirement | `an_unrelated_failed_transaction_does_not_block_the_real_payment`, `a_dust_transfer_with_the_memo_does_not_block_the_exact_payment`, `a_failed_transaction_is_reported_but_never_closes_the_intent`, `a_wrong_amount_is_reported_but_never_closes_the_intent` |
 | **Proof replay**: the same proof presented again, for the same or another request or intent | Consumption key `<network>:<tx_hash>`; same proof and same request replays the stored response with no new charge; anything else is `proof_already_consumed`; the ledger deposit is idempotent on `intent:<id>` | `pay_then_retry_settles_once_and_replays`, `a_proof_never_funds_a_second_requirement`, `a_concurrent_retry_storm_charges_once` |
-| **Front-running a published memo**: a third party pays the memo first | The memo only credits the intent's owner (the caller the requirement was issued to), so a third party paying it donates. A third party presenting the payer's public proof is refused for another caller's intent; the facilitator refuses this server's own intents | `facilitator_rejects_mismatches_and_this_servers_own_intents` |
+| **Front-running a published memo**: a third party pays the memo first | The memo only credits the intent's owner (the caller the requirement was issued to), so a third party paying the exact amount donates, and the payer's own later transfer becomes an orphan. A third party paying any other amount changes nothing (previous row). A third party presenting the payer's public proof is refused for another caller's intent; the facilitator refuses this server's own intents | `facilitator_rejects_mismatches_and_this_servers_own_intents` |
 | **Requirement replayed to a different caller** | Each requirement records the caller it was issued to; a proof for it from another caller is `invalid_payload`. With the single development caller of this milestone this binding is nominal until real authentication lands | `crates/api/src/x402.rs` (`record.caller`) |
 | **Stale proofs**: a non-archival RPC node garbage-collects old transactions (observed on mainnet: `TIMEOUT_ERROR`, cause `NOT_OBSERVED`) | Timeouts are `settlement_pending`, never failure; requirements expire, which bounds proof age | `rpc_timeout_is_not_final_yet_never_failure` |
 

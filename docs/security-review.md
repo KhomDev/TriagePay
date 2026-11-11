@@ -57,7 +57,7 @@ passing, plus the 3 live tests run explicitly against mainnet.
 - aps-api: axum, tokio, serde, serde_json (+ tower/http-body-util/base64
   as dev-deps).
 - aps-near: ureq (rustls), serde_json, base64 - the minimum for
-  JSON-RPC verification.
+  JSON-RPC verification - and getrandom for the intent-id nonce.
 - Python: stdlib-only at runtime (ruff/pytest are dev tools).
 - Recommended next step: cargo-audit/cargo-deny in CI plus a signed
   release process before any real funds.

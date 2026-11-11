@@ -294,8 +294,43 @@ fn failed_transaction_is_a_rejected_observation() {
     let observation = provider.observe(&intent.intent_id).unwrap();
     let outcome = reconcile(&intent, &observation);
     assert!(matches!(outcome, ReconcileOutcome::Rejected { .. }));
-    // The rejection is replayed, not re-fetched.
+    // Observing the same hint again reports the same rejection.
     assert_eq!(provider.observe(&intent.intent_id).unwrap(), observation);
+    // The rejection belongs to that hint, not to the intent: nothing binds
+    // a failed transaction to an intent, so the intent stays open and a
+    // later hint for the real payment funds it.
+    assert!(matches!(
+        provider.intent(&intent.intent_id).map(|i| &i.status),
+        Some(aps_payment::IntentStatus::Pending)
+    ));
+    store(
+        &cell,
+        successful_ft_transfer_tx(
+            "txreal",
+            SIGNER,
+            ASSET,
+            GATEWAY,
+            intent.intent_id.as_str(),
+            "1000000",
+            "1",
+        ),
+    );
+    provider
+        .submit_hint(
+            &intent.intent_id,
+            TxHint {
+                signer_id: SIGNER.to_string(),
+                tx_hash: "txreal".to_string(),
+            },
+        )
+        .unwrap();
+    let funded = provider.observe(&intent.intent_id).unwrap();
+    assert_eq!(
+        reconcile(&intent, &funded),
+        ReconcileOutcome::Fund {
+            tx_ref: "txreal".to_string()
+        }
+    );
 }
 
 #[test]
@@ -595,4 +630,33 @@ fn a_wrong_amount_is_recorded_as_an_orphan_and_never_funds() {
     let orphans = provider.orphans(&intent.intent_id);
     assert_eq!(orphans.len(), 1);
     assert_eq!(orphans[0].amount_atomic, "2000000");
+    // The wrong-amount transfer is not the intent's evidence and does not
+    // close it: the exact payment still funds, and the orphan stays listed.
+    assert!(provider.evidence(&intent.intent_id).is_none());
+    let memo = intent.intent_id.as_str().to_string();
+    store(
+        &cell,
+        common::fixture_result(
+            include_str!("fixtures/synthetic_wallet_pay.json"),
+            Some(&memo),
+        ),
+    );
+    fixture_hint(
+        &mut provider,
+        &intent,
+        "agent.fixture.testnet",
+        "SynthWalletPay",
+    );
+    let funded = provider.observe(&intent.intent_id).unwrap();
+    assert!(matches!(
+        reconcile(&intent, &funded),
+        ReconcileOutcome::Fund { .. }
+    ));
+    assert_eq!(
+        provider
+            .evidence(&intent.intent_id)
+            .map(|e| e.tx_hash.as_str()),
+        Some("SynthWalletPay")
+    );
+    assert_eq!(provider.orphans(&intent.intent_id).len(), 1);
 }

@@ -28,6 +28,13 @@ base64 handling. The existing `PaymentProvider` trait is synchronous
    operation (the mock's pattern), keeping expiry deterministic and
    testable without sleeps.
 
+5. Amendment, 2026-11-11: `aps-near` also depends on `getrandom`
+   (`=0.2.17`, the version `aps-auth` already pins, so the lockfile gains
+   no crate). Intent ids double as payment memos and as the x402 request
+   binding, so they must be unguessable; the standard library has no
+   random source, and a clock plus a counter let anyone compute the next
+   memo.
+
 ## Consequences
 
 - The async boundary is explicit and testable offline: the verification
