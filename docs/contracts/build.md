@@ -111,7 +111,7 @@ cargo-near wasm build cover the contract code.
 | Size | 174,618 bytes |
 | SHA-256 | `baad3c689a3638b50602781aa62bc9e221643d7a437f19eecbd20d7968773130` |
 | SHA-256 (base58, as cargo-near prints) | `DZi3U9vP4eeFCKoNAxGMAxVk1isoAHRdKFu1xvBHbjm1` |
-| Built | 2026-11-11 on the Windows build host, from the change that limits the token allowlist to one token (applied on top of commit `ff947af`), rustc 1.98.0, cargo-near 0.21.1, with the path remapping above. Not deployed anywhere yet; the testnet run of 2026-11-06 used the previous build (table below) |
+| Built | 2026-11-11 on the Windows build host, from the change that limits the token allowlist to one token (applied on top of commit `ff947af`), rustc 1.98.0, cargo-near 0.21.1, with the path remapping above. Deployed on testnet on 2026-11-11 for the agent demo (`docs/demo/transcript-2026-11-11.md`); the testnet run of 2026-11-06 used the previous build (table below) |
 | Host-path scan | 0 matches for the build host's user, cargo, rustup or checkout paths; panic locations read `/src/...`, `/cargo/...`, `/rustup/...` |
 | Imports | 37 functions, all from module `env` |
 | Exports | `new`, `pay`, `on_pay_complete`, `set_agent`, `revoke_agent`, `set_tokens`, `pause`, `unpause`, `withdraw`, `on_withdraw_complete`, `close`, `on_close_check`, `ft_on_transfer`, `get_agent`, `get_spent`, `get_config`, `contract_source_metadata` |

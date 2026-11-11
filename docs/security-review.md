@@ -1,14 +1,14 @@
 # Security Review
 
-Adversarial QA record for the current milestone: every threat from
-docs/threat-model.md mapped to its control, the test that verifies it,
-the residual risk, and the owner. Generated from the real test inventory
-(all counts regenerated on 2026-10-21).
+Adversarial QA record: threats from docs/threat-model.md mapped to their
+control, the test that verifies it, the residual risk, and the owner. The
+table below was written on 2026-10-21 for the prepaid routes; the
+2026-11-11 review of the x402 path and the wallet is the section after it.
 
-**Suites:** aps-core 21, aps-payment 9, aps-api 37, aps-near 25 (+3
-opt-in live read-only tests), scanner 69, knowledge-compiler 37 (+1
-local-only private-denylist check), root OpenAPI conformance 4. Total 202
-passing, plus the 3 live tests run explicitly against mainnet.
+**Suites (regenerated 2026-11-11):** Rust workspace 224 passed and 3
+ignored live tests; contracts 65 and 3; scanner 319; knowledge-compiler 71
+and 1 skipped; triage-model 64; root 14; ui 17. Per-crate counts are in
+docs/claims-audit.md.
 
 ## Threat → control → verification
 
@@ -32,7 +32,29 @@ passing, plus the 3 live tests run explicitly against mainnet.
 | 16 | Ruleset tampering | payload hash must match the compiled gates; unknown evaluator fails closed | test_ruleset tampered-hash + unknown-evaluator + missing-file tests | artifact is committed, not signed (roadmap: signed releases) | operator |
 | 17 | Private knowledge leakage via compiled rulesets | compiler leakage scanner refuses to emit artifacts carrying denylisted terms, host paths, non-allowlisted URLs, account ids, secrets. Real private terms are checked off-repo only: their digests live in the operator's file named by APS_PRIVATE_DENYLIST, never in the repository, because a published digest of a guessable word is reversible by dictionary hashing. The published denylist holds synthetic stand-ins only | test_leakage poisoned-source matrix (8 cases with synthetic stand-ins, all abort), published-list allowlist test, guess-list test (0 recovered), canary compile test; scan-tree with the private list run locally | CI cannot check real terms (by design); the allowlist is small and explicit; anyone holding the private file can recover guessable terms | operator |
 
-## Findings fixed during this review
+## Review of 2026-11-11 (x402 path and wallet)
+
+An independent review found these defects; each was reproduced with a
+failing test before the fix and is covered by a regression test now.
+
+| Finding | Fix | Test |
+|---|---|---|
+| Any finalized failed transaction, hinted at a pending requirement, became its final observation; the payer's real payment was then refused | A failed transaction is reported for that hint only | `an_unrelated_failed_transaction_does_not_block_the_real_payment` |
+| A one-unit transfer carrying the memo became the final observation | A wrong amount is an orphan and leaves the requirement open | `a_dust_transfer_with_the_memo_does_not_block_the_exact_payment` |
+| Memos were a process id, a clock and a counter | 128-bit nonce from the operating system | `requirement_memos_carry_an_unguessable_nonce` |
+| `POST /accounts/{id}/deposits` credited any account with the NEAR provider active | 403 unless the mock provider is active; same for `POST /jobs/{id}/settlements` | `dev_only_routes_refuse_under_the_near_provider` |
+| Wallet limits were shared by every allowlisted token, whatever its decimals | One token per wallet | `limits_sized_for_one_token_cannot_move_another` |
+| A proof presented after expiry left no record; orphans were not readable | The late transaction is read and recorded; `GET /payment/intents/{id}` lists orphans | `an_expired_requirement_never_funds` |
+| Unpaid requirements and per-intent locks grew without bound | Expired unpaid requirements are pruned; locks only for issued requirements | `expired_requirements_nobody_paid_are_forgotten` |
+| Scanner stderr reached 500 bodies | Fixed message; detail withheld | `bridge_failure_message` |
+
+Not fixed, stated as limits: no rate limiting; one development caller; state
+in memory; the envelope on `/v2/scan` is validated after payment (a
+validate-first step would spawn a scanner process for every unauthenticated
+request, which is the worse trade without rate limiting); one batch
+transaction paying two requirements funds only the first presented.
+
+## Findings fixed during the 2026-10-21 review
 
 - **Input reflection (fixed):** the scanner CLI echoed unknown envelope
   field names into error strings, and the API forwarded them verbatim in
@@ -48,8 +70,9 @@ passing, plus the 3 live tests run explicitly against mainnet.
 - No HTTP rate limiting (bounded by test usage; quota milestone).
 - The NEAR adapter verifies on demand (caller-supplied tx hash) rather
   than via a listener; a listener is the post-hackathon upgrade.
-- The adapter trusts its configured RPC endpoint; official public
-  endpoints are the default and the trust is documented.
+- The adapter trusts its configured RPC endpoint; FASTNEAR's free endpoints
+  are the default (the official ones are deprecated) and the trust is
+  documented.
 
 ## Supply-chain posture
 

@@ -1,0 +1,19 @@
+{
+  "envelope_version": 2,
+  "title": "Owner can pause deposits",
+  "hypothesis": "The contract owner can call pause and stop all deposits. Users cannot deposit while the vault is paused.",
+  "claimed_impact": "Deposits stop while the owner keeps the vault paused",
+  "mechanism": "pause is callable by the owner at any time",
+  "attacker_capability": "Requires the owner key",
+  "preconditions": "The attacker controls the owner account",
+  "component_class": "vault",
+  "scope_statement": "Administrative controls are in scope for this review",
+  "deployed_state_evidence": "Vault live at 0x8617e340b3d01fa5f11f306f4090fd50e238070d since block 5140",
+  "public_rules_snapshot": "https://archive.example.org/rules/v1",
+  "known_issue_declaration": null,
+  "reproduction_summary": "Step 1: call pause as the owner. Step 2: attempt a deposit.",
+  "evidence_refs": [
+    "https://example.test/issue-family-3"
+  ],
+  "code_excerpt": "pub fn pause(&mut self) { self.assert_owner(); self.paused = true; }"
+}

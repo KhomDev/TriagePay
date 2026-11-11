@@ -1,7 +1,11 @@
 # Threat Model
 
-Asset: prepaid credit, metered-tool receipts, and the privacy of the
-compiled knowledge behind the scanner.
+Assets: the tokens in an agent's policy wallet, prepaid credit, payment
+receipts, and the privacy of the compiled knowledge behind the scanner.
+
+This table covers the service. The wallet's own threat table is in
+docs/contracts/policy-wallet.md and the payment-proof threats are in
+docs/protocols/x402-near.md.
 
 ## Abuse cases and controls
 
@@ -15,12 +19,15 @@ compiled knowledge behind the scanner.
 | 6 | Prompt injection through a finding | instructions embedded in title, markdown, code comments, JSON | flag-only detection; gates are deterministic and content-addressed; corpus test asserts identical outcomes with injections stripped | injection corpus tests |
 | 7 | Taxonomy extraction | probe the scanner to reconstruct private rule structure | gate outcomes are public, coarse, and content-hashed; no private labels, paths, or identifiers in serialized output | privacy scan tests |
 | 8 | Payment spoofing | client asserts "paid" | credit is funded only from provider-observed confirmations; client assertions are never sufficient | payment_flow, near-adapter provider_rpc (memo/recipient/contract/deposit/amount mismatch matrix), and near_flow route tests |
-| 9 | Quote manipulation | stale or altered quote honored at settlement | quote signature verification and expiry before execution; persisted quote state | adapter tests (milestone) |
+| 9 | Closing someone else's payment requirement | a third party hints an unrelated failed transaction, or a one-unit transfer carrying the memo, at a pending requirement | only an exact-amount confirmation is final; a failed transaction is reported for that hint only and a wrong amount becomes an orphan; memos end in a 128-bit random nonce | x402_flow (`an_unrelated_failed_transaction_does_not_block_the_real_payment`, `a_dust_transfer_with_the_memo_does_not_block_the_exact_payment`, `requirement_memos_carry_an_unguessable_nonce`); live check in docs/demo/transcript-2026-11-11.md |
 | 10 | Account enumeration | harvest account ids via error differences | uniform 404 semantics for unknown accounts and jobs | API tests |
-| 11 | Queue exhaustion | flood reservations to lock credit | bounded reservation quotas per account (milestone); refunds on timeout | quota tests (milestone) |
+| 11 | State exhaustion | flood unpaid `/v2/scan` requests or reservations | expired requirements nobody paid are dropped at a later issuance; a lock exists only for an issued requirement; reservations need funded credit | x402_flow (`expired_requirements_nobody_paid_are_forgotten`); concurrency.rs. No rate limit exists: see residual risks |
 | 12 | Log leakage | finding text or secrets in logs | no request-body logging; redacted structured events | error-hygiene canary suite (crates/api/tests/error_hygiene.rs - found and fixed attacker field-name reflection into 400 bodies) |
 | 13 | Oversized payloads | memory pressure via huge fields | strict per-field length limits, evidence count caps | schema tests |
 | 14 | SSRF via evidence URLs | scanner fetches attacker URLs | the engine never fetches URLs; evidence is opaque data | design; no fetch code exists |
+| 15 | Credit without payment | call the direct deposit route, or settle a job against a made-up hash | both routes answer 403 unless the mock provider is active | x402_flow (`dev_only_routes_refuse_under_the_near_provider`); live check in the transcript |
+| 16 | Agent key theft or a prompt-injected agent | the agent's key is used to pay an attacker or to overspend | the key is a function-call key for `pay` on the policy wallet; the contract enforces the payee allowlist and the per-call and daily limits; the owner can revoke or pause | wallet unit tests; docs/demo/transcript-2026-11-11.md (`injected_payment`, `over_per_call`, `scan:over-daily-limit`, `self_escalation`, `pay_after_revoke`) |
+| 17 | Scanner internals in responses | scanner stderr or launch errors reach a 500 body | the body names the kind of failure only; one line with the exit code goes to the server's stderr | scan.rs `bridge_failure_message` |
 
 ## Residual risks (accepted for the hackathon build)
 
@@ -28,14 +35,20 @@ compiled knowledge behind the scanner.
   demonstrator; a durable store is the first post-hackathon milestone.
 - Single dev caller: no per-caller authentication yet. Documented
   limitation of the milestone, tracked for the auth milestone.
-- No rate limiting at the HTTP layer yet (bounded by test usage).
+- No rate limiting at the HTTP layer. Unpaid requirements are pruned after
+  they expire, so a flood holds memory for one validity window, but nothing
+  slows the flood, and each proof presentation costs one RPC read.
+- Payment state (issued requirements, consumed proofs, orphan records)
+  lives in the process with the ledger and is lost with it.
 - The NEAR adapter verifies deposits on demand (caller-supplied transaction
   hash hints) rather than via a listener, and trusts its configured RPC
   endpoint; both are documented in docs/integrations/near.md with the
-  listener as the post-hackaton upgrade.
+  listener as the post-hackathon upgrade.
 
 ## Out of scope by design
 
-- Mainnet key handling: the repo contains no keys and no mainnet calls.
+- Mainnet key handling: the repository contains no keys and signs nothing.
+  Mainnet is touched only by three opt-in read-only tests and by the one
+  operator-approved deposit of 2026-10-21 (docs/integrations/near.md).
 - Arbitrary URL fetching: the scanner never dereferences evidence URLs.
 - Real-world target analysis: all fixtures are synthetic.

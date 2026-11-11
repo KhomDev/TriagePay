@@ -1,99 +1,124 @@
 # Claims Audit
 
-Every testable claim in the public documentation, mapped to its evidence.
-This file exists so a reviewer (human or AI judge) can verify the repo
-against its own promises without trusting prose. Audit date: 2026-10-21,
-taken at commit `3139b75` (the commit that records this refresh changes
-documentation only). Previous audit: 2026-10-20.
-**Rule: if a claim is not green here, it is a defect - fix the doc or the
+Every testable claim in the public documentation, mapped to its evidence, so
+that a reviewer (human or AI) can check the repository against its own
+promises without trusting prose. Audit date: 2026-11-11, taken on the tree
+that adds the agent demo. Previous audit: 2026-10-21.
+
+**Rule: if a claim is not green here, it is a defect: fix the doc or the
 code, never the audit.**
 
-Suites verified for this audit (regenerated 2026-10-21, not hand-edited):
-aps-core 21, aps-payment 9, aps-api 37, aps-near 25 (+3 opt-in live
-read-only, ignored by default), scanner 69, knowledge-compiler 37 (+1
-local-only private-denylist tree scan, skipped unless APS_PRIVATE_DENYLIST
-is set), root OpenAPI conformance 4. Total 202 passing. Also green: cargo
-fmt --check, clippy -D warnings, ruff, the leakage tree scan
-(`python -m knowledge_compiler scan-tree --root ..`: 0 hits against the
-published stand-in list in CI, and 0 hits locally with
-APS_PRIVATE_DENYLIST set to the operator's off-repo real-term list), and the
-voice check (`python scripts/voice-check.py`: 0 violations).
+Status words: GREEN (checked on the audit date), LIMITED (true only as
+qualified in the row), OPEN (not proven; the docs must say so).
+
+## Suites (regenerated 2026-11-11, not hand-edited)
+
+| Suite | Count |
+|---|---|
+| aps-core | 23 |
+| aps-payment | 9 |
+| aps-api | 52 (api 12, concurrency 4, error_hygiene 7, near_flow 3, payment_flow 6, scan_flow 5, x402_flow 15) |
+| aps-near | 58, plus 3 live read-only tests ignored by default |
+| aps-auth | 25 |
+| aps-store | 29 |
+| policy-core | 28 (25 unit, 3 property) |
+| Rust workspace total | 224 passed, 3 ignored |
+| contracts: policy-wallet / test-token | 65 / 3 |
+| contracts: sandbox | 18 written, compiled, never run |
+| scanner | 319 |
+| knowledge-compiler | 71, plus 1 skipped (local private-denylist scan) |
+| triage-model | 64 |
+| root (OpenAPI, Python client) | 14 |
+| ui | 17 |
+| TypeScript client | 7 |
+
+Also green on the audit date: `cargo fmt --check` and `clippy -D warnings`
+in both workspaces, `ruff`, the ruleset byte-stability check, the voice
+check, and the leakage tree scan (0 hits against the published list, and 0
+hits against the operator's off-repo list).
 
 ## README.md
 
 | Claim | Evidence | Status |
 |---|---|---|
-| cargo test --workspace runs the Rust suites | gate run 2026-10-21: exit 0 | GREEN |
-| Rust test count | 92 tests across 4 crates (21 core, 9 payment, 37 api, 25 near-adapter) + 3 opt-in live tests | GREEN |
-| Python scanner tests | cd scanner && python -m pytest -q: 69 passed | GREEN |
-| Knowledge-compiler tests | cd knowledge-compiler && python -m pytest -q: 37 passed, 1 skipped (local-only) | GREEN |
-| OpenAPI conformance | python -m pytest tests -q (root): 4 passed | GREEN |
-| No keys or external services needed for the default run | mock provider default; secret scan of the tree: 0 hits | GREEN |
-| Scanner is stdlib-only Python | scanner/pyproject.toml dependencies = [] | GREEN |
-| Core and payment crates have zero external dependencies | their [dependencies] blocks are empty (comment-enforced) | GREEN |
-| Demo walks fund through refund with conservation | scripts/demo.ps1 run 2026-10-20: exit 0, final balances conserve | GREEN |
-| Integer money only, no floats near a balance | money.rs Amount(u128) with checked ops | GREEN |
-| Settlement requires non-zero report hash; refunds one-shot | ledger_ops + error_hygiene tests | GREEN |
-| Payment covers the scan, not the verdict | scan_flow settle tests (rejected verdicts settle identically) | GREEN |
-| Credit funds only from provider-observed confirmations | payment_flow + provider_rpc + near_flow suites | GREEN |
-| Privacy: no protocol names/paths/corpus content in output | test_engine_golden privacy test (digest denylist + host-path prefixes, with a non-vacuity control) + error_hygiene canaries | GREEN |
-| Private terms are never published, not even in the privacy tests | real terms are checked off-repo only (APS_PRIVATE_DENYLIST; CI runs without it); the published denylist holds only the digest of a synthetic stand-in (test_published_denylist_holds_only_synthetic_stand_ins); test_guess_list_recovers_nothing_from_the_published_denylist: 0 recovered; local scan-tree with the private list on 2026-10-21: 0 hits | GREEN (earlier commits up to and including 33b8b2f still contain the literal terms or reversible digests of them; history scrub is an open human decision, ADR-0006) |
-| Published real-term digests hide the terms (33b8b2f to 01d462e) | a published SHA-256 digest of a guessable word is reversible: a 14-word guess list recovered 10 of the 14 published digests | CORRECTED 2026-10-21 (every real-term digest moved to the operator's off-repo file; the published list keeps a synthetic stand-in only) |
-| NEAR adapter targets NEAR Intents 1Click (track fit section) | documented as the v2 roadmap in docs/integrations/near.md; v1 (direct NEP-141 verification) is implemented | GREEN (phrasing kept as target/milestone) |
-| Mock provider is the default; NEAR activates only via env | AppState construction + APS_PROVIDER gate in main.rs | GREEN |
-| Live mainnet read-only verification | aps-near live_readonly vs https://rpc.mainnet.near.org, run 2026-10-21: 3/3 pass, including native USDC ft_metadata = symbol "USDC", 6 decimals, and legacy USDC.e = symbol "USDC.e", 6 decimals | GREEN (mainnet deposit E2E executed 2026-10-21, see the near.md section) |
-| Script and test defaults name the settlement asset | scripts/near-preflight.py --asset fallback USDC_NATIVE_MAINNET; scripts/near-wait-for-deposit.py lists native USDC first; live_readonly's primary candidate is native USDC | CORRECTED 2026-10-21 (all three defaulted to or led with legacy USDC.e) |
-| README status: one mainnet deposit E2E executed with real USDC | docs/integrations/near.md "Mainnet end-to-end run" (tx hashes) | GREEN (README sentence updated 2026-10-21; it previously said the run was operator-gated) |
+| Offline steps A: test count, 402 walkthrough, prepaid demo | Gate run; `scripts/x402-demo.py` and `scripts/demo.ps1` run on 2026-11-11, both exit 0 | GREEN |
+| The agent's key is a function-call key limited to `pay` on the wallet | Transcript step `keys_view` (on-chain permission) | GREEN |
+| Four wallet-paid x402 calls verified from the token's receipts | Transcript, section "The agent pays per call" | GREEN |
+| The wallet refuses a non-allowlisted payee, an over-limit call and a fifth daily call | Transcript steps `injected_payment`, `over_per_call`, `scan:over-daily-limit`; unit tests `pay_to_non_allowlisted_payee`, `pay_over_per_call_limit`, `pay_over_daily_limit` | GREEN |
+| The agent key cannot call owner methods | Transcript steps `self_escalation`, `self_escalation_no_deposit` (node rejections); unit `owner_with_two_yocto_is_refused` | GREEN |
+| Revocation at the wallet stops the agent while its key still exists | Transcript step `pay_after_revoke` | GREEN |
+| Only the token contract's own event funds an intent; other contracts' logs are ignored; `ft_transfer_call` is refused | `receipt_fixtures.rs` (21 tests) | GREEN |
+| A wrong amount, a second payment or a late one becomes an orphan, never credit | `x402_flow.rs`, `provider_rpc.rs`; live check in the transcript | GREEN |
+| The memo ends in a 128-bit random nonce | `intent_ids_end_in_a_128_bit_nonce_that_is_not_a_counter`, `requirement_memos_carry_an_unguessable_nonce` | GREEN |
+| Money is integer-only; conservation holds after every operation | `money.rs`; `ledger_fuzz.rs` | GREEN |
+| Development-only routes answer 403 unless the mock provider is active | `dev_only_routes_refuse_under_the_near_provider`; live check in the transcript | GREEN |
+| One mainnet deposit verified on 2026-10-21 | `docs/integrations/near.md`; the capture is a fixture of the current verifier | LIMITED (verified live by the earlier argument-based verifier; the current verifier checks the same transaction from its recorded receipts) |
+| Stage B has never run live | `docs/engine/model-selection.md` outcome log; a probe on 2026-11-11 was again refused with HTTP 402 | GREEN (as a statement of what is missing) |
+| The 18 sandbox tests have not run | No Linux host has run them | OPEN |
+| No code predates the hackathon window | `git log --reverse`: first commit 2026-10-20; rules Q-001 count code from 2026-10-19 | GREEN |
 
-## SCANNER_SPEC.md / scanner/README.md
+## docs/protocols/x402-near.md
 
 | Claim | Evidence | Status |
 |---|---|---|
-| Nine deterministic gates, decision matrix, confidence bands | test_gates branch coverage + test_engine_golden decisions | GREEN |
-| Gates are ruleset-driven, fail closed on unknown evaluator or tampered hash | test_ruleset unknown-evaluator, tampered-hash, missing-file | GREEN |
-| Report exposes exactly the spec fields (including ruleset_hash) | test_engine_golden field-set test | GREEN |
-| content_hash is the sha256 of the canonical normalized envelope | test_engine_golden replay test (identical hashes) | GREEN |
-| The committed ruleset artifact is byte-stable | compile --check passes on Linux CI and on Windows (2026-10-21); test_written_artifact_is_lf_and_matches_the_committed_bytes; test_compiler determinism | GREEN (the Windows-only false mismatch - write_artifact wrote CRLF in text mode - was fixed 2026-10-21 by pinning newline="\n") |
+| Wire format and headers | `x402_flow.rs::payment_required_matches_the_v2_shape`; OpenAPI test | GREEN |
+| Verification rules 1-6 | `receipt_fixtures.rs`, `provider_rpc.rs` | GREEN |
+| Only an exact-amount confirmation is final for an intent | `a_failed_transaction_is_reported_but_never_closes_the_intent`, `a_wrong_amount_is_reported_but_never_closes_the_intent`, two flow tests, live check | GREEN |
+| Single-use proof; replay returns the stored response | `pay_then_retry_settles_once_and_replays`, `a_concurrent_retry_storm_charges_once`; transcript `direct_payment`, `proof_reuse` | GREEN |
+| Orphans are listed on `GET /payment/intents/{id}` | `an_expired_requirement_never_funds`; live check | GREEN (in memory: lost on restart) |
+| Expired, unpaid requirements are dropped | `expired_requirements_nobody_paid_are_forgotten` | GREEN |
+| Facilitator endpoints | `facilitator_supported_verify_and_settle`, `facilitator_rejects_mismatches_and_this_servers_own_intents` | LIMITED (stub RPC only; never used live; consumed proofs are kept in memory) |
+| The profile is not upstream | Stated in the first line | GREEN |
 
-## docs/architecture.md, threat-model.md, ADRs
-
-| Claim | Evidence | Status |
-|---|---|---|
-| Conservation invariant is property-checked | ledger_fuzz (2 seeds x 2400 ops, is_conserved after every op) | GREEN |
-| Threat-model row 3 "API concurrency tests" | concurrency.rs (4 tests) | GREEN (was false before this session; made true) |
-| Threat-model row 12 verification | error_hygiene.rs (7 tests; found and closed a real reflection bug) | GREEN (was false before; made true) |
-| ADR-0001/0002/0003 (integer money, charge timing, idempotency) | ledger_ops + api.rs suites | GREEN |
-| ADR-0004 adapter dependency policy | aps-near carries only ureq/serde_json/base64; core/payment dep-free | GREEN |
-| ADR-0005 verification-only NEAR adapter | no signing/broadcast code path exists; refunds are proposals | GREEN |
-| ADR-0006 window strategy and ADR-0007 product direction | decision records only; every pillar and the README prior-work section / boundary tag are labelled planned | GREEN (organizer answer pending) |
-| CI enforces neutral or singular voice in tracked Markdown | .github/workflows/ci.yml "Documentation voice" job; scripts/voice-check.py --self-test 15/15 | GREEN |
-
-## docs/integrations/near.md
+## docs/contracts/
 
 | Claim | Evidence | Status |
 |---|---|---|
-| Every facts-table row | verified live or against official docs on 2026-10-20 (cited per row) | GREEN |
-| 1RPC caveat | probed 2026-10-20: NEAR JSON-RPC methods answered -3261 | GREEN |
-| USDC.e metadata (6 decimals, Bridged USDC), listed as a legacy token | on-chain ft_metadata read at finality (2026-10-20, re-read 2026-10-21) | GREEN |
-| Settlement asset is native USDC (17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1: name "USDC", symbol USDC, 6 decimals) | on-chain ft_metadata read 2026-10-21; asset of the mainnet run (tx ZonAdEjgAUM4tBnCR3nJTxe9LHiv7KcsbqRZdp9dns1) | CORRECTED 2026-10-21 (the near.md facts table, the near.md price-book paragraph, and the .env.example value named bridged USDC.e as the settlement asset, the paragraph said no native USDC existed on NEAR mainnet, and the README status cited only USDC.e metadata; USDC.e is now listed as a legacy token, not used) |
-| Adapter never signs or broadcasts | no such code path; ADR-0005 | GREEN |
-| Mainnet deposit E2E | executed 2026-10-21 with real USDC: payment tx ZonAdEjgAUM4tBnCR3nJTxe9LHiv7KcsbqRZdp9dns1 verified by the adapter, ledger funded, scan settled (evidence in docs/integrations/near.md) | GREEN |
-| Live-network E2E (testnet) | executed 2026-10-20: intent -> memo-bound ft_transfer -> adapter-verified funding -> scan -> settle, all through the real adapter; evidence in docs/integrations/near.md | GREEN |
-| Security hardening via a function-call key restricted to ft_transfer (near.md "Security-track angle", PROPOSALS.md section 3, section 6 custody row) | infeasible: function-call keys cannot attach a deposit (https://docs.near.org/protocol/accounts-contracts/access-keys, accessed 2026-10-21) and NEP-141 ft_transfer requires exactly 1 yoctoNEAR; replaced in all three places by the planned spend-policy wallet contract (zero-deposit `pay` callable by a function-call key; the contract performs ft_transfer) | CORRECTED 2026-10-21 (claim withdrawn; replacement labelled planned, prompt 02) |
+| Interface, events, error codes | 65 unit tests | GREEN |
+| One token per wallet | `new_rejects_a_second_token`, `set_tokens_rejects_a_second_token`, `limits_sized_for_one_token_cannot_move_another` | GREEN |
+| Testnet run of 2026-11-06, 28 steps | Evidence table in `policy-wallet.md`; step 12 re-read from an archival RPC on 2026-11-10 | GREEN for step 12; the other 27 rows are as recorded by the run |
+| Current build on testnet | Transcript: deployed, initialized, key deleted in one batch; wasm SHA-256 in the evidence equals `build.md` | GREEN |
+| The build is not reproducible | `build.md` says so; a third party cannot re-derive the hash from source | OPEN |
+| Sandbox suite | Written, compiled on the build host, never run | OPEN |
+| Nothing is deployed on mainnet | No mainnet transaction exists for the wallet | GREEN |
 
-## SECURITY.md / CHANGELOG.md
+## docs/engine/
 
 | Claim | Evidence | Status |
 |---|---|---|
-| Request bodies are never logged | no request-body logging in handlers; one startup log line | GREEN |
-| No keys and no signing or broadcast path in the codebase | secret scan 0 hits; adapter is verification-only (ADR-0005) | GREEN |
-| SECURITY.md posture: real funds moved only in the operator-approved mainnet deposit run | docs/integrations/near.md mainnet section | CORRECTED 2026-10-21 (SECURITY.md previously said no real funds or mainnet endpoints were involved anywhere, which the mainnet E2E made false) |
-| SECURITY.md "Non-goals and guarantees" (renamed from a plural-voice heading) | same four guarantees; voice check 0 violations | GREEN |
+| Stage A gates are deterministic and ruleset-driven; unknown evaluators fail closed | `test_stage_a_golden`, `test_evaluators`, `test_ruleset` | GREEN |
+| The combiner never raises a decision above Stage A | `test_combiner.py` (exhaustive table) | GREEN |
+| Embedded instructions are flagged and never change an outcome | Injection corpus tests; transcript finding 3 | GREEN |
+| No accuracy figure is claimed | None appears in any document | GREEN |
+| Stage B prompt, schema, retry and cache behaviour | `triage-model` tests with a fake model | LIMITED (offline only) |
+| The default model is TEE-verifiable | Catalogue flag recorded in `config.py`; no attestation is fetched (ADR-0011) | LIMITED |
 
-## Known open items (not doc claims)
+## docs/architecture.md, threat-model.md, security-review.md, ADRs
 
-- ~~Mainnet E2E~~ DONE 2026-10-21 (real USDC, tx evidence in docs/integrations/near.md).
-- ~~Testnet E2E~~ DONE 2026-10-20 (throwaway accounts, evidence recorded).
-- The repository has no remote yet; publication is a human action.
-- Organizer answer on pre-window work: pending (ADR-0006 default applies).
-- Spend-policy wallet contract: planned (prompt 02), not implemented.
+| Claim | Evidence | Status |
+|---|---|---|
+| Component and trust-boundary description | Matches the crates listed in the README layout | GREEN |
+| Threat rows name the test that covers them | Each named test exists (`git grep "fn <name>"`) | GREEN |
+| Residual risks: in-memory ledger, one development caller, no rate limit, trusted RPC | `crates/api/src/lib.rs`, `main.rs` | GREEN (as stated limits) |
+| ADR-0006: the window question is answered by rules Q-001 | Live rules page, read 2026-11-10 | GREEN |
+| ADR-0011: attested verdicts are cut | No attestation code exists | GREEN |
+| CI workflows | `.github/workflows/`: never run on GitHub before publication | OPEN |
+
+## Corrections kept on record
+
+| Date | Correction |
+|---|---|
+| 2026-10-21 | The function-call-key hardening claim was infeasible (such keys cannot attach the 1 yoctoNEAR `ft_transfer` needs); replaced by the policy wallet |
+| 2026-10-21 | Published digests of private terms were reversible; real terms are now checked off-repo only |
+| 2026-10-21 | The settlement asset is native USDC, not bridged USDC.e |
+| 2026-11-06 | `rpc.mainnet.near.org` and `rpc.testnet.near.org` are deprecated; FASTNEAR is the default |
+| 2026-11-11 | Review findings fixed: a hint could close someone else's requirement (failed transaction or one-unit transfer); memos were guessable; the direct deposit route minted credit under the NEAR provider; wallet limits were shared across tokens; scanner stderr reached 500 bodies; unpaid requirements were never pruned |
+| 2026-11-11 | `wrap.testnet` cannot be the settlement asset: it emits no NEP-297 events. The x402 example and the testnet runs use an event-emitting token |
+| 2026-11-11 | The README described the 2026-10-21 state; rewritten |
+
+## Open items
+
+- Sandbox tests and both CI workflows: first run happens on GitHub.
+- Stage B live run: blocked on an API key with a spending limit.
+- Persistence, authentication and rate limiting are built as crates and not
+  wired into the API.

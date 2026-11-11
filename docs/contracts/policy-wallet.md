@@ -13,8 +13,11 @@ Status: unit and property tests pass on the Windows build host; the sandbox
 integration tests are written but have only been compiled, not run (the
 sandbox has no Windows build; Linux CI runs them). A zero-value testnet
 end-to-end run passed all 28 steps on 2026-11-06 (see "Testnet evidence").
-That run used the build before the one-token rule (2026-11-11); the current
-build has not been deployed anywhere. Nothing has been deployed to mainnet.
+That run used the build before the one-token rule (2026-11-11). The current
+build ran on testnet on 2026-11-11 in the agent demo
+(`docs/demo/transcript-2026-11-11.md`): deployed, initialized and locked in
+one batch, then paid from, refused from and revoked. Nothing has been
+deployed to mainnet.
 
 One wallet holds one token. An agent's `per_call_max`, `daily_max` and
 daily total are plain integers in that token's atomic units, with no

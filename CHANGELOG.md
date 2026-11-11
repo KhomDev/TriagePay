@@ -32,6 +32,27 @@ follows Keep a Changelog; the project has not shipped a tagged release.
 - Settlement requires the Running state and a non-zero 32-byte report
   hash; refunds are one-shot; replays never move funds twice.
 
+### Added (2026-11-11)
+- Agent demo (`agents/demo/`): one script that sets up throwaway testnet
+  accounts, deploys the test token and the policy wallet, and runs an
+  agent that pays per call through x402 with a function-call key. The
+  recorded run is `docs/demo/transcript-2026-11-11.md`: four wallet-paid
+  calls, one direct payment, and the wallet's refusals (payee, per-call
+  limit, daily limit, owner method, revoked agent).
+- `scripts/x402-demo.py`: the 402 exchange against the mock provider, with
+  no keys and no chain.
+- `GET /payment/intents/{id}` lists orphaned transfers.
+- ADR-0011 (attested verdicts cut); ADR-0006 records the rules' answer on
+  the hackathon window.
+
+### Changed (2026-11-11)
+- README rewritten around what can be run and verified; claims audit
+  regenerated; architecture, threat model and security review brought up
+  to the current code.
+- `scripts/testnet/x402-e2e.ts` removed: it paid in `wrap.testnet`, which
+  emits no NEP-297 events and therefore can never verify. The agent demo
+  replaces it.
+
 ### Fixed (2026-11-11: money-path review)
 - NEAR provider: a failed transaction hinted at a pending intent no
   longer closes it. Nothing binds a failed transaction to an intent, so

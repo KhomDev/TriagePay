@@ -72,7 +72,7 @@ development-only network no real client selects.
     "scheme": "exact",
     "network": "near:testnet",
     "amount": "1000000",
-    "asset": "wrap.testnet",
+    "asset": "usdc.example.testnet",
     "payTo": "gateway.example.testnet",
     "maxTimeoutSeconds": 900,
     "extra": {
@@ -113,6 +113,14 @@ The client transfers exactly `amount` of `asset` to `payTo` with
 
 Never `ft_transfer_call`: its amount can be refunded later, so it is
 rejected.
+
+The asset must emit the NEP-297 `nep141` events (tokens built on
+near-contract-standards do; native USDC on mainnet does). `wrap.testnet`
+logs plain text instead, so a payment in it can never verify. The testnet
+runs use `contracts/test-token`.
+
+Recorded testnet run, wallet-paid and direct, with transaction links:
+`docs/demo/transcript-2026-11-11.md`.
 
 ### Proof (`PAYMENT-SIGNATURE`, decoded)
 

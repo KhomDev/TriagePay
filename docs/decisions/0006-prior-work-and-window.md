@@ -1,8 +1,27 @@
 # ADR 0006: Prior work, commit history, and the hackathon window
 
-Status: Accepted (default) — organizer answer pending
+Status: Accepted. The rules page answered the open question (read 2026-11-10); see "Outcome"
 
 Date: 2026-10-21
+
+## Outcome (2026-11-11)
+
+The live rules page now carries a rules section. Q-001: code is allowed
+from the announcement on 2026-10-19, and "the window runs from then to
+2026-11-14. Earlier commits are baseline." The first commit of this
+repository is dated 2026-10-20, so the whole history is inside the window
+and there is no baseline to separate.
+
+Consequences for the text below, which is kept as written on 2026-10-21:
+
+- "Prior work" and "pre-window" in this ADR and elsewhere mean "before
+  2026-11-01", the date the window was believed to start. Under Q-001 that
+  work is in-window.
+- The README states the window fact in one sentence instead of a "Prior
+  work" section, and lists libraries and AI assistance (Q-005).
+- The local tag `prior-work-2026-10-31` marks nothing the rules care about.
+  It is not published.
+- The hard rule stands: commit dates are never rewritten.
 
 ## Context
 
