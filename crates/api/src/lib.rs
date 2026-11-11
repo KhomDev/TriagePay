@@ -105,6 +105,7 @@ impl AppState {
             asset,
             price,
             max_timeout_secs: x402::DEFAULT_MAX_TIMEOUT_SECS,
+            prune_interval_secs: x402::PRUNE_INTERVAL_SECS,
         });
         Self {
             x402: Arc::new(x402),
@@ -135,6 +136,15 @@ impl AppState {
         let mut config = self.x402.config().clone();
         config.price = price;
         config.max_timeout_secs = max_timeout_secs.max(1);
+        self.x402 = Arc::new(x402::X402State::new(config));
+        self
+    }
+
+    /// Override how often expired, unpaid requirements are swept. Call
+    /// before the state is shared with the router.
+    pub fn with_x402_prune_interval(mut self, secs: u64) -> Self {
+        let mut config = self.x402.config().clone();
+        config.prune_interval_secs = secs;
         self.x402 = Arc::new(x402::X402State::new(config));
         self
     }
@@ -189,6 +199,15 @@ impl AppState {
             .map_err(|_| ApiError::internal("intent registry is unavailable"))?
             .insert(intent_id.to_string(), account_id.to_string());
         Ok(())
+    }
+
+    /// Drop the account links of intents the provider has forgotten.
+    pub(crate) fn forget_intents(&self, intent_ids: &[aps_payment::IntentId]) {
+        if let Ok(mut accounts) = self.intent_accounts.write() {
+            for id in intent_ids {
+                accounts.remove(id.as_str());
+            }
+        }
     }
 
     /// Look up the account a payment intent funds, 404 when unknown.

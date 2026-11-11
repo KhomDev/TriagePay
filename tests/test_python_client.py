@@ -33,7 +33,7 @@ GATEWAY = "gateway.mock.testnet"
 PRICE = "1000000"
 
 
-class MockSentinel:
+class MockTriagePay:
     """State of the mock server: issued memos, pending polls, payments."""
 
     def __init__(self, pending_polls=1, settle_reason=None):
@@ -149,7 +149,7 @@ def server():
     started = []
 
     def start(**kwargs):
-        mock = MockSentinel(**kwargs)
+        mock = MockTriagePay(**kwargs)
         httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(mock))
         thread = threading.Thread(target=httpd.serve_forever, daemon=True)
         thread.start()

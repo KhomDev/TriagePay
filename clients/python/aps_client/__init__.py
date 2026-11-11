@@ -199,7 +199,7 @@ def shell_payer(command: Sequence[str], timeout: float = 180.0) -> Payer:
 
 
 class Client:
-    """A minimal x402 client for the Sentinel ``/v2/scan`` resource."""
+    """A minimal x402 client for the TriagePay ``/v2/scan`` resource."""
 
     def __init__(
         self,

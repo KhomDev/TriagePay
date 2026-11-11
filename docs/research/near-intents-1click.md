@@ -72,7 +72,7 @@ aptos, op, avax, sui, stellar, monad, xlayer and hypercore. Status: Verified-pri
 | A crates.io crate `one-click-sdk-rs` 0.1.17 exists, but its sole owner is a personal account, not the `defuse-protocol` organization. Its provenance is unconfirmed. | crates.io owners API | 2026-10-21 | Verified-primary (ownership); official status Unverified |
 | The Rust SDK (March 2026) may lag the current OpenAPI (0.1.10): newer request fields such as `confidentiality` or `rebates` may be missing. | inferred from dates | 2026-10-21 | Unverified; compare the generated models with openapi.yaml |
 
-## 6. Binding a payment to a Sentinel intent
+## 6. Binding a payment to a TriagePay intent
 
 | Question | Finding | Status |
 |---|---|---|

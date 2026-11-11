@@ -168,7 +168,7 @@ Not final yet (`402`, plus `Retry-After`):
 ```mermaid
 sequenceDiagram
     participant A as Agent (client)
-    participant S as Sentinel (/v2/scan)
+    participant S as TriagePay (/v2/scan)
     participant W as Policy wallet (optional)
     participant T as NEP-141 token
     participant R as NEAR RPC
@@ -233,10 +233,10 @@ never close a requirement that someone else is paying.
 | Instrument and proof | `payTo` + `extra.memo` advertise the instrument, `maxTimeoutSeconds` / `extra.expiresAt` its window; the proof is `PaymentPayload.payload`. Not self-verifying: settle reads a NEAR RPC node. |
 | Request binding | Server-issued nonce carried in the payment (`extra.memo` = the `ft_transfer` memo). |
 | Single-use claim | Consumption key `<network>:<tx_hash>` (for example `near:testnet:9VrJ...`), claimed under a per-intent lock before the scan runs; of concurrent presentations exactly one settles and the rest replay its response. |
-| Retention bound | Consumed keys and settled responses are kept for the life of the process (the ledger is process-local in this milestone). A requirement is presentable only until it expires, which bounds the proof age for `/v2/scan`. |
+| Retention bound | Consumed keys and settled responses are kept for the life of the process (the ledger is process-local in this milestone). A requirement is presentable only until it expires, which bounds the proof age for `/v2/scan`. Requirements that expire with no transaction presented are dropped when a later requirement is issued (swept at most every 30 seconds), so unpaid requests hold memory for one validity window. |
 | Amount acceptance | Exact. Under- or over-payment is `amount_mismatch`; the transfer is an orphan deposit, returned only by an operator-approved `ft_transfer` (the refund-proposal path). The requirement stays open for the exact payment. |
 | Finality | `wait_until: FINAL` plus a successful token receipt. The server owns the confirmation policy. While unmet, settle answers `settlement_pending` without consuming the proof. |
-| Failure disposition | A failed transaction moves no tokens. A transfer that landed but cannot fund the intent (expired, wrong amount, second payment) is an orphan, refunded only by an operator-approved transfer; clients must not assume a return path. |
+| Failure disposition | A failed transaction moves no tokens. A transfer that landed but cannot fund the intent (expired, wrong amount, second payment) is an orphan, refunded only by an operator-approved transfer; clients must not assume a return path. Orphans are listed on `GET /payment/intents/{id}` (`orphans`: transaction, receipt, payer, amount, reason) for the life of the process. |
 
 ## Errors
 

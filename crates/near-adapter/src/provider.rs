@@ -319,6 +319,27 @@ impl NearProvider {
             }
             return Ok(observation);
         }
+        if self.unix_now >= entry.intent.expires_at_unix {
+            // The intent expired before this proof was presented. A
+            // transfer that landed never funds it; it is recorded for an
+            // operator-approved refund. The expiry becomes final once the
+            // chain gave a definite answer about the hinted transaction,
+            // so a transaction still in flight is recorded when it lands.
+            if let Some(evidence) = check.evidence {
+                entry.add_orphans([OrphanTransfer {
+                    tx_hash: evidence.tx_hash,
+                    receipt_id: evidence.receipt_id,
+                    payer_id: evidence.payer_id,
+                    amount_atomic: evidence.amount_atomic,
+                    reason: "the intent expired before this transfer was presented".to_string(),
+                }]);
+            }
+            if !matches!(check.verification, Verification::NotFinalYet) {
+                entry.intent.status = IntentStatus::Expired;
+                entry.observation = Some(Observation::Expired);
+            }
+            return Ok(Observation::Expired);
+        }
         if let Some(evidence) = &check.evidence {
             let exact =
                 evidence.amount_atomic.parse::<u128>().ok() == Some(entry.intent.amount.atomic());
@@ -335,6 +356,30 @@ impl NearProvider {
             }
         }
         self.apply_verification(intent_id, check.verification)
+    }
+
+    /// Forget the listed intents that expired without anyone trying to pay
+    /// them: no hint, no orphan, no observation other than the expiry.
+    /// Returns the ids that were dropped. An intent someone presented a
+    /// transaction for is always kept, so its record stays available for
+    /// an operator refund. This bounds the memory that unpaid requirement
+    /// requests can hold to the requests of one validity window.
+    pub fn forget_unpaid(&mut self, ids: &[IntentId]) -> Vec<IntentId> {
+        let now = self.unix_now;
+        let mut dropped = Vec::new();
+        for id in ids {
+            let stale = self.intents.get(id).is_some_and(|entry| {
+                now >= entry.intent.expires_at_unix
+                    && entry.hint.is_none()
+                    && entry.orphans.is_empty()
+                    && !matches!(entry.observation, Some(Observation::Confirmed { .. }))
+            });
+            if stale {
+                self.intents.remove(id);
+                dropped.push(id.clone());
+            }
+        }
+        dropped
     }
 
     /// Advance the provider clock; never moves backwards. The gateway
@@ -381,6 +426,16 @@ impl NearProvider {
             return Ok(FetchStep::Ready(observation.clone()));
         }
         if self.unix_now >= entry.intent.expires_at_unix {
+            // Expired. A hinted transaction is still read, so that a
+            // transfer that landed is recorded as an orphan for an
+            // operator-approved refund (apply_check); it never funds.
+            if let Some(hint) = entry.hint.clone() {
+                return Ok(FetchStep::Verify {
+                    rpc: self.rpc.clone(),
+                    intent: entry.intent.clone(),
+                    hint,
+                });
+            }
             entry.intent.status = IntentStatus::Expired;
             entry.observation = Some(Observation::Expired);
             return Ok(FetchStep::Ready(Observation::Expired));

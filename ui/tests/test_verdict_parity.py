@@ -20,11 +20,20 @@ UI = pathlib.Path(__file__).resolve().parent.parent
 REPO = UI.parent
 sys.path.insert(0, str(REPO / "scanner"))
 
-from aps_scanner.__main__ import _load_envelope  # noqa: E402
+from aps_scanner.envelope_v2 import V1_FIELDS, load_payload  # noqa: E402
 from aps_scanner.normalize import normalize_envelope  # noqa: E402
 from aps_scanner.report import compute_content_hash  # noqa: E402
 
-BASE = json.loads((REPO / "demo" / "envelope.json").read_text(encoding="utf-8"))
+# verdict.js mirrors the v1 normalization and hash only. The demo envelope
+# is a v2 envelope, so the cases use its v1 fields; the UI does not
+# recompute the content hash of a v2 envelope.
+BASE = {
+    name: value
+    for name, value in json.loads(
+        (REPO / "demo" / "envelope.json").read_text(encoding="utf-8")
+    ).items()
+    if name in V1_FIELDS
+}
 
 ACUTE = chr(0x301)  # combining acute accent (NFD form)
 NBSP = chr(0xA0)
@@ -89,7 +98,7 @@ process.stdin.on("end", async () => {
 
 
 def python_hash(envelope):
-    return compute_content_hash(normalize_envelope(_load_envelope(json.dumps(envelope))))
+    return compute_content_hash(normalize_envelope(load_payload(envelope)))
 
 
 def run_node(script, *args, stdin=""):

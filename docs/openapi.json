@@ -555,7 +555,7 @@
     },
     "/payment/intents/{intent_id}": {
       "get": {
-        "summary": "Intent status and deposit instructions",
+        "summary": "Intent status and deposit instructions. With the NEAR provider the body also lists `orphans`: transfers that matched the memo and payee but did not fund the intent (wrong amount, second payment, presented after expiry), each with tx_hash, receipt_id, payer_id, amount_atomic and reason",
         "parameters": [
           {
             "$ref": "#/components/parameters/IntentId"

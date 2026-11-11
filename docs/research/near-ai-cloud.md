@@ -106,9 +106,9 @@ From the official docs (Verified-primary, 2026-10-21):
 - A response without a signature "is not response-verified".
 - Models with `providerType: "external"` are not attested at all.
 
-Integration boundary for Sentinel (derived):
+Integration boundary for TriagePay (derived):
 
-- The Sentinel gateway process sees the plaintext finding before it reaches NEAR AI Cloud.
+- The TriagePay gateway process sees the plaintext finding before it reaches NEAR AI Cloud.
 - The client machine and everything before the TLS connection to `cloud-api.near.ai` is outside
   the attestation.
 - The NEAR AI gateway hop is attested only by `gateway_attestation`, which is evidence for the
@@ -132,7 +132,8 @@ Integration boundary for Sentinel (derived):
   Non-streaming avoids the gateway re-signing streamed bytes.
 - **Prompt 06:** `dcap-qvl` (Rust or Python bindings) is the documented quote verifier; NRAS v3 is
   an online dependency, so the offline verifier needs a recorded bundle plus the cached verdict.
-- **Prompt 06:** copy the section 5 limits verbatim into `docs/privacy/near-ai-attestation.md`;
-  never describe the result as end-to-end confidential.
+- **Prompt 06** (cut 2026-11-04, ADR-0011; no attestation document was written): any future
+  write-up copies the section 5 limits verbatim and never describes the result as end-to-end
+  confidential.
 - **Prompt 06:** the `chutes` models are verifiable but use a different evidence format. Scope the
   verifier to `provider=near` models.

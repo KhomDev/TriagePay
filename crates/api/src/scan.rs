@@ -123,18 +123,43 @@ fn truncate_at_char_boundary(text: &str, limit: usize) -> &str {
     &text[..end]
 }
 
-fn bridge_error(err: ScanBridgeError) -> ApiError {
-    let message = match err {
-        ScanBridgeError::Launch(message) => format!("scanner could not start: {message}"),
-        ScanBridgeError::Timeout { seconds } => {
-            format!("scanner timed out after {seconds}s; the reservation is refundable")
+/// The client-facing text for a bridge failure: the kind of failure and
+/// nothing the scanner or the operating system wrote. Scanner stderr and
+/// launch errors can carry interpreter paths or fragments of the input,
+/// so they never reach a response body. One line goes to the server's
+/// stderr with the exit code and the size of what was withheld.
+pub(crate) fn bridge_failure_message(err: &ScanBridgeError) -> String {
+    match err {
+        ScanBridgeError::Launch(detail) => {
+            eprintln!(
+                "aps-api: scanner launch failed ({} bytes of detail withheld)",
+                detail.len()
+            );
+            "the scanner could not start".to_string()
         }
-        ScanBridgeError::MalformedOutput(message) => {
-            format!("scanner output malformed: {message}")
+        ScanBridgeError::Timeout { seconds } => {
+            format!("the scanner timed out after {seconds}s")
+        }
+        ScanBridgeError::MalformedOutput(detail) => {
+            eprintln!(
+                "aps-api: scanner output malformed ({} bytes of detail withheld)",
+                detail.len()
+            );
+            "the scanner produced malformed output".to_string()
         }
         ScanBridgeError::ScannerFailed { exit_code, stderr } => {
-            format!("scanner failed (exit {exit_code:?}): {stderr}")
+            eprintln!(
+                "aps-api: scanner exited with {exit_code:?} ({} bytes of stderr withheld)",
+                stderr.len()
+            );
+            "the scanner failed".to_string()
         }
-    };
-    ApiError::internal(message)
+    }
+}
+
+fn bridge_error(err: ScanBridgeError) -> ApiError {
+    ApiError::internal(format!(
+        "{}; the reservation is refundable",
+        bridge_failure_message(&err)
+    ))
 }

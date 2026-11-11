@@ -80,6 +80,8 @@ pub const RESOURCE_PATH: &str = "/v2/scan";
 pub const DEFAULT_MAX_TIMEOUT_SECS: u64 = 900;
 /// Seconds a client should wait before retrying a pending settlement.
 pub const RETRY_AFTER_SECS: u64 = 3;
+/// Least seconds between two sweeps of expired, unpaid requirements.
+pub const PRUNE_INTERVAL_SECS: u64 = 30;
 
 /// Static x402 configuration of this server.
 #[derive(Debug, Clone)]
@@ -93,6 +95,8 @@ pub struct X402Config {
     pub price: Amount,
     /// Validity window of a requirement, in seconds.
     pub max_timeout_secs: u64,
+    /// Least seconds between two sweeps of expired, unpaid requirements.
+    pub prune_interval_secs: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -114,6 +118,8 @@ struct IntentRecord {
     account: String,
     amount: Amount,
     pay_to: String,
+    /// When the requirement stops being payable.
+    expires_at_unix: u64,
     /// The proof that funded this intent, once claimed.
     proof: Option<Proof>,
     /// Scan attempts that ended without a settlement (refunded jobs).
@@ -135,6 +141,8 @@ pub struct X402State {
     config: X402Config,
     book: Mutex<Book>,
     locks: Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
+    /// Unix time of the last sweep of expired, unpaid requirements.
+    last_prune: Mutex<u64>,
 }
 
 impl X402State {
@@ -144,6 +152,7 @@ impl X402State {
             config,
             book: Mutex::new(Book::default()),
             locks: Mutex::new(HashMap::new()),
+            last_prune: Mutex::new(0),
         }
     }
 
@@ -164,6 +173,79 @@ impl X402State {
             Err(_) => Arc::new(tokio::sync::Mutex::new(())),
         }
     }
+
+    /// Whether a requirement with this id was issued and is still held.
+    fn knows(&self, intent_id: &str) -> bool {
+        self.book
+            .lock()
+            .map(|book| book.intents.contains_key(intent_id))
+            .unwrap_or(false)
+    }
+
+    /// True at most once per `prune_interval_secs`.
+    fn prune_due(&self, now: u64) -> bool {
+        match self.last_prune.lock() {
+            Ok(mut last) if now >= last.saturating_add(self.config.prune_interval_secs) => {
+                *last = now;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Requirements that expired without a claimed proof.
+    fn expired_unpaid(&self, now: u64) -> Vec<String> {
+        self.book
+            .lock()
+            .map(|book| {
+                book.intents
+                    .iter()
+                    .filter(|(_, record)| record.proof.is_none() && now >= record.expires_at_unix)
+                    .map(|(id, _)| id.clone())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Drop the records and locks of forgotten requirements.
+    fn forget(&self, intent_ids: &[IntentId]) {
+        if let Ok(mut book) = self.book.lock() {
+            for id in intent_ids {
+                book.intents.remove(id.as_str());
+            }
+        }
+        if let Ok(mut locks) = self.locks.lock() {
+            for id in intent_ids {
+                locks.remove(id.as_str());
+            }
+        }
+    }
+}
+
+/// Sweep requirements that expired without anyone trying to pay them, so
+/// that unpaid requests hold memory for one validity window at most. The
+/// provider decides what may go: an intent someone presented a
+/// transaction for is kept for the operator.
+async fn prune_expired(state: &AppState, now: u64) {
+    let x402 = state.x402();
+    if !x402.prune_due(now) {
+        return;
+    }
+    let candidates: Vec<IntentId> = x402
+        .expired_unpaid(now)
+        .into_iter()
+        .map(IntentId::new)
+        .collect();
+    if candidates.is_empty() {
+        return;
+    }
+    let forgotten = {
+        let mut provider = state.payment().lock().await;
+        provider.sync_clock(now);
+        provider.forget_unpaid(&candidates)
+    };
+    x402.forget(&forgotten);
+    state.forget_intents(&forgotten);
 }
 
 fn unix_now() -> u64 {
@@ -463,6 +545,14 @@ async fn scan_v2_inner(
         ));
     }
 
+    // Only issued requirements get a lock: an id nobody issued must not
+    // leave an entry behind.
+    if !x402.knows(&proof.intent_id) {
+        return Err(fail(
+            "invalid_payload",
+            "unknown intent: request a fresh requirement".to_string(),
+        ));
+    }
     // Serialize every presentation for one intent: of two concurrent
     // presentations, exactly one claims the proof.
     let lock = x402.lock_for(&proof.intent_id);
@@ -689,8 +779,8 @@ async fn run_paid_scan(
         Err(err) => {
             release_job(state, &job, &mut record, intent_id, "scanner failure").await?;
             return Err(ApiError::internal(format!(
-                "the scanner failed ({err:?}); the payment is retained - retry with the same \
-                 PAYMENT-SIGNATURE"
+                "{}; the payment is retained - retry with the same PAYMENT-SIGNATURE",
+                crate::scan::bridge_failure_message(&err)
             ))
             .into_response());
         }
@@ -789,6 +879,7 @@ async fn issue_requirement(state: &AppState) -> Result<Response, Response> {
     let x402 = state.x402();
     let config = x402.config().clone();
     let now = unix_now();
+    prune_expired(state, now).await;
     let create = CreateIntent {
         asset_id: AssetId::new(config.asset.clone()),
         amount: config.price,
@@ -812,6 +903,7 @@ async fn issue_requirement(state: &AppState) -> Result<Response, Response> {
             account,
             amount: intent.amount,
             pay_to: intent.deposit_address.clone(),
+            expires_at_unix: intent.expires_at_unix,
             proof: None,
             attempts: 0,
             settled: None,
@@ -910,6 +1002,7 @@ async fn facilitator_check(
         asset: asset.clone(),
         price: Amount::from_atomic(amount),
         max_timeout_secs: config.max_timeout_secs,
+        prune_interval_secs: config.prune_interval_secs,
     };
     if let Err((reason, _)) = check_accepted(
         &facilitator_config,

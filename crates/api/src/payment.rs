@@ -218,6 +218,16 @@ impl Provider {
         near.apply_check(intent_id, check).map(|_| ())
     }
 
+    /// Forget expired intents nobody tried to pay; returns the ids that
+    /// are gone. The mock provider keeps no per-intent payment evidence,
+    /// so every listed id counts as forgotten there.
+    pub fn forget_unpaid(&mut self, ids: &[IntentId]) -> Vec<IntentId> {
+        match self {
+            Provider::Mock(_) => ids.to_vec(),
+            Provider::Near(near) => near.forget_unpaid(ids),
+        }
+    }
+
     /// Sync the provider clock to wall time.
     pub fn sync_clock(&mut self, now: u64) {
         match self {
@@ -294,6 +304,22 @@ pub struct IntentJson {
     /// ft_transfer. Always equal to the intent id.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub memo: Option<String>,
+    /// NEAR provider: transfers that matched this intent's memo and payee
+    /// but did not fund it (wrong amount, a second payment, or a payment
+    /// presented after expiry). Each is refundable only by an
+    /// operator-approved transfer. Absent when there are none.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub orphans: Vec<OrphanJson>,
+}
+
+/// One orphaned transfer, as recorded from the token contract's event.
+#[derive(Debug, serde::Serialize)]
+pub struct OrphanJson {
+    pub tx_hash: String,
+    pub receipt_id: String,
+    pub payer_id: String,
+    pub amount_atomic: String,
+    pub reason: String,
 }
 
 /// POST /payment/intents/{intent_id}/observations request body.
@@ -355,19 +381,28 @@ pub async fn get_intent(
     Path(intent_id): Path<String>,
 ) -> Result<Json<IntentJson>, ApiError> {
     let account_id = state.intent_account(&intent_id)?;
-    let intent = state
+    let id = IntentId::new(intent_id.clone());
+    let (intent, orphans) = state
         .with_payment(|provider| {
             provider
-                .intent(&IntentId::new(intent_id.clone()))
+                .intent(&id)
+                .map(|intent| (intent, provider.orphans(&id)))
                 .map_err(provider_error)
         })
-        .await?
-        .ok_or_else(|| ApiError::unknown_intent(&intent_id))?;
-    Ok(Json(intent_json(
-        &intent,
-        &account_id,
-        state.provider_kind(),
-    )))
+        .await?;
+    let intent = intent.ok_or_else(|| ApiError::unknown_intent(&intent_id))?;
+    let mut json = intent_json(&intent, &account_id, state.provider_kind());
+    json.orphans = orphans
+        .into_iter()
+        .map(|orphan| OrphanJson {
+            tx_hash: orphan.tx_hash,
+            receipt_id: orphan.receipt_id,
+            payer_id: orphan.payer_id,
+            amount_atomic: orphan.amount_atomic,
+            reason: orphan.reason,
+        })
+        .collect();
+    Ok(Json(json))
 }
 
 /// Observe an intent: poll the provider and reconcile.
@@ -570,6 +605,7 @@ fn intent_json(intent: &DepositIntent, account_id: &str, provider: &'static str)
         status: status_name(&intent.status),
         provider,
         memo,
+        orphans: Vec::new(),
     }
 }
 

@@ -469,6 +469,52 @@ async fn an_expired_requirement_never_funds() {
         reply.header_json("payment-response")["errorReason"],
         "requirement_expired"
     );
+    assert_eq!(balances(&app).await["error"]["code"], "unknown_account");
+
+    // The transfer landed, so it is on record for an operator refund.
+    let intent = send(&app, "GET", &format!("/payment/intents/{memo}"), None, None).await;
+    assert_eq!(intent.status, 200, "{}", intent.body);
+    assert_eq!(intent.body["status"], "expired");
+    let orphans = intent.body["orphans"].as_array().expect("orphans");
+    assert_eq!(orphans.len(), 1);
+    assert_eq!(orphans[0]["tx_hash"], "tx-late");
+    assert_eq!(orphans[0]["payer_id"], PAYER);
+    assert_eq!(orphans[0]["amount_atomic"], PRICE);
+    assert!(orphans[0]["reason"]
+        .as_str()
+        .is_some_and(|reason| reason.contains("expired")));
+}
+
+#[tokio::test]
+async fn expired_requirements_nobody_paid_are_forgotten() {
+    let (url, _cell) = stub_server();
+    let state = near_state(&url)
+        .with_x402_terms(aps_core::Amount::from_atomic(1_000_000), 1)
+        .with_x402_prune_interval(0);
+    let app = router(state);
+    let first = require(&app).await["accepts"][0].clone();
+    let memo = first["extra"]["memo"].as_str().unwrap().to_string();
+    let known = send(&app, "GET", &format!("/payment/intents/{memo}"), None, None).await;
+    assert_eq!(known.status, 200);
+
+    tokio::time::sleep(std::time::Duration::from_millis(2100)).await;
+    // Issuing the next requirement sweeps the expired, unpaid one.
+    let _second = require(&app).await;
+    let gone = send(&app, "GET", &format!("/payment/intents/{memo}"), None, None).await;
+    assert_eq!(gone.status, 404, "{}", gone.body);
+    let reply = send(
+        &app,
+        "POST",
+        "/v2/scan",
+        Some(&signature(&first, "tx-any")),
+        Some(envelope()),
+    )
+    .await;
+    assert_eq!(reply.status, 402);
+    assert_eq!(
+        reply.header_json("payment-response")["errorReason"],
+        "invalid_payload"
+    );
 }
 
 #[tokio::test]

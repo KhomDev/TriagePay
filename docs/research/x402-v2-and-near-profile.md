@@ -102,7 +102,7 @@ Source: core spec sections 5.1-5.4, Verified-primary.
 | PR #203 "Add NEAR Protocol namespace (near) with CAIP-2 profile" (opened 2026-09-14) is **open, no reviews**. It proposes `near:mainnet` / `near:testnet`, defined as "`near:` + the nearcore `chain_id` string". Issue #106 "CAIP-2 for NEAR" (2024-03-01) is open. | https://github.com/ChainAgnostic/namespaces/pull/203 ; issue search | 2026-10-21 | Verified-primary |
 | Conclusion: `near:mainnet` is the de facto identifier (x402 upstream, PR #203), but it is **not yet a registered CAIP-2 namespace**. Docs should say "CAIP-2-style, registration pending (ChainAgnostic namespaces PR #203)". | derived | 2026-10-21 | Verified-primary (inputs) |
 
-## 6. What this means for the Sentinel "NEAR profile"
+## 6. What this means for the TriagePay "NEAR profile"
 
 The planned flow (the client pays first with `ft_transfer` or `wallet.pay`, then retries with
 `{network, intent_id, tx_hash, signer_id}`) is **not** the upstream NEAR `exact` mechanism. It is
@@ -148,10 +148,10 @@ additional `assetTransferMethod` in `scheme_exact_near.md` is the natural route.
   `extra.assetTransferMethod` plus `extra.paymentFlow: "upfront"`; do not invent a new scheme
   name or new headers.
 - **Prompt 03:** optionally implement the upstream delegate-action method as well, so standard
-  x402 NEAR clients can pay Sentinel. The gateway would then need a relayer account and the
+  x402 NEAR clients can pay TriagePay. The gateway would then need a relayer account and the
   section 8-10 checks; this is a scope decision for ADR-0009.
 - **Prompt 03:** the 402-vs-202 question for "not final yet" is answered by the spec: under
   `upfront`, settle returns an error naming the unmet condition (HTTP `402` with
   `PAYMENT-RESPONSE`, `errorReason: "settlement_pending"`, and the transaction hash).
 - **Prompt 07:** an agent holding only a policy-wallet function-call key cannot use upstream
-  `@x402/near` clients; it needs the Sentinel client for the tx-proof method.
+  `@x402/near` clients; it needs the TriagePay client for the tx-proof method.
