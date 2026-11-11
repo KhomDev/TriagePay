@@ -16,7 +16,7 @@ execution belongs to prompt 09). No key material appears here.
 | Payee allowlist | `[<gateway>]` only | prompt 02 |
 | Token | native USDC `17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1`, 6 decimals | prompt 02 |
 | Policy | `per_call_max` = 0.05 USDC = `"50000"`; `daily_max` = 0.20 USDC = `"200000"` | prompt 02 |
-| Wasm | `policy_wallet.wasm`, 174,583 bytes, SHA-256 `7a599a50b37fc25961da3e0e2c97a9108eb483ef1b591d1506e08e44bf13a6a2` (host build with path remapping, see below) | `docs/contracts/build.md` |
+| Wasm | `policy_wallet.wasm`, 174,618 bytes, SHA-256 `baad3c689a3638b50602781aa62bc9e221643d7a437f19eecbd20d7968773130` (host build with path remapping, see below) | `docs/contracts/build.md` |
 | `storage_amount_per_byte` | `10000000000000000000` yoctoNEAR (1e19; 1 NEAR per 100 KB) | read-only `EXPERIMENTAL_protocol_config`, finality `final`: on `https://rpc.mainnet.near.org` 2026-10-21T19:15Z (protocol version 86; matches the lead's independent read and the research note `docs/research/near-contract-toolchain.md`), and again on `https://free.rpc.fastnear.com` 2026-11-06T02:23Z (protocol version 87, same value). `rpc.mainnet.near.org` is deprecated and answered HTTP 429 on 2026-11-06 |
 | Gas price | `100000000` yoctoNEAR per gas (0.0001 NEAR per TGas) | read-only `gas_price` on the same endpoint, same time |
 | Prepaid-gas planning price | 0.001 NEAR per TGas (10x the burn price; unused gas is refunded) | research note `docs/research/near-contract-toolchain.md` |
@@ -35,10 +35,10 @@ price, and prints the plan's SHA-256.
 
 | Component | Bytes | Stake (NEAR) |
 |---|---|---|
-| Contract code | 174,583 | 1.74583 |
+| Contract code | 174,618 | 1.74618 |
 | Account record (`num_bytes_account`) | 100 | 0.00100 |
 | Contract state after `new` and one `set_agent` (estimate: config, token list, one agent entry with one payee, record overheads) | about 500 | about 0.00500 |
-| **Total** | **about 175,183** | **about 1.75183** |
+| **Total** | **about 175,218** | **about 1.75218** |
 
 Computation: stake = bytes x 1e19 yoctoNEAR = bytes x 0.00001 NEAR.
 
@@ -72,7 +72,7 @@ cost at the current gas price is one tenth of that.
 | Gas | about 8.4 TGas burnt |
 | Max cost | 1.80 NEAR transfer + about 0.0084 NEAR gas |
 
-1.80 NEAR covers the 1.75183 NEAR stake with about 0.048 NEAR headroom
+1.80 NEAR covers the 1.75218 NEAR stake with about 0.048 NEAR headroom
 (about 4.8 KB of further state, roughly 15 more agent entries).
 
 ### T2. Deploy, initialize, lock
@@ -82,7 +82,7 @@ cost at the current gas price is one tenth of that.
 | Signer | `agent-wallet.<operator>` with `<K_deploy>` |
 | Receiver | `agent-wallet.<operator>` |
 | Actions | `DeployContract` (the wasm above); `FunctionCall new {"owner": "<operator>", "tokens": ["17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1"]}`, deposit 0, gas 30 TGas; `DeleteKey <K_deploy>` |
-| Gas | deploy about 12.5 TGas (174,583 x 71,385,943) + 0.4 TGas base; `new` 30 TGas prepaid; delete key 0.2 TGas |
+| Gas | deploy about 12.5 TGas (174,618 x 71,385,943) + 0.4 TGas base; `new` 30 TGas prepaid; delete key 0.2 TGas |
 | Max cost | about 0.043 NEAR |
 
 `new` is `#[private]`, so it must be called by the wallet account itself in

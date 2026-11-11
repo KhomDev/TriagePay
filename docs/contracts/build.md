@@ -108,17 +108,21 @@ cargo-near wasm build cover the contract code.
 | Item | Value |
 |---|---|
 | File | `contracts/target/near/policy_wallet/policy_wallet.wasm` |
-| Size | 174,583 bytes |
-| SHA-256 | `7a599a50b37fc25961da3e0e2c97a9108eb483ef1b591d1506e08e44bf13a6a2` |
-| SHA-256 (base58, as cargo-near prints) | `9Ebz6ABpWwNkjgst6YoZ48yvkYcbcowRYiBK186Lt9RB` |
-| Built | 2026-11-06 on the Windows build host, from commit `e96f5d0` (the landed layout; contract source unchanged since the spike), rustc 1.98.0, cargo-near 0.21.1, with the path remapping above |
+| Size | 174,618 bytes |
+| SHA-256 | `baad3c689a3638b50602781aa62bc9e221643d7a437f19eecbd20d7968773130` |
+| SHA-256 (base58, as cargo-near prints) | `DZi3U9vP4eeFCKoNAxGMAxVk1isoAHRdKFu1xvBHbjm1` |
+| Built | 2026-11-11 on the Windows build host, from the change that limits the token allowlist to one token (applied on top of commit `ff947af`), rustc 1.98.0, cargo-near 0.21.1, with the path remapping above. Not deployed anywhere yet; the testnet run of 2026-11-06 used the previous build (table below) |
+| Host-path scan | 0 matches for the build host's user, cargo, rustup or checkout paths; panic locations read `/src/...`, `/cargo/...`, `/rustup/...` |
 | Imports | 37 functions, all from module `env` |
 | Exports | `new`, `pay`, `on_pay_complete`, `set_agent`, `revoke_agent`, `set_tokens`, `pause`, `unpause`, `withdraw`, `on_withdraw_complete`, `close`, `on_close_check`, `ft_on_transfer`, `get_agent`, `get_spent`, `get_config`, `contract_source_metadata` |
 
-Earlier builds of the same contract source, none of them deployed anywhere:
+Earlier builds. Only the first row was ever deployed, and only on testnet
+(the 2026-11-06 run in `docs/contracts/policy-wallet.md`; that wallet
+account was deleted by the run's last step):
 
 | Build | Size | SHA-256 | Why it differs |
 |---|---|---|---|
+| Landed layout `e96f5d0`, with remapping, 2026-11-06 (base58 `9Ebz6ABpWwNkjgst6YoZ48yvkYcbcowRYiBK186Lt9RB`) | 174,583 | `7a599a50b37fc25961da3e0e2c97a9108eb483ef1b591d1506e08e44bf13a6a2` | Allowed up to 16 tokens with one shared set of limits; superseded by the one-token rule |
 | Spike, commit `a6b5d8b` (before `close`) | 165,025 | `0e1b5272d3c03f24f3272d19fddc46751ef7aab9449a0b1295e3798ba38408fd` | No `close` |
 | Spike, commit `e1aecff` | 174,798 | `22de525576ea9f8711c8db59cdee6ad06cf221d5f6f818a4499d989d29743c9c` | Host paths embedded (see below) |
 | Landed layout `e96f5d0`, no remapping | 174,803 | `5ccf9e1bfb0f2c4e8dbca9434976e305e99643dd519c2ee3040e7a84d458f887` | Host paths embedded; the 5-byte difference from the spike build was not investigated, because both builds are superseded |
@@ -175,6 +179,11 @@ mainnet hash must come from the reproducible build.
   window index makes a release after a UTC-midnight rollover a no-op
   instead of subtracting from the new day; token and receiver complete the
   `pay_settled` / `pay_failed` events.
+- One token per wallet (2026-11-11). The token allowlist holds at most one
+  token, not sixteen. Limits and the daily total are plain integers in the
+  token's atomic units and are not kept per token, so a second token with
+  different decimals could be moved up to the same integers
+  (`limits_sized_for_one_token_cannot_move_another`).
 - Extra events beyond the prompt's list: `tokens_set` (owner config change
   is auditable), `funded` (`ft_on_transfer`), and `withdraw_failed`.
   `withdrawn` is emitted from a callback on success only, so a failed

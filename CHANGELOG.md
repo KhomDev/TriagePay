@@ -32,6 +32,26 @@ follows Keep a Changelog; the project has not shipped a tagged release.
 - Settlement requires the Running state and a non-zero 32-byte report
   hash; refunds are one-shot; replays never move funds twice.
 
+### Fixed (2026-11-11: money-path review)
+- NEAR provider: a failed transaction hinted at a pending intent no
+  longer closes it. Nothing binds a failed transaction to an intent, so
+  any failed transaction on chain could be used to make a requirement
+  unfundable while its payer's tokens had already moved.
+- NEAR provider: a transfer of the wrong amount carrying the memo is
+  recorded as an orphan and no longer closes the intent; the exact
+  payment still funds it.
+- NEAR provider: intent ids, which double as payment memos and as the
+  x402 request binding, end in a 128-bit nonce from the operating
+  system. They were a process id, a clock and a counter, so the next
+  memo could be computed from the last.
+- API: `POST /accounts/{id}/deposits` and `POST /jobs/{id}/settlements`
+  answer 403 `dev_only_route` unless the mock provider is active. With
+  the NEAR provider the first minted spendable credit with no payment.
+- Policy wallet: the token allowlist holds at most one token. Limits are
+  plain integers in the token's atomic units, so two allowlisted tokens
+  with different decimals let a limit sized for one move the other up to
+  the same number.
+
 ### Added (2026-10-20 session)
 - NEAR payment adapter (aps-near): memo-bound NEP-141 deposit intents
   verified on chain over JSON-RPC with wait_until FINAL; no signing or

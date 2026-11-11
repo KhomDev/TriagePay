@@ -429,7 +429,8 @@ async fn overflow_adjacent_amount_uses_checked_math() -> TestResult {
     fund(&big, &env.owner, env.wallet.id(), u128::MAX)
         .await?
         .into_result()?;
-    env.owner_call("set_tokens", json!({"tokens": [env.token.id(), big.id()]}))
+    // One token per wallet: the large-supply token replaces the default.
+    env.owner_call("set_tokens", json!({"tokens": [big.id()]}))
         .await?
         .into_result()?;
     env.owner_call(

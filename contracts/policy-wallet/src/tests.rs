@@ -143,11 +143,12 @@ fn event_names() -> Vec<String> {
 #[test]
 fn new_initializes_config() {
     as_self().set();
-    let w = PolicyWallet::new(owner(), vec![usdc(), dai(), usdc()]);
+    // A repeated token is one token.
+    let w = PolicyWallet::new(owner(), vec![usdc(), usdc()]);
     let c = w.get_config();
     assert_eq!(c.owner, owner());
     assert!(!c.paused);
-    assert_eq!(c.tokens, vec![dai(), usdc()]);
+    assert_eq!(c.tokens, vec![usdc()]);
     assert_eq!(c.next_payment_id, U64(0));
     assert_eq!(c.event_standard, "aps_policy_wallet");
     assert_eq!(c.event_version, "1.0.0");
@@ -172,6 +173,44 @@ fn new_rejects_too_many_tokens() {
         .map(|i| acc(&format!("t{i}.near")))
         .collect();
     PolicyWallet::new(owner(), tokens);
+}
+
+// One wallet, one denomination: limits and the running total are plain
+// integers in the token's atomic units, with no per-token bookkeeping.
+
+#[test]
+#[should_panic(expected = "ERR_TOO_MANY_TOKENS")]
+fn new_rejects_a_second_token() {
+    as_self().set();
+    PolicyWallet::new(owner(), vec![usdc(), acc("wrap.near")]);
+}
+
+#[test]
+#[should_panic(expected = "ERR_TOO_MANY_TOKENS")]
+fn set_tokens_rejects_a_second_token() {
+    let mut w = setup();
+    as_owner().set();
+    w.set_tokens(vec![usdc(), acc("wrap.near")]);
+}
+
+/// The case the rule exists for. Limits sized for a 24-decimal token
+/// (0.001 per call, 0.003 per day) are, read as a 6-decimal token's
+/// atomic units, 10^15 and 3 x 10^15 whole units. The second token cannot
+/// be allowlisted next to the first, so it cannot be paid at all.
+#[test]
+#[should_panic(expected = "ERR_TOKEN_NOT_ALLOWED")]
+fn limits_sized_for_one_token_cannot_move_another() {
+    let wnear = acc("wrap.near");
+    as_self().set();
+    let mut w = PolicyWallet::new(owner(), vec![wnear]);
+    as_owner().set();
+    let per_call: u128 = 1_000_000_000_000_000_000_000; // 0.001 at 24 decimals
+    let daily: u128 = 3_000_000_000_000_000_000_000; // 0.003 at 24 decimals
+    w.set_agent(agent(), U128(per_call), U128(daily), vec![gateway()]);
+    as_agent().set();
+    // One billion USDC in atomic units: far inside the integer limits.
+    w.pay(usdc(), gateway(), U128(1_000_000_000_000_000), None)
+        .detach();
 }
 
 // ----- pay: happy path and events -------------------------------------------
@@ -722,11 +761,10 @@ fn ft_on_transfer_refuses_other_tokens() {
 
 // ----- close ----------------------------------------------------------------------------
 
-/// A paused wallet with USDC and DAI allowlisted.
-fn paused_two_token_wallet() -> PolicyWallet {
+/// A paused wallet with its one token (USDC) allowlisted.
+fn paused_wallet() -> PolicyWallet {
     let mut w = setup();
     as_owner().set();
-    w.set_tokens(vec![usdc(), dai()]);
     w.pause();
     w
 }
@@ -750,7 +788,7 @@ fn balance(b: u128) -> PromiseResult {
 
 fn close_check(w: &mut PolicyWallet, results: Vec<PromiseResult>) -> Option<bool> {
     as_self().set_with_results(results);
-    match w.on_close_check(owner(), vec![dai(), usdc()]) {
+    match w.on_close_check(owner(), vec![usdc()]) {
         PromiseOrValue::Value(v) => Some(v),
         PromiseOrValue::Promise(p) => {
             p.detach();
@@ -762,7 +800,7 @@ fn close_check(w: &mut PolicyWallet, results: Vec<PromiseResult>) -> Option<bool
 #[test]
 #[should_panic(expected = "exactly 1 yoctoNEAR")]
 fn close_requires_one_yocto_from_owner() {
-    let mut w = paused_two_token_wallet();
+    let mut w = paused_wallet();
     Ctx::new(owner()).set();
     w.close(owner()).detach();
 }
@@ -778,22 +816,23 @@ fn close_requires_paused() {
 #[test]
 #[should_panic(expected = "ERR_SELF_ACCOUNT")]
 fn close_rejects_wallet_as_beneficiary() {
-    let mut w = paused_two_token_wallet();
+    let mut w = paused_wallet();
     as_owner().set();
     w.close(wallet()).detach();
 }
 
 #[test]
 #[should_panic(expected = "ERR_INSUFFICIENT_GAS")]
-fn close_requires_gas_for_every_query() {
-    let mut w = paused_two_token_wallet();
-    as_owner().gas(34).set();
+fn close_requires_gas_for_the_query_and_the_callback() {
+    // 5 TGas for the balance query, 15 for the callback, 10 of headroom.
+    let mut w = paused_wallet();
+    as_owner().gas(29).set();
     w.close(owner()).detach();
 }
 
 #[test]
-fn close_queries_every_allowlisted_token_then_checks() {
-    let mut w = paused_two_token_wallet();
+fn close_queries_the_allowlisted_token_then_checks() {
+    let mut w = paused_wallet();
     as_owner().set();
     w.close(owner()).detach();
     let receipts = get_created_receipts();
@@ -804,7 +843,6 @@ fn close_queries_every_allowlisted_token_then_checks() {
     assert_eq!(
         calls,
         vec![
-            (dai(), "ft_balance_of".to_string()),
             (usdc(), "ft_balance_of".to_string()),
             (wallet(), "on_close_check".to_string()),
         ]
@@ -817,8 +855,8 @@ fn close_queries_every_allowlisted_token_then_checks() {
 
 #[test]
 fn close_check_with_all_zero_balances_deletes_the_account() {
-    let mut w = paused_two_token_wallet();
-    assert_eq!(close_check(&mut w, vec![balance(0), balance(0)]), None);
+    let mut w = paused_wallet();
+    assert_eq!(close_check(&mut w, vec![balance(0)]), None);
     assert_eq!(event_names(), vec!["closed"]);
     assert_eq!(
         events()[0],
@@ -829,11 +867,8 @@ fn close_check_with_all_zero_balances_deletes_the_account() {
 
 #[test]
 fn close_check_with_a_nonzero_balance_refuses() {
-    let mut w = paused_two_token_wallet();
-    assert_eq!(
-        close_check(&mut w, vec![balance(0), balance(7)]),
-        Some(false)
-    );
+    let mut w = paused_wallet();
+    assert_eq!(close_check(&mut w, vec![balance(7)]), Some(false));
     assert_eq!(
         events(),
         vec![
@@ -846,20 +881,20 @@ fn close_check_with_a_nonzero_balance_refuses() {
 
 #[test]
 fn close_check_with_a_failed_query_refuses() {
-    let mut w = paused_two_token_wallet();
+    let mut w = paused_wallet();
     assert_eq!(
-        close_check(&mut w, vec![PromiseResult::Failed, balance(0)]),
+        close_check(&mut w, vec![PromiseResult::Failed]),
         Some(false)
     );
-    assert!(events()[0].contains(r#"{"token":"dai.near","balance":null}"#));
+    assert!(events()[0].contains(r#"{"token":"usdc.near","balance":null}"#));
     assert!(delete_beneficiaries().is_empty());
 }
 
 #[test]
 fn close_check_with_an_unreadable_balance_refuses() {
-    let mut w = paused_two_token_wallet();
+    let mut w = paused_wallet();
     let garbage = PromiseResult::Successful(b"\"not a number\"".to_vec());
-    assert_eq!(close_check(&mut w, vec![balance(0), garbage]), Some(false));
+    assert_eq!(close_check(&mut w, vec![garbage]), Some(false));
     assert_eq!(event_names(), vec!["close_refused"]);
     assert!(delete_beneficiaries().is_empty());
 }

@@ -51,8 +51,16 @@ pub const ERR_NOT_PAUSED: &str = "ERR_NOT_PAUSED";
 
 /// Largest accepted memo, in bytes.
 pub const MAX_MEMO_LEN: usize = 256;
-/// Largest token allowlist.
-pub const MAX_TOKENS: usize = 16;
+/// Largest token allowlist: one token per wallet.
+///
+/// An agent's `per_call_max`, `daily_max` and running total are plain
+/// integers in the token's atomic units, and they are not kept per token.
+/// With two tokens of different decimals allowlisted, a limit sized for
+/// one would let the agent move the other up to the same number: 0.003
+/// of a 24-decimal token is 3 x 10^21 atomic units, which is 3 x 10^15
+/// whole units of a 6-decimal one. One wallet therefore holds one
+/// denomination; a second token needs a second wallet.
+pub const MAX_TOKENS: usize = 1;
 
 /// Gas attached to each `ft_transfer`.
 pub const GAS_FT_TRANSFER: Gas = Gas::from_tgas(15);
@@ -186,7 +194,10 @@ fn normalize_tokens(mut tokens: Vec<AccountId>) -> Vec<AccountId> {
     tokens.sort();
     tokens.dedup();
     if tokens.len() > MAX_TOKENS {
-        fail_with(ERR_TOO_MANY_TOKENS, "token allowlist is too long");
+        fail_with(
+            ERR_TOO_MANY_TOKENS,
+            "one token per wallet: limits are in that token's atomic units",
+        );
     }
     if tokens.contains(&env::current_account_id()) {
         fail_with(ERR_SELF_ACCOUNT, "the wallet cannot be its own token");
@@ -197,7 +208,8 @@ fn normalize_tokens(mut tokens: Vec<AccountId>) -> Vec<AccountId> {
 #[near]
 impl PolicyWallet {
     /// Initialize the wallet. Callable once, and only by the wallet account
-    /// itself (deploy and `new` go in one batch transaction).
+    /// itself (deploy and `new` go in one batch transaction). `tokens`
+    /// holds at most one token (see [`MAX_TOKENS`]).
     #[init]
     #[private]
     pub fn new(owner: AccountId, tokens: Vec<AccountId>) -> Self {
@@ -410,7 +422,12 @@ impl PolicyWallet {
         WalletEvent::AgentRevoked { agent_id }.emit();
     }
 
-    /// Replace the token allowlist.
+    /// Replace the token allowlist (at most one token, see [`MAX_TOKENS`]).
+    ///
+    /// Changing to a different token changes the unit every agent's limits
+    /// and current-day total are read in; the numbers themselves stay.
+    /// Pause first, then call `set_agent` for every agent with limits in
+    /// the new token's atomic units before unpausing.
     #[payable]
     pub fn set_tokens(&mut self, tokens: Vec<AccountId>) {
         self.assert_owner();

@@ -13,7 +13,12 @@ Status: unit and property tests pass on the Windows build host; the sandbox
 integration tests are written but have only been compiled, not run (the
 sandbox has no Windows build; Linux CI runs them). A zero-value testnet
 end-to-end run passed all 28 steps on 2026-11-06 (see "Testnet evidence").
-Nothing has been deployed to mainnet.
+That run used the build before the one-token rule (2026-11-11); the current
+build has not been deployed anywhere. Nothing has been deployed to mainnet.
+
+One wallet holds one token. An agent's `per_call_max`, `daily_max` and
+daily total are plain integers in that token's atomic units, with no
+per-token bookkeeping, so a second token needs a second wallet.
 
 ## Interface
 
@@ -22,12 +27,12 @@ and ids are JSON strings (`U64`).
 
 | Method | Caller | Deposit | Prepaid gas (enforced minimum, or a planning value not yet measured) | Effect |
 |---|---|---|---|---|
-| `new(owner, tokens)` | the wallet account itself (`#[init]`, `#[private]`) | 0 | 30 TGas | Initialize once; `tokens` is the NEP-141 allowlist (max 16) |
+| `new(owner, tokens)` | the wallet account itself (`#[init]`, `#[private]`) | 0 | 30 TGas | Initialize once; `tokens` is the NEP-141 allowlist: at most one token, the unit every limit is read in |
 | `pay(token, receiver_id, amount, memo?)` | a registered agent (predecessor) | exactly 0 | >= 35 TGas (50 recommended) | Check policy, reserve, `ft_transfer` with 1 yocto, then `on_pay_complete`. Returns the promise |
 | `on_pay_complete(agent_id, token, receiver_id, amount, payment_id, window_index)` | the wallet itself (`#[private]`) | - | 10 TGas (static) | `pay_settled`, or release the reservation and `pay_failed`; returns `true` when settled |
 | `set_agent(agent_id, per_call_max, daily_max, payees)` | owner | exactly 1 yocto | 10 TGas | Create or reconfigure and activate an agent; an existing agent keeps its spend window |
 | `revoke_agent(agent_id)` | owner | exactly 1 yocto | 10 TGas | Deactivate; spend window kept |
-| `set_tokens(tokens)` | owner | exactly 1 yocto | 10 TGas | Replace the token allowlist |
+| `set_tokens(tokens)` | owner | exactly 1 yocto | 10 TGas | Replace the token allowlist (at most one token). A different token changes the unit of every agent's limits and current-day total: pause first, then `set_agent` each agent with limits in the new token's atomic units |
 | `pause()` / `unpause()` | owner | exactly 1 yocto | 10 TGas | Stop / resume every `pay` |
 | `withdraw(token, amount, to)` | owner | exactly 1 yocto | >= 35 TGas | `ft_transfer` any held token to `to` (works while paused) |
 | `on_withdraw_complete(token, amount, to)` | the wallet itself (`#[private]`) | - | 10 TGas (static) | `withdrawn` or `withdraw_failed` |
@@ -82,7 +87,7 @@ Every refusal panics with `CODE: description`; the code is stable.
 | `ERR_DEPOSIT_NOT_ZERO` | `pay` | A deposit was attached |
 | `ERR_INSUFFICIENT_GAS` | `pay`, `withdraw` | Less than 35 TGas prepaid |
 | `ERR_MEMO_TOO_LONG` | `pay` | Memo over 256 bytes |
-| `ERR_TOO_MANY_TOKENS` | `new`, `set_tokens` | More than 16 tokens |
+| `ERR_TOO_MANY_TOKENS` | `new`, `set_tokens` | More than one token |
 | `ERR_SELF_ACCOUNT` | `new`, `set_agent`, `set_tokens`, `withdraw`, `close` | The wallet itself used as owner, agent, payee, token, destination or beneficiary |
 | `ERR_NOT_PAUSED` | `close` | Pause the wallet before closing |
 | `Requires attached deposit of exactly 1 yoctoNEAR` | owner methods | near-sdk `assert_one_yocto`; what any function-call key hits |
@@ -100,7 +105,8 @@ Every refusal panics with `CODE: description`; the code is stable.
 | Redeploy or re-init by a third party | `new` is private and init-once; the wallet account keeps no access keys after the deploy batch | None while no key exists on the wallet account |
 | Callback failure (out of gas) | `pay` refuses less than 35 TGas; the callback never panics | If it did fail, the reservation stays counted (fails closed: budget lost for the day, no tokens lost) |
 | Downstream `ft_transfer` fails (receiver not storage-registered, token paused) | Callback releases the reservation and emits `pay_failed` | None; tokens never left |
-| Griefing via storage | Only the owner adds agents; `pay` writes fixed-size state; payee and token lists are bounded (32, 16); memos are not stored | Owner-driven storage only |
+| Limits read in the wrong unit | Limits are plain integers in the token's atomic units. The allowlist holds at most one token, so a limit sized for one token can never be applied to another with different decimals | Owner error: `set_tokens` to a different token keeps every agent's numbers and re-reads them in the new unit; pause, then `set_agent` each agent |
+| Griefing via storage | Only the owner adds agents; `pay` writes fixed-size state; payee and token lists are bounded (32, 1); memos are not stored | Owner-driven storage only |
 | Limit-window edge cases | UTC day from block timestamp; last nanosecond of a day is the same window; a release after midnight is a no-op (`window_expired`) instead of refunding the new day; a backwards clock keeps counting instead of resetting; revoke and re-add keeps the window | A burst across midnight can spend up to 2 x `daily_max` within minutes (one full limit per calendar day) |
 | Concurrent pays | NEAR executes one receipt at a time per account; each `pay` sees the previous reservation | None |
 | Non-standard token behaviour | Only allowlisted tokens are accepted or paid | Depends on the allowlisted token contracts |
@@ -129,7 +135,8 @@ executed), and the numbered testnet steps above.
 | Limit-window edge at UTC midnight | Window = UTC day of the block timestamp; a backwards clock keeps counting; revoke and re-add keeps the window | Unit `window_rolls_over_at_utc_midnight`, `set_agent_reconfigure_keeps_the_window`; sandbox `window_rolls_over_after_fast_forward`; property `rollover_resets_correctly` | Up to 2 x `daily_max` within minutes across midnight |
 | Premature or hostile `close` | Owner only, exactly 1 yocto, paused only; deletes only when every allowlisted token balance reads zero; a failed or unreadable query refuses | Unit `close_requires_paused`, `close_check_with_a_nonzero_balance_refuses`, `close_check_with_a_failed_query_refuses`; sandbox `close_is_owner_only_and_requires_paused`, `close_is_refused_while_tokens_remain`; testnet step 26 | Tokens held but no longer allowlisted are not checked (withdraw them first); a non-existent beneficiary loses the NEAR |
 | Storage stake locked forever in a keyless wallet | `close` deletes the account and returns its whole NEAR balance to the beneficiary | Unit `close_check_with_all_zero_balances_deletes_the_account`; sandbox `close_after_withdrawing_everything_deletes_the_wallet`; testnet step 28 (1.74951 NEAR stake returned) | The wallet's NEP-145 storage deposit on each token (0.00125 NEAR for USDC) stays with the token contract |
-| Storage griefing | Only the owner adds agents; payee and token lists are bounded (32, 16); memos are not stored | Unit `set_agent_rejects_too_many_payees`, `new_rejects_too_many_tokens`, `pay_with_long_memo` | Owner-driven storage only |
+| Limits sized for one token applied to another (for example 0.003 of a 24-decimal token is 3 x 10^21 atomic units, which is 3 x 10^15 whole units of a 6-decimal one) | The token allowlist holds at most one token; limits and the daily total are in that token's atomic units | Unit `new_rejects_a_second_token`, `set_tokens_rejects_a_second_token`, `limits_sized_for_one_token_cannot_move_another` | Owner error only: replacing the token with `set_tokens` re-reads every agent's limits in the new unit until `set_agent` is called again |
+| Storage griefing | Only the owner adds agents; payee and token lists are bounded (32, 1); memos are not stored | Unit `set_agent_rejects_too_many_payees`, `new_rejects_too_many_tokens`, `pay_with_long_memo` | Owner-driven storage only |
 | Non-standard or hostile token | Only allowlisted tokens are accepted (`ft_on_transfer`) or paid | Unit `ft_on_transfer_refuses_other_tokens`, `pay_with_disallowed_token`; sandbox `disallowed_token_is_refused` | Depends on the allowlisted token contract; native USDC's account holds a full-access key, so its issuer can upgrade it |
 | Build-host details published with the code | The wasm is built with `--remap-path-prefix` for the cargo home, rustup home and checkout; CI fails if the runner's home path survives; both scripts refuse a wasm containing a host path | `docs/contracts/build.md` string scan (zero hits); the CI step "Print wasm size and SHA-256, and check for host paths"; testnet step 5 deployed the remapped build | The build is not reproducible yet, so a third party cannot re-derive the deployed hash from source |
 
@@ -160,7 +167,7 @@ signs on mainnet). In order:
 |---|---|---|
 | `policy-core` unit | 25 | any host |
 | `policy-core` property (proptest) | 3 | any host |
-| `policy-wallet` unit (near-sdk mocked runtime) | 62 | any host |
+| `policy-wallet` unit (near-sdk mocked runtime) | 65 | any host |
 | `test-token` unit | 3 | any host |
 | Sandbox integration (near-workspaces) | 18 | Linux CI only; written, not yet executed |
 | Testnet end-to-end (`scripts/testnet/wallet-e2e.mjs`) | 28 steps | testnet, 2026-11-06; all passed |
@@ -176,7 +183,7 @@ checked; all 28 passed.
 
 | Item | Value |
 |---|---|
-| Wasm | 174,583 bytes, SHA-256 `7a599a50b37fc25961da3e0e2c97a9108eb483ef1b591d1506e08e44bf13a6a2` (base58 `9Ebz6ABpWwNkjgst6YoZ48yvkYcbcowRYiBK186Lt9RB`), the build in `docs/contracts/build.md` |
+| Wasm | 174,583 bytes, SHA-256 `7a599a50b37fc25961da3e0e2c97a9108eb483ef1b591d1506e08e44bf13a6a2` (base58 `9Ebz6ABpWwNkjgst6YoZ48yvkYcbcowRYiBK186Lt9RB`): the 2026-11-06 build, listed under "Earlier builds" in `docs/contracts/build.md`. It predates the one-token rule; the run allowlisted one token, so no step depends on the difference |
 | Accounts | owner `apsw-27c724-owner.testnet`, agent `apsw-27c724-agent.testnet`, payee `apsw-27c724-payee.testnet`, wallet `apsw-27c724-wallet.testnet` (deleted by step 28) |
 | Token | `wrap.testnet` (wNEAR, 24 decimals); policy per-call 0.001, daily 0.003, payees `[payee]` |
 | Funding | official testnet faucet (5 NEAR to an implicit funder account); the 2026-10-21 attempt had been rate-limited |
