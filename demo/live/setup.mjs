@@ -250,12 +250,14 @@ async function main() {
       payees: [accounts.payee],
     }, 30, 1n),
   ]);
-  // Amounts above the small demo payment, and any payee outside the
-  // allowlist, wait for the owner. Equal to the allowed amount still pays.
+  // Amounts above the small demo payment wait for the owner. Equal to the
+  // allowed amount still pays. Unknown payees stay ERR_PAYEE_NOT_ALLOWED, so
+  // the injected-payee attack is still a refusal on chain. Set
+  // TRIAGEPAY_REVIEW_UNKNOWN_PAYEES=1 to queue them for the owner instead.
   await must("set_review", "owner", accounts.wallet, [
     await functionCall("set_review_policy", {
       approval_threshold: ALLOWED.toString(),
-      review_unknown_payees: true,
+      review_unknown_payees: process.env.TRIAGEPAY_REVIEW_UNKNOWN_PAYEES === "1",
     }, 30, 1n),
   ]);
 

@@ -1,0 +1,59 @@
+{
+  "date": "2026-11-12T21:36:10.872Z",
+  "signer": "v1.signer-prod.testnet",
+  "predecessor": "tpd-e947e7-owner.testnet",
+  "path": "base-sepolia-1",
+  "domainId": 0,
+  "rootPublicKey": "secp256k1:4NfTiv3UsGahebgTaHyD9vF8KYKMBnfd6kh94mK6xv8fGBiJB8TBtFMP5WWXz6B89Ac1fbpzPwAvoyQebemHFwx3",
+  "derivedPublicKey": "secp256k1:4BktUHkTqEmDUtWneJsiC4LFjFGuWp5P1eMQ3VeUCMtMdsMvKnjtPueNVpeNYR8aRzpeSgTTf4KJuBQTNMzVimZV",
+  "derivationMatchesLocal": true,
+  "evmAddress": "0x508e984fda3bc37d8c33bfb5098441fd2169fcc8",
+  "baseSepolia": {
+    "rpc": "https://sepolia.base.org",
+    "chainId": 84532,
+    "balanceWei": "0",
+    "nonce": "0"
+  },
+  "unsignedTx": {
+    "chainId": 84532,
+    "nonce": "0",
+    "maxPriorityFeePerGas": "1000000",
+    "maxFeePerGas": "13000000",
+    "gasLimit": "80000",
+    "to": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "value": "0",
+    "data": "0xa9059cbb000000000000000000000000000000000000000000000000000000000000dead0000000000000000000000000000000000000000000000000000000000002710"
+  },
+  "erc20": {
+    "token": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "recipient": "0x000000000000000000000000000000000000dEaD",
+    "amount": "10000",
+    "decimals": 6
+  },
+  "payload": "f228b2c29745e87c425566d3c4bc2cf11d522c7ec3cd23a5bb3a912d39ef16a1",
+  "nearSignTx": "aeaL3TZAsYyV6kEGVCvm3ppzfc56cvP8pAsCVKrifVM",
+  "nearSignTxUrl": "https://testnet.nearblocks.io/txns/aeaL3TZAsYyV6kEGVCvm3ppzfc56cvP8pAsCVKrifVM",
+  "mpcAnswer": {
+    "scheme": "Secp256k1",
+    "big_r": {
+      "affine_point": "0211c3aa365f431bd51d6676bab903192d18e347aec626aa3c022d3687fe0af2e7"
+    },
+    "s": {
+      "scalar": "011d446a5756ccdcd73f93ad277c2214eab6aab9d767844fafe161a8ecd7c361"
+    },
+    "recovery_id": 1
+  },
+  "signature": {
+    "r": "11c3aa365f431bd51d6676bab903192d18e347aec626aa3c022d3687fe0af2e7",
+    "s": "011d446a5756ccdcd73f93ad277c2214eab6aab9d767844fafe161a8ecd7c361",
+    "yParity": 1
+  },
+  "recoveredAddress": "0x508e984fda3bc37d8c33bfb5098441fd2169fcc8",
+  "recoversToDerived": true,
+  "verifiesAgainstDerivedKey": true,
+  "signedRawTx": "0x02f8b183014a3480830f424083c65d408301388094036cbd53842c5426634e7929541ec2318f3dcf7e80b844a9059cbb000000000000000000000000000000000000000000000000000000000000dead0000000000000000000000000000000000000000000000000000000000002710c001a011c3aa365f431bd51d6676bab903192d18e347aec626aa3c022d3687fe0af2e7a0011d446a5756ccdcd73f93ad277c2214eab6aab9d767844fafe161a8ecd7c361",
+  "evmTxHash": "0x21744b81fb83b61891185ab869d3a1c4bc8e0aaa8d690467ef7cf3f0b0c8f188",
+  "broadcast": {
+    "skipped": "the derived address holds no Base Sepolia ETH for gas"
+  }
+}

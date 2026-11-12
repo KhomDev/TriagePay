@@ -6,39 +6,35 @@
   "explorerTxBase": "https://testnet.nearblocks.io/txns/",
   "explorerAccountBase": "https://testnet.nearblocks.io/address/",
   "accounts": {
-    "funder": "09dd1979bf53e2ccf13d6a59235240a6e5675c60f41727926812fad6f63bb127",
-    "owner": "tpd-797021-owner.testnet",
-    "agent": "tpd-797021-agent.testnet",
-    "wallet": "tpd-797021-wallet2.testnet",
+    "funder": "bc9cbcfca086166f977577d4c0b667036bc31fcd6074cbedca39d6b54cad2177",
+    "owner": "tpd-e947e7-owner.testnet",
+    "agent": "tpd-e947e7-agent.testnet",
+    "wallet": "tpd-e947e7-wallet.testnet",
     "token": "wrap.testnet",
-    "payee": "tpd-797021-payee.testnet",
-    "injected": "tpd-797021-injected.testnet",
-    "flagged": "tpd-797021-flagged.testnet"
+    "payee": "tpd-e947e7-payee.testnet",
+    "injected": "tpd-e947e7-injected.testnet",
+    "flagged": "tpd-e947e7-flagged.testnet"
   },
   "creationTx": {
-    "tpd-797021-owner.testnet": {
-      "hash": "DEi3RqKhHsh3RLHqCS7WLK5PkVFLz9SKzYn3Cnqc3uLS",
-      "signer": "09dd1979bf53e2ccf13d6a59235240a6e5675c60f41727926812fad6f63bb127"
+    "tpd-e947e7-owner.testnet": {
+      "hash": "9ZQWjMR1UBF1U7dADzgzCt7PWo1GXQ8T98EYcWuiZ7kZ",
+      "signer": "bc9cbcfca086166f977577d4c0b667036bc31fcd6074cbedca39d6b54cad2177"
     },
-    "tpd-797021-agent.testnet": {
-      "hash": "5Zm44NTcy6jqbHC9jFTPrVbHQ5FqX7vfCdVc62C6QNSh",
-      "signer": "09dd1979bf53e2ccf13d6a59235240a6e5675c60f41727926812fad6f63bb127"
+    "tpd-e947e7-agent.testnet": {
+      "hash": "DjK1c4XAUHgfD2uwGVf62Bf2xa7aqL3inwz5GT9pdNDK",
+      "signer": "bc9cbcfca086166f977577d4c0b667036bc31fcd6074cbedca39d6b54cad2177"
     },
-    "tpd-797021-payee.testnet": {
-      "hash": "iobBX8yBVG3L138fjKuXDWUMx361oqyNYKDk9LVKEyB",
-      "signer": "09dd1979bf53e2ccf13d6a59235240a6e5675c60f41727926812fad6f63bb127"
+    "tpd-e947e7-payee.testnet": {
+      "hash": "CicB2zzizhYRFwUrZWxs64SpUDbp873mQLyqDKhyYMUH",
+      "signer": "bc9cbcfca086166f977577d4c0b667036bc31fcd6074cbedca39d6b54cad2177"
     },
-    "tpd-797021-flagged.testnet": {
-      "hash": "FyZjAWi3wTPzpUccjTGjWkVRiBh4T4XnSbS9ZJQamWsF",
-      "signer": "09dd1979bf53e2ccf13d6a59235240a6e5675c60f41727926812fad6f63bb127"
+    "tpd-e947e7-flagged.testnet": {
+      "hash": "ApbkqpNyorB8aDLTqRXPnTKMBnHBxowR9r7fYRXBeDK5",
+      "signer": "bc9cbcfca086166f977577d4c0b667036bc31fcd6074cbedca39d6b54cad2177"
     },
-    "tpd-797021-wallet.testnet": {
-      "hash": "A856oUMkMD1Sx7Ktt15kf5j6wM9U98zSw5XaPsMdkHKW",
-      "signer": "09dd1979bf53e2ccf13d6a59235240a6e5675c60f41727926812fad6f63bb127"
-    },
-    "tpd-797021-wallet2.testnet": {
-      "hash": "72LXwPBhiNMfWQhGocPBXNwLRfiu2bXvbLT2BEMK7b2",
-      "signer": "tpd-797021-owner.testnet"
+    "tpd-e947e7-wallet.testnet": {
+      "hash": "2krtunHP679qvSKF7JM9CuocXMopU3BJNv8gpaGrYPQv",
+      "signer": "bc9cbcfca086166f977577d4c0b667036bc31fcd6074cbedca39d6b54cad2177"
     }
   },
   "policy": {
@@ -47,14 +43,14 @@
     "allowedAmount": "100000000000000000000",
     "decimals": 24,
     "payees": [
-      "tpd-797021-payee.testnet"
+      "tpd-e947e7-payee.testnet"
     ]
   },
   "flaggedAccounts": [
-    "tpd-797021-flagged.testnet"
+    "tpd-e947e7-flagged.testnet"
   ],
   "verifiedCodeHashes": [
-    "2KFB5QmHZa95tY5kpepdnf4M6aYD6iM15GCPNbUWG6Sh"
+    "6aaVftHnCQMpV6p7AqsmQro3qiKsfUqfD1C5a4HJhDaD"
   ],
   "newAccountWindowMs": 604800000,
   "cooldownSeconds": 20,

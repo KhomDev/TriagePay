@@ -143,7 +143,9 @@
       "Approval threshold " + (review.approvalThreshold || "0") + ". " +
       (review.pendingCount || 0) + " waiting."
     ));
-    $("btn-queue").disabled = !review.reviewUnknownPayees || state.busy;
+    state.queueScenario = review.reviewUnknownPayees ? "review-payee" : (BigInt(review.approvalThreshold || "0") > 0n ? "above-threshold" : null);
+    $("btn-queue").textContent = state.queueScenario === "review-payee" ? "Queue a new payee" : "Queue a payment above the threshold";
+    $("btn-queue").disabled = !state.queueScenario || state.busy;
     var rows = review.pending || [];
     if (!rows.length) {
       root.appendChild(el("p", { class: "hint" }, "Nothing is waiting."));
@@ -381,9 +383,9 @@
   async function onQueue() {
     if (state.busy) return;
     state.busy = true;
-    paintResult($("review-result"), "Asking the wallet to hold a new payee…", false);
+    paintResult($("review-result"), state.queueScenario === "above-threshold" ? "Asking the wallet to hold a payment above the threshold." : "Asking the wallet to hold a new payee…", false);
     try {
-      var result = await api("/api/run", { scenario: "review-payee" });
+      var result = await api("/api/run", { scenario: state.queueScenario || "review-payee" });
       if (!result.ok) paintResult($("review-result"), errorText(result), true);
       else paintResult($("review-result"), result.json, false);
     } finally {

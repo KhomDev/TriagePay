@@ -3,3 +3,4 @@ export { payPerCall, encodeHeader, decodeHeader, selectRequirement, buildPayment
 export { nearAiPaymentTool } from "./nearai.js";
 export { erc20TransferCalldata, ecdsaSignRequest, TESTNET_SIGNER, MAINNET_SIGNER, BASE_SEPOLIA_USDC } from "./chainsig.js";
 export { keccak256, keccak256Hex } from "./keccak.js";
+export { base58Decode, rlpEncode, eip1559SigningHash, signedEip1559, evmAddressFromNearKey, normalizeMpcSignature } from "./evm.js";
