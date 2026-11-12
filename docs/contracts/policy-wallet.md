@@ -87,7 +87,7 @@ Every refusal panics with `CODE: description`; the code is stable.
 | `ERR_INVALID_POLICY` | `set_agent` | `per_call_max` is 0, `daily_max < per_call_max`, or more than 32 payees |
 | `ERR_RELEASE_MISMATCH` | policy core only | A release larger than the window (the contract logs `mismatch` instead of panicking) |
 | `ERR_NOT_OWNER` | owner methods | Predecessor is not the owner |
-| `ERR_DEPOSIT_NOT_ZERO` | `pay` | A deposit was attached |
+| `ERR_DEPOSIT_NOT_ZERO` | `pay` | A deposit was attached. On chain this code is not reached: `pay` is not `#[payable]`, so near-sdk's entry point refuses any deposit first with `Smart contract panicked: Method pay doesn't accept deposit` (sandbox `agent_full_access_key_is_not_the_owner`). The check remains for direct calls, as in the unit tests |
 | `ERR_INSUFFICIENT_GAS` | `pay`, `withdraw` | Less than 35 TGas prepaid |
 | `ERR_MEMO_TOO_LONG` | `pay` | Memo over 256 bytes |
 | `ERR_TOO_MANY_TOKENS` | `new`, `set_tokens` | More than one token |

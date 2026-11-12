@@ -426,13 +426,16 @@ async fn overflow_adjacent_amount_uses_checked_math() -> TestResult {
     let big = deploy_token(&env.root, "big", &env.owner, u128::MAX).await?;
     register(&big, &env.owner, env.wallet.id()).await?;
     register(&big, &env.owner, env.gateway.id()).await?;
-    fund(&big, &env.owner, env.wallet.id(), u128::MAX)
-        .await?
-        .into_result()?;
     // One token per wallet: the large-supply token replaces the default.
+    // It must be allowlisted before funding, or ft_on_transfer refuses it
+    // and the token refunds the transfer.
     env.owner_call("set_tokens", json!({"tokens": [big.id()]}))
         .await?
         .into_result()?;
+    fund(&big, &env.owner, env.wallet.id(), u128::MAX)
+        .await?
+        .into_result()?;
+    assert_eq!(env.balance_on(big.id(), env.wallet.id()).await?, u128::MAX);
     env.owner_call(
         "set_agent",
         json!({
@@ -591,7 +594,12 @@ async fn agent_full_access_key_is_not_the_owner() -> TestResult {
         .await?;
     assert_refused(&res, "ERR_NOT_OWNER");
     assert_eq!(env.balance(env.wallet.id()).await?, wallet0);
-    // pay also refuses an attached deposit from a full-access key.
+    // pay also refuses an attached deposit from a full-access key. `pay` is
+    // not #[payable], so near-sdk's generated entry point refuses the
+    // deposit before the method body runs; the contract's own
+    // ERR_DEPOSIT_NOT_ZERO check is reached only by a direct (unit-test)
+    // call. Either way nothing moves.
+    let snapshot = env.snapshot().await?;
     let res = env
         .agent_full
         .call(env.wallet.id(), "pay")
@@ -600,7 +608,8 @@ async fn agent_full_access_key_is_not_the_owner() -> TestResult {
         .gas(PAY_GAS)
         .transact()
         .await?;
-    assert_refused(&res, "ERR_DEPOSIT_NOT_ZERO");
+    assert_refused(&res, "doesn't accept deposit");
+    assert_eq!(env.snapshot().await?, snapshot);
     Ok(())
 }
 
@@ -769,10 +778,13 @@ async fn close_after_withdrawing_everything_deletes_the_wallet() -> TestResult {
     .await?
     .into_result()?;
     assert_eq!(env.balance(env.wallet.id()).await?, 0);
+    // The beneficiary signs nothing, so no gas charge or refund of its own
+    // lands in the measurement (the owner's do: it signs every call here).
+    let beneficiary = sub(&env.root, "beneficiary", 1).await?;
     let wallet_near = env.worker.view_account(env.wallet.id()).await?.balance;
-    let owner_before = env.worker.view_account(env.owner.id()).await?.balance;
+    let before = env.worker.view_account(beneficiary.id()).await?.balance;
     let res = env
-        .owner_call("close", json!({"beneficiary": env.owner.id()}))
+        .owner_call("close", json!({"beneficiary": beneficiary.id()}))
         .await?;
     assert!(res.is_success(), "{:?}", res.failures());
     assert!(has_event(&res, "closed"));
@@ -780,15 +792,17 @@ async fn close_after_withdrawing_everything_deletes_the_wallet() -> TestResult {
         env.worker.view_account(env.wallet.id()).await.is_err(),
         "wallet account still exists"
     );
-    let owner_after = env.worker.view_account(env.owner.id()).await?.balance;
-    // The owner receives the wallet's whole NEAR balance (stake included),
-    // less the gas the owner paid for the close transaction.
-    let gained = owner_after.as_yoctonear() as i128 - owner_before.as_yoctonear() as i128;
-    let expected = wallet_near.as_yoctonear() as i128;
-    let tolerance = NearToken::from_millinear(50).as_yoctonear() as i128;
+    let after = env.worker.view_account(beneficiary.id()).await?.balance;
+    // The beneficiary receives the wallet's whole NEAR balance, stake
+    // included. The wallet can only have grown since it was read (the
+    // contract account earns a share of the gas its receipts burn), so
+    // the gain is at least the balance read, and not much more.
+    let gained = after.as_yoctonear() - before.as_yoctonear();
+    let held = wallet_near.as_yoctonear();
+    let tolerance = NearToken::from_millinear(50).as_yoctonear();
     assert!(
-        (expected - gained).abs() < tolerance,
-        "owner gained {gained}, wallet held {expected}"
+        gained >= held && gained - held < tolerance,
+        "beneficiary gained {gained}, wallet held {held}"
     );
     Ok(())
 }
