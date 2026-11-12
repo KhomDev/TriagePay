@@ -93,12 +93,21 @@ impl ScanLauncher {
     /// schema authority. This must be called without a ledger lock held
     /// so a slow scan never blocks other accounts.
     pub async fn launch(&self, envelope_json: &str) -> Result<ScanOutcome, ScanBridgeError> {
-        let mut child = Command::new(&self.python)
+        let mut command = Command::new(&self.python);
+        command
             .arg("-m")
             .arg("aps_scanner")
             .arg("--sku")
             .arg(self.sku)
-            .current_dir(&self.scanner_dir)
+            .current_dir(&self.scanner_dir);
+        // The scanner runs in its own directory, so a relative path in one
+        // of these variables would resolve against the wrong folder and the
+        // judge would fail closed without saying why. Resolve them against
+        // this process's working directory first.
+        for (name, path) in relative_path_overrides() {
+            command.env(name, path);
+        }
+        let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -130,6 +139,33 @@ impl ScanLauncher {
         .map_err(|err| ScanBridgeError::Launch(format!("scanner did not run: {err}")))?;
         parse_output(output.status, &output.stdout, &output.stderr)
     }
+}
+
+/// Path variables the scanner and the model judge read.
+pub const PATH_VARIABLES: [&str; 3] = [
+    "APS_TRIAGE_CASSETTES",
+    "APS_TRIAGE_CACHE_DIR",
+    "APS_TRIAGE_MODEL_DIR",
+];
+
+/// Absolute values for the path variables that are set to a relative path,
+/// resolved against the current working directory.
+pub fn relative_path_overrides() -> Vec<(&'static str, PathBuf)> {
+    let Ok(cwd) = std::env::current_dir() else {
+        return Vec::new();
+    };
+    PATH_VARIABLES
+        .iter()
+        .filter_map(|name| {
+            let value = std::env::var(name).ok()?;
+            let value = value.trim();
+            if value.is_empty() {
+                return None;
+            }
+            let path = PathBuf::from(value);
+            (!path.is_absolute()).then(|| (*name, cwd.join(path)))
+        })
+        .collect()
 }
 
 fn default_python() -> String {
