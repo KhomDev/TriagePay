@@ -5,6 +5,15 @@ follows Keep a Changelog; the project has not shipped a tagged release.
 
 ## [Unreleased]
 
+### Added
+- Hosted judge demo (`demo/live`). A page deployable to Vercel where a
+  judge runs a prompt-injected payment, an over-limit payment, and a
+  flagged-payee payment on NEAR testnet and gets explorer links for the
+  refusals and for an allowed payment. A pre-payment risk check classifies
+  the payee (allow, warn, or block) from testnet account facts. The same
+  page shows today's spend against the daily limit and a Revoke button.
+  Signing keys are environment variables.
+
 ### Changed
 - The product is renamed from AgentPay Sentinel to TriagePay (ADR-0013).
   Crate, package and environment-variable names keep the `aps` prefix.

@@ -81,3 +81,14 @@ jobs:
         run: python -m pytest tests -q
       - name: UI tests (static checks; browser-hash parity with the runner's Node)
         run: python -m pytest ui/tests -q
+  live-demo:
+    name: Hosted demo unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Risk check, attacks, cooldown
+        working-directory: demo/live
+        run: npm ci && npm test

@@ -1,0 +1,62 @@
+{
+  "ready": true,
+  "network": "testnet",
+  "rpcUrl": "https://test.rpc.fastnear.com",
+  "indexerAccountsBase": "https://api-testnet.nearblocks.io/v3/accounts/",
+  "explorerTxBase": "https://testnet.nearblocks.io/txns/",
+  "explorerAccountBase": "https://testnet.nearblocks.io/address/",
+  "accounts": {
+    "funder": "09dd1979bf53e2ccf13d6a59235240a6e5675c60f41727926812fad6f63bb127",
+    "owner": "tpd-797021-owner.testnet",
+    "agent": "tpd-797021-agent.testnet",
+    "wallet": "tpd-797021-wallet2.testnet",
+    "token": "wrap.testnet",
+    "payee": "tpd-797021-payee.testnet",
+    "injected": "tpd-797021-injected.testnet",
+    "flagged": "tpd-797021-flagged.testnet"
+  },
+  "creationTx": {
+    "tpd-797021-owner.testnet": {
+      "hash": "DEi3RqKhHsh3RLHqCS7WLK5PkVFLz9SKzYn3Cnqc3uLS",
+      "signer": "09dd1979bf53e2ccf13d6a59235240a6e5675c60f41727926812fad6f63bb127"
+    },
+    "tpd-797021-agent.testnet": {
+      "hash": "5Zm44NTcy6jqbHC9jFTPrVbHQ5FqX7vfCdVc62C6QNSh",
+      "signer": "09dd1979bf53e2ccf13d6a59235240a6e5675c60f41727926812fad6f63bb127"
+    },
+    "tpd-797021-payee.testnet": {
+      "hash": "iobBX8yBVG3L138fjKuXDWUMx361oqyNYKDk9LVKEyB",
+      "signer": "09dd1979bf53e2ccf13d6a59235240a6e5675c60f41727926812fad6f63bb127"
+    },
+    "tpd-797021-flagged.testnet": {
+      "hash": "FyZjAWi3wTPzpUccjTGjWkVRiBh4T4XnSbS9ZJQamWsF",
+      "signer": "09dd1979bf53e2ccf13d6a59235240a6e5675c60f41727926812fad6f63bb127"
+    },
+    "tpd-797021-wallet.testnet": {
+      "hash": "A856oUMkMD1Sx7Ktt15kf5j6wM9U98zSw5XaPsMdkHKW",
+      "signer": "09dd1979bf53e2ccf13d6a59235240a6e5675c60f41727926812fad6f63bb127"
+    },
+    "tpd-797021-wallet2.testnet": {
+      "hash": "72LXwPBhiNMfWQhGocPBXNwLRfiu2bXvbLT2BEMK7b2",
+      "signer": "tpd-797021-owner.testnet"
+    }
+  },
+  "policy": {
+    "perCallMax": "1000000000000000000000",
+    "dailyMax": "20000000000000000000000",
+    "allowedAmount": "100000000000000000000",
+    "decimals": 24,
+    "payees": [
+      "tpd-797021-payee.testnet"
+    ]
+  },
+  "flaggedAccounts": [
+    "tpd-797021-flagged.testnet"
+  ],
+  "verifiedCodeHashes": [
+    "2KFB5QmHZa95tY5kpepdnf4M6aYD6iM15GCPNbUWG6Sh"
+  ],
+  "newAccountWindowMs": 604800000,
+  "cooldownSeconds": 20,
+  "maxAttemptsPerDay": 40
+}

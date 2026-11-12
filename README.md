@@ -1,8 +1,16 @@
 # TriagePay
 
-An AI agent pays per API call from a wallet contract on NEAR that caps each
-call, caps the day and allowlists the payees. The agent's key can do one
-thing: call `pay` on that wallet.
+An agent key that can sign freely will pay whoever a prompt tells it to.
+TriagePay puts a wallet contract between that key and the money: the key can call only `pay`, and the contract caps each call, caps the day, and allowlists the payee.
+A judge opens the hosted demo, runs a prompt-injected payment on NEAR testnet, and watches the wallet refuse it.
+
+**Demo video:** _Placeholder. No recording is linked in this repository yet. Paste the URL on this line._
+
+**Live demo:** https://triagepay-demo.vercel.app/
+
+**Refused on testnet:** [refused on the live demo, `ERR_PAYEE_NOT_ALLOWED`](https://testnet.nearblocks.io/txns/7AebGceWGwhFfG6vADxPykNNeyfGGZMr9C8mrtXNWbPB)
+
+**Allowed on testnet:** [payee on the allowlist, inside the cap](https://testnet.nearblocks.io/txns/AKXsG4JMZSoR6h4Sr5uNMmk5VenESE6KxAU36mcA72pr)
 
 The paid API is a triage service for security findings: an agent submits a
 finding and gets a deterministic verdict (`supported`, `needs_evidence`,
@@ -11,6 +19,81 @@ by a NEAR transaction that the server verifies from the token contract's own
 receipt.
 
 Built for NEAR HACKATHON, tracks `security` and `agents`.
+
+## Hosted demo
+
+`demo/live` is the judge page: pick a prompt injection, an over-limit
+payment, or a flagged payee, and the server signs `pay` on NEAR testnet.
+The page shows the payee risk verdict (allow, warn, or block), today's
+spend against the daily limit, explorer links, and a Revoke button that
+calls `revoke_agent`. The browser never sees a key.
+
+Required Vercel environment variables (names only; values stay out of git):
+
+| Variable | What it is |
+|---|---|
+| `TRIAGEPAY_AGENT_SECRET_KEY` | `ed25519:...` function-call key. It can call only `pay` on the wallet. |
+| `TRIAGEPAY_OWNER_SECRET_KEY` | `ed25519:...` owner key. Used only to revoke and restore the agent. |
+
+Public account ids, the RPC URL, limits, the flagged account, and the
+verified code hash live in `demo/live/config.json` after setup. Optional
+overrides: `TRIAGEPAY_RPC_URL`, `TRIAGEPAY_OWNER_ACCOUNT`,
+`TRIAGEPAY_AGENT_ACCOUNT`, `TRIAGEPAY_WALLET_ACCOUNT`,
+`TRIAGEPAY_TOKEN_ACCOUNT`, `TRIAGEPAY_PAYEE_ACCOUNT`,
+`TRIAGEPAY_INJECTED_ACCOUNT`, `TRIAGEPAY_FLAGGED_ACCOUNT`,
+`TRIAGEPAY_COOLDOWN_SECONDS` (default 20), `TRIAGEPAY_MAX_ATTEMPTS_PER_DAY`
+(default 40). The full template is `demo/live/.env.example`.
+
+The server signs at most once per cooldown and at most the daily attempt
+cap. The function-call key also has a limited gas allowance, and the
+contract's own daily limit caps the token. Refused attempts are still
+transactions on the explorer.
+
+```sh
+cd demo/live
+npm ci
+npx vercel link
+npx vercel env add TRIAGEPAY_AGENT_SECRET_KEY production
+npx vercel env add TRIAGEPAY_OWNER_SECRET_KEY production
+npx vercel deploy --prod
+```
+
+The CLI prompts for each secret. Do not pass the key on the command line.
+A local run of the same functions:
+
+```sh
+cd demo/live
+npm ci
+node server.mjs
+```
+
+When `VERCEL` is unset and the two variables are empty, the server reads
+`demo/live/.keys/` (gitignored). On Vercel that fallback is off.
+
+Setup (once, from a machine that can reach the testnet faucet) builds
+nothing by itself. Point it at the policy-wallet wasm, then copy the two
+secrets into Vercel:
+
+```sh
+cd contracts
+# --cfg near is what cargo-near adds. Without it, env::panic_str does not
+# call the host and a refusal is a silent trap.
+RUSTFLAGS='--cfg near' cargo build --release --target wasm32-unknown-unknown -p policy-wallet --locked
+cd ..
+TRIAGEPAY_WALLET_WASM=contracts/target/wasm32-unknown-unknown/release/policy_wallet.wasm node demo/live/setup.mjs
+```
+
+`setup.mjs` prints account ids and writes keys under `demo/live/.keys/`.
+It does not print the secrets. The public demo accounts on testnet are in
+`demo/live/config.json`. Wallet `tpd-797021-wallet2.testnet`, agent
+`tpd-797021-agent.testnet`, owner `tpd-797021-owner.testnet`.
+
+The same run also produced an over-limit refusal
+([`ERR_PER_CALL_LIMIT`](https://testnet.nearblocks.io/txns/ABNcCWUFnH1eaXXAwF8UE1W3VRKMKGAt93trDwRo7cEr))
+and a flagged-payee refusal
+([`ERR_PAYEE_NOT_ALLOWED`](https://testnet.nearblocks.io/txns/7dHLvYfZq5is36qtwi7BzFLh23i4gMnizizWp4HQqKEF)).
+Revoke is
+[`revoke_agent`](https://testnet.nearblocks.io/txns/HHELj4EpBGMjUu4n4YdWiYac4w9nZwZLp1ka5JTCF63d).
 
 ## The problem
 
@@ -154,7 +237,8 @@ by a randomized test.
 | Built, tested offline only | The x402 facilitator endpoints, the SQLite journal (`crates/store`), NEP-413 and API keys (`crates/auth`), the static UI (`ui/`), the Dockerfile |
 | Not wired | The API keeps its ledger in memory, serves one development caller with no authentication, binds loopback only, and does not serve the UI |
 | Run in CI only | The 18 sandbox tests in `contracts/tests` (near-workspaces, a local NEAR node): 18 passed on GitHub Actions, Linux, 2026-11-12. The sandbox has no Windows build |
-| Cut | Attested verdicts (ADR-0011), NEAR Intents deposits, a hosted demo, a mainnet campaign, a measured accuracy figure. No accuracy is claimed anywhere |
+| Hosted judge demo | `demo/live`: Vercel static page plus serverless functions. Signing keys are environment variables. A local run hits NEAR testnet | 
+| Cut | Attested verdicts (ADR-0011), NEAR Intents deposits, a mainnet campaign, a measured accuracy figure. No accuracy is claimed anywhere |
 
 Known limits of the paid route: no rate limiting; the server trusts its RPC
 endpoint; on `/v2/scan` the envelope is validated after payment (an invalid
@@ -208,7 +292,8 @@ scanner/                 triage engine: validation, Stage A gates, reports
 triage-model/            Stage B model judge on NEAR AI Cloud, recorded cassettes
 knowledge-compiler/      compiles rule sources into hash-addressed rulesets
 clients/                 x402 reference clients (TypeScript, Python)
-agents/demo/             the testnet agent demo
+agents/demo/             the testnet agent demo (full x402 loop, throwaway accounts)
+demo/live                hosted judge demo (Vercel): attacks, payee risk, spend, revoke
 ui/                      static pages (not served by the API yet)
 docs/                    ADRs, protocol profile, contract docs, transcript
 ```
