@@ -1,0 +1,16 @@
+{
+  "name": "triagepay-sdk",
+  "version": "0.1.0",
+  "description": "One-line payments through a TriagePay policy wallet: x402 client, NEAR AI tool, chain-signature request builder",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

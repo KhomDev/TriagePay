@@ -17,6 +17,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertPublicConfig } from "./lib/config.js";
 import { redact } from "./lib/http.js";
+import { selectKeysToDelete } from "./lib/keys.js";
 import {
   addPayKey,
   assertTestnet,
@@ -27,6 +28,7 @@ import {
   parseNear,
   randomKeyPair,
   signCall,
+  viewAccessKeys,
   viewAccount,
   viewCall,
 } from "./lib/near.js";
@@ -248,6 +250,16 @@ async function main() {
       payees: [accounts.payee],
     }, 30, 1n),
   ]);
+  // Amounts above the small demo payment wait for the owner. Equal to the
+  // allowed amount still pays. Unknown payees stay ERR_PAYEE_NOT_ALLOWED, so
+  // the injected-payee attack is still a refusal on chain. Set
+  // TRIAGEPAY_REVIEW_UNKNOWN_PAYEES=1 to queue them for the owner instead.
+  await must("set_review", "owner", accounts.wallet, [
+    await functionCall("set_review_policy", {
+      approval_threshold: ALLOWED.toString(),
+      review_unknown_payees: process.env.TRIAGEPAY_REVIEW_UNKNOWN_PAYEES === "1",
+    }, 30, 1n),
+  ]);
 
   // agent.json is the full-access key until this point. Move it aside, add a
 // function-call key, then leave only that limited key in agent.json. The
@@ -314,4 +326,54 @@ async function main() {
   console.log("Vercel: TRIAGEPAY_OWNER_SECRET_KEY from .keys/owner.json");
 }
 
-main().catch((error) => fail(error && error.stack ? error.stack : error));
+async function cleanup() {
+  await assertTestnet(RPC);
+  const config = JSON.parse(readFileSync(join(ROOT, "config.json"), "utf8"));
+  const agentId = config.accounts && config.accounts.agent;
+  const walletId = config.accounts && config.accounts.wallet;
+  if (!agentId || !walletId) fail("config.json has no agent or wallet account");
+  const envKey = String(process.env.TRIAGEPAY_AGENT_FULL_SECRET_KEY || "").trim();
+  let full = null;
+  if (envKey) full = { account_id: agentId, secret_key: envKey };
+  else if (existsSync(keyPath("agent-full"))) full = loadKey("agent-full");
+  else fail("cleanup needs TRIAGEPAY_AGENT_FULL_SECRET_KEY or demo/live/.keys/agent-full.json", 2);
+  const keys = await viewAccessKeys(RPC, agentId);
+  let keepPublicKey = null;
+  if (existsSync(keyPath("agent"))) {
+    try {
+      keepPublicKey = loadKey("agent").public_key;
+    } catch {
+      keepPublicKey = null;
+    }
+  }
+  const plan = selectKeysToDelete(keys, {
+    walletId,
+    keepPublicKey,
+    dropFullAccess: process.argv.includes("--drop-full-access"),
+  });
+  console.log(`agent ${agentId}`);
+  console.log(`keep ${plan.keep || "(no pay key for this wallet)"}`);
+  console.log(`delete ${plan.drop.length ? plan.drop.join(" ") : "(none)"}`);
+  if (!plan.drop.length) return;
+  const result = await signCall({
+    rpcUrl: RPC,
+    signerId: full.account_id || agentId,
+    secretKey: full.secret_key,
+    receiverId: agentId,
+    actions: plan.drop.map((publicKey) => deleteKey(publicKey)),
+  });
+  if (result.rejected || result.outcome !== "success") {
+    fail(`cleanup failed (${result.errorCode || result.detail || result.outcome})`);
+  }
+  console.log(`cleanup https://testnet.nearblocks.io/txns/${result.txHash}`);
+  if (!process.argv.includes("--drop-full-access")) {
+    console.log("The full-access key is still on the account. Pass --drop-full-access to remove it after a pay key is the one you will keep. An account with only a function-call key can lock itself out when the allowance runs out.");
+  }
+}
+
+const command = process.argv[2];
+if (command === "cleanup") {
+  cleanup().catch((error) => fail(error && error.stack ? error.stack : error));
+} else {
+  main().catch((error) => fail(error && error.stack ? error.stack : error));
+}

@@ -5,7 +5,7 @@ export async function POST(request) {
   try {
     const body = await readJson(request);
     const id = typeof body.scenario === "string" ? body.scenario : body.attack;
-    return json(200, await runScenario(id));
+    return json(200, await runScenario(id, request));
   } catch (error) {
     return fromError(error);
   }

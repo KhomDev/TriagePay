@@ -25,6 +25,8 @@ test("the three attacks are selectable and distinct", () => {
     "over-limit",
     "flagged-payee",
     "allowed",
+    "review-payee",
+    "above-threshold",
   ]);
 });
 

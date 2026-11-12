@@ -8,6 +8,9 @@ import { GET as health } from "./api/health.js";
 import { GET as dashboard } from "./api/dashboard.js";
 import { POST as run } from "./api/run.js";
 import { POST as revoke } from "./api/revoke.js";
+import { POST as review } from "./api/review.js";
+import { GET as judgment } from "./api/judgment.js";
+import { GET as cron } from "./api/cron.js";
 
 const ROOT = fileURLToPath(new URL("./public/", import.meta.url));
 const PORT = Number(process.env.PORT || 8787);
@@ -22,6 +25,9 @@ const routes = {
   "GET /api/dashboard": dashboard,
   "POST /api/run": run,
   "POST /api/revoke": revoke,
+  "POST /api/review": review,
+  "GET /api/judgment": judgment,
+  "GET /api/cron": cron,
 };
 
 async function toRequest(req) {

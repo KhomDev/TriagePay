@@ -1,0 +1,260 @@
+{
+  "network": "testnet",
+  "accounts": {
+    "funder": "bc9cbcfca086166f977577d4c0b667036bc31fcd6074cbedca39d6b54cad2177",
+    "owner": "tpd-e947e7-owner.testnet",
+    "agent": "tpd-e947e7-agent.testnet",
+    "wallet": "tpd-e947e7-wallet.testnet",
+    "token": "wrap.testnet",
+    "payee": "tpd-e947e7-payee.testnet",
+    "injected": "tpd-e947e7-injected.testnet",
+    "flagged": "tpd-e947e7-flagged.testnet"
+  },
+  "steps": [
+    {
+      "name": "allowed_payment",
+      "signer": "tpd-e947e7-agent.testnet",
+      "signerPublicKey": "ed25519:8kyLRynC6zjiZKsQTWmq8esbKQbgP5CmQW9zTA5uGNJo",
+      "receiver": "tpd-e947e7-wallet.testnet",
+      "txHash": "4oxycWdvo9M4YWoq9mg2y4FXL7AZYQY6McvcPJQYJejq",
+      "url": "https://testnet.nearblocks.io/txns/4oxycWdvo9M4YWoq9mg2y4FXL7AZYQY6McvcPJQYJejq",
+      "outcome": "success",
+      "errorCode": null,
+      "expected": "success",
+      "ok": true
+    },
+    {
+      "name": "injected_payee_refused",
+      "signer": "tpd-e947e7-agent.testnet",
+      "signerPublicKey": "ed25519:8kyLRynC6zjiZKsQTWmq8esbKQbgP5CmQW9zTA5uGNJo",
+      "receiver": "tpd-e947e7-wallet.testnet",
+      "txHash": "8y6sEwL8i5sP2aMKo5HS3WGZtZ8NMDP9MUdywYAmVnN4",
+      "url": "https://testnet.nearblocks.io/txns/8y6sEwL8i5sP2aMKo5HS3WGZtZ8NMDP9MUdywYAmVnN4",
+      "outcome": "failure",
+      "errorCode": "ERR_PAYEE_NOT_ALLOWED",
+      "expected": "ERR_PAYEE_NOT_ALLOWED",
+      "ok": true
+    },
+    {
+      "name": "over_limit_refused",
+      "signer": "tpd-e947e7-agent.testnet",
+      "signerPublicKey": "ed25519:8kyLRynC6zjiZKsQTWmq8esbKQbgP5CmQW9zTA5uGNJo",
+      "receiver": "tpd-e947e7-wallet.testnet",
+      "txHash": "BMoHjQXgQasLxn4wZspzTQU9g1rBjbqThhZQevknCZ7s",
+      "url": "https://testnet.nearblocks.io/txns/BMoHjQXgQasLxn4wZspzTQU9g1rBjbqThhZQevknCZ7s",
+      "outcome": "failure",
+      "errorCode": "ERR_PER_CALL_LIMIT",
+      "expected": "ERR_PER_CALL_LIMIT",
+      "ok": true
+    },
+    {
+      "name": "above_threshold_queued",
+      "signer": "tpd-e947e7-agent.testnet",
+      "signerPublicKey": "ed25519:8kyLRynC6zjiZKsQTWmq8esbKQbgP5CmQW9zTA5uGNJo",
+      "receiver": "tpd-e947e7-wallet.testnet",
+      "txHash": "8nvs4X4jWrzEzsbUj2ziS5qEdTTi6wvRwfUTBxftdcJi",
+      "url": "https://testnet.nearblocks.io/txns/8nvs4X4jWrzEzsbUj2ziS5qEdTTi6wvRwfUTBxftdcJi",
+      "outcome": "success",
+      "errorCode": null,
+      "expected": "success",
+      "ok": true
+    },
+    {
+      "name": "owner_approved",
+      "signer": "tpd-e947e7-owner.testnet",
+      "signerPublicKey": "ed25519:5DtWP4PmX7VwbxhrGbTkfthbAdwwuXppAwHzBjVMZ9fA",
+      "receiver": "tpd-e947e7-wallet.testnet",
+      "txHash": "CwEo7ec8uk25XQbKHNmS3naUhqM9FPbRJzEAjVf223Hp",
+      "url": "https://testnet.nearblocks.io/txns/CwEo7ec8uk25XQbKHNmS3naUhqM9FPbRJzEAjVf223Hp",
+      "outcome": "success",
+      "errorCode": null,
+      "expected": "success",
+      "ok": true
+    },
+    {
+      "name": "second_queued",
+      "signer": "tpd-e947e7-agent.testnet",
+      "signerPublicKey": "ed25519:8kyLRynC6zjiZKsQTWmq8esbKQbgP5CmQW9zTA5uGNJo",
+      "receiver": "tpd-e947e7-wallet.testnet",
+      "txHash": "J9ZzGEQP1i8H1pGq9VMhy8L2nWjwRy5qDVWQqW5wDk5g",
+      "url": "https://testnet.nearblocks.io/txns/J9ZzGEQP1i8H1pGq9VMhy8L2nWjwRy5qDVWQqW5wDk5g",
+      "outcome": "success",
+      "errorCode": null,
+      "expected": "success",
+      "ok": true
+    },
+    {
+      "name": "owner_rejected",
+      "signer": "tpd-e947e7-owner.testnet",
+      "signerPublicKey": "ed25519:5DtWP4PmX7VwbxhrGbTkfthbAdwwuXppAwHzBjVMZ9fA",
+      "receiver": "tpd-e947e7-wallet.testnet",
+      "txHash": "CcUmBvhQPBvtPJ9pg4NF225U4XfaJEmwjLEZV9gCAaWR",
+      "url": "https://testnet.nearblocks.io/txns/CcUmBvhQPBvtPJ9pg4NF225U4XfaJEmwjLEZV9gCAaWR",
+      "outcome": "success",
+      "errorCode": null,
+      "expected": "success",
+      "ok": true
+    },
+    {
+      "name": "owner_revoked",
+      "signer": "tpd-e947e7-owner.testnet",
+      "signerPublicKey": "ed25519:5DtWP4PmX7VwbxhrGbTkfthbAdwwuXppAwHzBjVMZ9fA",
+      "receiver": "tpd-e947e7-wallet.testnet",
+      "txHash": "5qZ5yQAPTm5dFg7i455HvsrgBNk8bTbbCou6zq4461as",
+      "url": "https://testnet.nearblocks.io/txns/5qZ5yQAPTm5dFg7i455HvsrgBNk8bTbbCou6zq4461as",
+      "outcome": "success",
+      "errorCode": null,
+      "expected": "success",
+      "ok": true
+    },
+    {
+      "name": "revoked_agent_refused",
+      "signer": "tpd-e947e7-agent.testnet",
+      "signerPublicKey": "ed25519:8kyLRynC6zjiZKsQTWmq8esbKQbgP5CmQW9zTA5uGNJo",
+      "receiver": "tpd-e947e7-wallet.testnet",
+      "txHash": "3iHytU9nkYuqPh74its9TPW3MwQoUJeaPQg1nbGGyQTZ",
+      "url": "https://testnet.nearblocks.io/txns/3iHytU9nkYuqPh74its9TPW3MwQoUJeaPQg1nbGGyQTZ",
+      "outcome": "failure",
+      "errorCode": "ERR_AGENT_INACTIVE",
+      "expected": "ERR_AGENT_INACTIVE",
+      "ok": true
+    },
+    {
+      "name": "owner_restored",
+      "signer": "tpd-e947e7-owner.testnet",
+      "signerPublicKey": "ed25519:5DtWP4PmX7VwbxhrGbTkfthbAdwwuXppAwHzBjVMZ9fA",
+      "receiver": "tpd-e947e7-wallet.testnet",
+      "txHash": "8GihEqyXbePiv4s1yKbvmr6YVzKCBAz4PbVaw4G4yCgH",
+      "url": "https://testnet.nearblocks.io/txns/8GihEqyXbePiv4s1yKbvmr6YVzKCBAz4PbVaw4G4yCgH",
+      "outcome": "success",
+      "errorCode": null,
+      "expected": "success",
+      "ok": true
+    },
+    {
+      "name": "hosted_agent_pay_key",
+      "signer": "tpd-e947e7-agent.testnet",
+      "signerPublicKey": "ed25519:8ru6CS4177rNfXznP2VoByjozvUTE696Pws7o6nsxF4F",
+      "receiver": "tpd-e947e7-agent.testnet",
+      "txHash": "2sfo5j9NdZGT3Bb3ap9FpfXaPjtzfCZfkEB5iQCJXByZ",
+      "url": "https://testnet.nearblocks.io/txns/2sfo5j9NdZGT3Bb3ap9FpfXaPjtzfCZfkEB5iQCJXByZ",
+      "outcome": "success",
+      "errorCode": null,
+      "expected": "success",
+      "ok": true
+    },
+    {
+      "name": "hosted_owner_key",
+      "signer": "tpd-e947e7-owner.testnet",
+      "signerPublicKey": "ed25519:5DtWP4PmX7VwbxhrGbTkfthbAdwwuXppAwHzBjVMZ9fA",
+      "receiver": "tpd-e947e7-owner.testnet",
+      "txHash": "D9Vghe56X4yY47awicJoo4Gaj3KPN3xmdHLmT1qfMZZp",
+      "url": "https://testnet.nearblocks.io/txns/D9Vghe56X4yY47awicJoo4Gaj3KPN3xmdHLmT1qfMZZp",
+      "outcome": "success",
+      "errorCode": null,
+      "expected": "success",
+      "ok": true
+    },
+    {
+      "name": "agent_keys_cleanup",
+      "signer": "tpd-e947e7-agent.testnet",
+      "signerPublicKey": "ed25519:8ru6CS4177rNfXznP2VoByjozvUTE696Pws7o6nsxF4F",
+      "receiver": "tpd-e947e7-agent.testnet",
+      "txHash": "74a2PEiV98G5gJppaiXTNZ2vmGBCEDbPxUAuSzPpsAsC",
+      "url": "https://testnet.nearblocks.io/txns/74a2PEiV98G5gJppaiXTNZ2vmGBCEDbPxUAuSzPpsAsC",
+      "outcome": "success",
+      "errorCode": null,
+      "expected": "success",
+      "ok": true
+    }
+  ],
+  "review": {
+    "approval_threshold": "100000000000000000000",
+    "review_unknown_payees": false,
+    "pending_count": 0,
+    "max_pending": 8
+  },
+  "policy": {
+    "perCallMax": "1000000000000000000000",
+    "allowedAmount": "100000000000000000000"
+  },
+  "balances": {
+    "start": {
+      "payee": "0",
+      "wallet": "50000000000000000000000"
+    },
+    "afterAllowed": "100000000000000000000",
+    "afterApprove": "300000000000000000000",
+    "end": {
+      "payee": "300000000000000000000",
+      "wallet": "49700000000000000000000"
+    }
+  },
+  "queuedForApproval": {
+    "payment_id": "1",
+    "agent_id": "tpd-e947e7-agent.testnet",
+    "token": "wrap.testnet",
+    "receiver_id": "tpd-e947e7-payee.testnet",
+    "amount": "200000000000000000000",
+    "memo": "proof:review-approve",
+    "reason": "above_threshold",
+    "window_index": "20769"
+  },
+  "failedAttempts": [
+    {
+      "name": "owner_approved",
+      "signer": "tpd-e947e7-owner.testnet",
+      "signerPublicKey": "ed25519:5DtWP4PmX7VwbxhrGbTkfthbAdwwuXppAwHzBjVMZ9fA",
+      "receiver": "tpd-e947e7-wallet.testnet",
+      "txHash": "BtDTa1PwAEpuEHNV5KSLuynVUHkNPWEHYXJ26HQBa4a2",
+      "url": "https://testnet.nearblocks.io/txns/BtDTa1PwAEpuEHNV5KSLuynVUHkNPWEHYXJ26HQBa4a2",
+      "outcome": "failure",
+      "errorCode": null,
+      "expected": "success",
+      "ok": false,
+      "note": "script bug: payment_id was undefined; the wallet refused to parse the call and changed nothing"
+    }
+  ],
+  "queuedForRejection": {
+    "payment_id": "2",
+    "agent_id": "tpd-e947e7-agent.testnet",
+    "token": "wrap.testnet",
+    "receiver_id": "tpd-e947e7-payee.testnet",
+    "amount": "300000000000000000000",
+    "memo": "proof:review-reject",
+    "reason": "above_threshold",
+    "window_index": "20769"
+  },
+  "pendingAfterReject": [],
+  "spentToday": "300000000000000000000",
+  "agentAfter": {
+    "per_call_max": "1000000000000000000000",
+    "daily_max": "20000000000000000000000",
+    "payees": [
+      "tpd-e947e7-payee.testnet"
+    ],
+    "active": true,
+    "spent_in_window": "300000000000000000000",
+    "remaining": "19700000000000000000000",
+    "window_index": "20769",
+    "resets_at_ns": "1794528000000000000"
+  },
+  "hostedKeys": {
+    "agentPayKey": "ed25519:9iERawak26p4uGVfktNgcpG1zxuEV31d8GAnY1qUxUis",
+    "ownerKey": "ed25519:9GNK747csiMRCG8iTyLk6Jb75SKDBVFExwfkn49UMNua"
+  },
+  "agentKeysAfter": [
+    {
+      "public_key": "ed25519:9iERawak26p4uGVfktNgcpG1zxuEV31d8GAnY1qUxUis",
+      "permission": {
+        "FunctionCall": {
+          "allowance": "249607848808526700000000",
+          "method_names": [
+            "pay"
+          ],
+          "receiver_id": "tpd-e947e7-wallet.testnet"
+        }
+      }
+    }
+  ]
+}

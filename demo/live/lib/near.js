@@ -86,15 +86,41 @@ export async function viewAccount(rpcUrl, accountId) {
   }
 }
 
-export async function viewCall(rpcUrl, contract, method, args) {
+export async function viewAccessKeys(rpcUrl, accountId) {
   const result = await rpc(rpcUrl, "query", {
-    request_type: "call_function",
-    finality: "optimistic",
-    account_id: contract,
-    method_name: method,
-    args_base64: Buffer.from(JSON.stringify(args ?? {})).toString("base64"),
+    request_type: "view_access_key_list",
+    finality: "final",
+    account_id: accountId,
   });
+  return (result && result.keys) || [];
+}
+
+function missingMethod(error) {
+  const raw = redact(error && (error.message || String(error)));
+  return /MethodNotFound|MethodResolveError|unknown method/i.test(raw);
+}
+
+export async function viewCall(rpcUrl, contract, method, args) {
+  let result;
+  try {
+    result = await rpc(rpcUrl, "query", {
+      request_type: "call_function",
+      finality: "optimistic",
+      account_id: contract,
+      method_name: method,
+      args_base64: Buffer.from(JSON.stringify(args ?? {})).toString("base64"),
+    });
+  } catch (error) {
+    if (missingMethod(error)) {
+      throw new DemoError("method_missing", `${method} is not on ${contract}`, 404);
+    }
+    throw new DemoError("view_failed", `${method} failed on ${contract}`, 502);
+  }
   if (!result || result.error) {
+    const detail = result && result.error ? String(result.error) : "";
+    if (missingMethod(detail) || /MethodNotFound|MethodResolveError/i.test(detail)) {
+      throw new DemoError("method_missing", `${method} is not on ${contract}`, 404);
+    }
     throw new DemoError("view_failed", `${method} failed on ${contract}`, 502);
   }
   const bytes = Buffer.from(result.result || []);

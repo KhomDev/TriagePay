@@ -30,7 +30,7 @@ export class DemoError extends Error {
 
 export function fromError(error) {
   if (error instanceof DemoError) {
-    const headers = error.code === "cooldown" || error.code === "daily_attempt_cap"
+    const headers = error.code === "cooldown" || error.code === "daily_attempt_cap" || error.code === "ip_rate_limit"
       ? { "retry-after": String(error.extra.retry_after_seconds || 1) }
       : {};
     return fail(error.status, error.code, error.message, error.extra, headers);
