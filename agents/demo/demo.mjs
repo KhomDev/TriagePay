@@ -337,18 +337,32 @@ async function paidScan(api, name, envelope) {
 
 // --pause: wait for Enter before each step, so a presenter can talk over
 // the run while it is recorded. Without it the run goes straight through.
+// Lines typed (or piped) ahead are queued, and end of input releases every
+// later pause, so a piped run never blocks or crashes.
 const PAUSE = args.includes("--pause");
+let prompter = null;
+const pressed = [];
+const waiting = [];
+let inputClosed = false;
 async function beat(title) {
   console.log("\n>>> " + title);
   if (!PAUSE) return;
-  process.stdout.write("    (press Enter) ");
-  await new Promise((resolve) => {
-    process.stdin.resume();
-    process.stdin.once("data", () => {
-      process.stdin.pause();
-      resolve();
+  if (!prompter) {
+    const readline = await import("node:readline");
+    prompter = readline.createInterface({ input: process.stdin });
+    prompter.on("line", () => (waiting.length ? waiting.shift()() : pressed.push(true)));
+    prompter.on("close", () => {
+      inputClosed = true;
+      waiting.splice(0).forEach((resume) => resume());
     });
-  });
+  }
+  process.stdout.write("    (press Enter) ");
+  if (pressed.length) {
+    pressed.shift();
+    return;
+  }
+  if (inputClosed) return;
+  await new Promise((resume) => waiting.push(resume));
 }
 
 async function run() {
@@ -485,7 +499,8 @@ try {
   else if (command === "run") await run();
   else if (command === "direct") await direct();
   else if (command === "revoke") await revoke();
-  else fail("usage: demo.mjs setup|run|direct|revoke --out-dir DIR [--funder-key FILE] [--api URL]");
+  else fail("usage: demo.mjs setup|run|direct|revoke --out-dir DIR [--funder-key FILE] [--api URL] [--pause]");
+  if (prompter) prompter.close();
 } catch (error) {
   console.error("ERROR: " + redact(String((error && error.stack) || error)).slice(0, 1500));
   process.exit(1);
