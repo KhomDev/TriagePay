@@ -17,6 +17,9 @@ on:
       - "contracts/**"
       - "crates/policy-core/**"
       - ".github/workflows/contracts.yml"
+  # Path filters have nothing to compare against on the first push to an
+  # empty repository, so the workflow can also be started by hand.
+  workflow_dispatch:
 
 permissions:
   contents: read
