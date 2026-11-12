@@ -124,4 +124,4 @@ evidence") confirmed the two platform behaviours this design relies on:
 
 - Reproducible wasm build (`cargo near build reproducible-wasm`) with a
   pinned image, so the deployed code hash can be re-derived by anyone.
-- First sandbox run on Linux CI (the sandbox does not run on Windows).
+- ~~First sandbox run on Linux CI~~ Done 2026-11-12: 18 of 18 passed after three test fixes (docs/claims-audit.md, corrections).

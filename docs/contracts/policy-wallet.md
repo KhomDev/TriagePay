@@ -9,9 +9,9 @@ a member of the root workspace) and the `contracts/` Cargo workspace
 (`policy-wallet`, `test-token`, and the near-workspaces sandbox tests in
 `contracts/tests`).
 
-Status: unit and property tests pass on the Windows build host; the sandbox
-integration tests are written but have only been compiled, not run (the
-sandbox has no Windows build; Linux CI runs them). A zero-value testnet
+Status: unit and property tests pass on the Windows build host. The 18
+sandbox integration tests (near-workspaces, a local node) passed on Linux CI
+on 2026-11-12; the sandbox has no Windows build. A zero-value testnet
 end-to-end run passed all 28 steps on 2026-11-06 (see "Testnet evidence").
 That run used the build before the one-token rule (2026-11-11). The current
 build ran on testnet on 2026-11-11 in the agent demo
@@ -120,8 +120,8 @@ Proposed rows for `docs/threat-model.md`. Each row reads threat, then
 mitigation, then the test that exercises it, then the residual risk. Test
 names refer to `crates/policy-core` (unit and property), the
 `policy-wallet` unit suite (`contracts/policy-wallet/src/tests.rs`), the
-sandbox suite (`contracts/tests/sandbox.rs`, Linux CI only, not yet
-executed), and the numbered testnet steps above.
+sandbox suite (`contracts/tests/sandbox.rs`, Linux CI only; 18 passed on
+2026-11-12), and the numbered testnet steps above.
 
 | Threat | Mitigation | Test | Residual risk |
 |---|---|---|---|
@@ -172,7 +172,7 @@ signs on mainnet). In order:
 | `policy-core` property (proptest) | 3 | any host |
 | `policy-wallet` unit (near-sdk mocked runtime) | 65 | any host |
 | `test-token` unit | 3 | any host |
-| Sandbox integration (near-workspaces) | 18 | Linux CI only; written, not yet executed |
+| Sandbox integration (near-workspaces) | 18 | Linux CI only; 18 passed on 2026-11-12 |
 | Testnet end-to-end (`scripts/testnet/wallet-e2e.mjs`) | 28 steps | testnet, 2026-11-06; all passed |
 
 ## Testnet evidence (2026-11-06)

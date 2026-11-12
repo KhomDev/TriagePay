@@ -24,7 +24,7 @@ qualified in the row), OPEN (not proven; the docs must say so).
 | policy-core | 28 (25 unit, 3 property) |
 | Rust workspace total | 224 passed, 3 ignored |
 | contracts: policy-wallet / test-token | 65 / 3 |
-| contracts: sandbox | 18 written, compiled, never run |
+| contracts: sandbox | 18 passed on Linux CI (2026-11-12, https://github.com/KhomDev/TriagePay/actions/runs/43181541598); not runnable on Windows |
 | scanner | 319 |
 | knowledge-compiler | 71, plus 1 skipped (local private-denylist scan) |
 | triage-model | 64 |
@@ -54,7 +54,7 @@ hits against the operator's off-repo list).
 | Development-only routes answer 403 unless the mock provider is active | `dev_only_routes_refuse_under_the_near_provider`; live check in the transcript | GREEN |
 | One mainnet deposit verified on 2026-10-21 | `docs/integrations/near.md`; the capture is a fixture of the current verifier | LIMITED (verified live by the earlier argument-based verifier; the current verifier checks the same transaction from its recorded receipts) |
 | Stage B has never run live | `docs/engine/model-selection.md` outcome log; a probe on 2026-11-11 was again refused with HTTP 402 | GREEN (as a statement of what is missing) |
-| The 18 sandbox tests have not run | No Linux host has run them | OPEN |
+| The 18 sandbox tests pass | GitHub Actions run https://github.com/KhomDev/TriagePay/actions/runs/43181541598: 18 passed | GREEN |
 | No code predates the hackathon window | `git log --reverse`: first commit 2026-10-20; rules Q-001 count code from 2026-10-19 | GREEN |
 
 ## docs/protocols/x402-near.md
@@ -79,7 +79,7 @@ hits against the operator's off-repo list).
 | Testnet run of 2026-11-06, 28 steps | Evidence table in `policy-wallet.md`; step 12 re-read from an archival RPC on 2026-11-10 | GREEN for step 12; the other 27 rows are as recorded by the run |
 | Current build on testnet | Transcript: deployed, initialized, key deleted in one batch; wasm SHA-256 in the evidence equals `build.md` | GREEN |
 | The build is not reproducible | `build.md` says so; a third party cannot re-derive the hash from source | OPEN |
-| Sandbox suite | Written, compiled on the build host, never run | OPEN |
+| Sandbox suite | 18 passed on Linux CI on 2026-11-12. The first run found three test bugs, no contract bug (see corrections) | GREEN |
 | Nothing is deployed on mainnet | No mainnet transaction exists for the wallet | GREEN |
 
 ## docs/engine/
@@ -102,7 +102,7 @@ hits against the operator's off-repo list).
 | Residual risks: in-memory ledger, one development caller, no rate limit, trusted RPC | `crates/api/src/lib.rs`, `main.rs` | GREEN (as stated limits) |
 | ADR-0006: the window question is answered by rules Q-001 | Live rules page, read 2026-11-10 | GREEN |
 | ADR-0011: attested verdicts are cut | No attestation code exists | GREEN |
-| CI workflows | `.github/workflows/`: never run on GitHub before publication | OPEN |
+| CI workflows | Both green on GitHub on 2026-11-12, after three fixes found by their first runs (see corrections) | GREEN |
 
 ## Corrections kept on record
 
@@ -115,10 +115,11 @@ hits against the operator's off-repo list).
 | 2026-11-11 | Review findings fixed: a hint could close someone else's requirement (failed transaction or one-unit transfer); memos were guessable; the direct deposit route minted credit under the NEAR provider; wallet limits were shared across tokens; scanner stderr reached 500 bodies; unpaid requirements were never pruned |
 | 2026-11-11 | `wrap.testnet` cannot be the settlement asset: it emits no NEP-297 events. The x402 example and the testnet runs use an event-emitting token |
 | 2026-11-11 | The README described the 2026-10-21 state; rewritten |
+| 2026-11-12 | First GitHub CI run: `cargo audit` failed on RUSTSEC-2026-0459 (libsqlite3-sys via rusqlite 0.37) and RUSTSEC-2026-0384 (tokio 1.54.0); rusqlite moved to 0.41.0 and tokio to 1.54.1. The contracts workflow could not install cargo-near (missing libudev headers on the runner) |
+| 2026-11-12 | First sandbox run: 3 of 18 failed on test bugs. `pay` with a deposit is refused by near-sdk's non-payable guard, so the contract's `ERR_DEPOSIT_NOT_ZERO` is not reached on chain; the overflow test funded the wallet before allowlisting the token; the close test measured the gas-paying owner as beneficiary |
 
 ## Open items
 
-- Sandbox tests and both CI workflows: first run happens on GitHub.
 - Stage B live run: blocked on an API key with a spending limit.
 - Persistence, authentication and rate limiting are built as crates and not
   wired into the API.

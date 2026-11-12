@@ -144,7 +144,7 @@ by a randomized test.
 | Run on mainnet | One native-USDC deposit verified on 2026-10-21 by the earlier, argument-based verifier ([docs/integrations/near.md](docs/integrations/near.md)). Nothing since; the wallet is not on mainnet |
 | Built, tested offline only | Triage engine v2 Stage A (deterministic gates) is what every verdict above comes from. Stage B (model judge on NEAR AI Cloud, `triage-model/`) has never run against the live service: every completion attempt was refused with HTTP 402 because the API key has no spending limit. Also: the x402 facilitator endpoints, the SQLite journal (`crates/store`), NEP-413 and API keys (`crates/auth`), the static UI (`ui/`), the Dockerfile |
 | Not wired | The API keeps its ledger in memory, serves one development caller with no authentication, binds loopback only, and does not serve the UI |
-| Never run | The 18 sandbox tests in `contracts/tests` (no Windows build of the sandbox; Linux CI runs them) |
+| Run in CI only | The 18 sandbox tests in `contracts/tests` (near-workspaces, a local NEAR node): 18 passed on GitHub Actions, Linux, 2026-11-12. The sandbox has no Windows build |
 | Cut | Attested verdicts (ADR-0011), NEAR Intents deposits, a hosted demo, a mainnet campaign, a measured accuracy figure. No accuracy is claimed anywhere |
 
 Known limits of the paid route: no rate limiting; the server trusts its RPC
@@ -173,7 +173,7 @@ commits carry the co-author trailer.
 | Suite | Command | Result |
 |---|---|---|
 | Rust workspace | `cargo test --workspace` | 224 passed, 3 ignored |
-| Contracts | `cd contracts && cargo test` | policy-wallet 65, test-token 3; sandbox 18 not run |
+| Contracts | `cd contracts && cargo test` | policy-wallet 65, test-token 3; sandbox 18 (Linux only; passed in CI) |
 | Scanner | `cd scanner && python -m pytest -q` | 319 passed |
 | Knowledge compiler | `cd knowledge-compiler && python -m pytest -q` | 71 passed, 1 skipped |
 | Model judge (offline) | `cd triage-model && python -m pytest -q` | 64 passed |

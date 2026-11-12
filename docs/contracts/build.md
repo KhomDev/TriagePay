@@ -41,9 +41,9 @@ Result: no pin needed. cargo-near 0.21.1 runs a `wasm-opt -O` post-step with
 `--enable-nontrapping-float-to-int --enable-bulk-memory` and documents that
 step as required for rustc >= 1.82. The built module has a DataCount
 section (bulk memory), which current mainnet protocol versions accept per
-the research note on contract toolchains. Deployability is still unproven
-on this host because no sandbox runs here (see risk 2); the first Linux CI
-sandbox run is the deployability proof.
+the research note on contract toolchains. Deployability is proven twice:
+the Linux CI sandbox run (18 tests, 2026-11-12) and the testnet deployments
+of 2026-11-06 and 2026-11-11.
 
 Working build command (run from `contracts/policy-wallet/`; the artifact
 lands in the workspace target directory, `contracts/target/near/`):
@@ -70,8 +70,9 @@ different hash because the ABI is embedded in the wasm.
 Result: not supported. near-sandbox ships Linux x86_64, Linux aarch64 and
 macOS arm64 binaries only. The sandbox tests in `contracts/tests/` are written, gated
 with `#![cfg(not(windows))]` so the crate compiles everywhere, and run only
-in the Linux CI workflow (`.github/workflows/contracts.yml`). They have not
-been executed on this host; treat them as unverified until a Linux run.
+in the Linux CI workflow (`.github/workflows/contracts.yml`). They cannot
+run on this host; on Linux CI all 18 passed on 2026-11-12. On Windows they
+are compiled and reported as ignored.
 
 ### Host build note: NASM
 
@@ -154,9 +155,9 @@ notes, never guessed.
 |---|---|---|
 | policy-core unit tests | 25 | yes |
 | policy-core property tests (proptest, 256 cases each) | 3 | yes |
-| policy-wallet unit tests (near-sdk mocked runtime) | 62 | yes |
+| policy-wallet unit tests (near-sdk mocked runtime) | 65 | yes |
 | test-token unit tests | 3 | yes |
-| sandbox integration tests (near-workspaces) | 18 | compiled and reported as ignored on Windows; written for Linux CI, never executed yet |
+| sandbox integration tests (near-workspaces) | 18 | no: compiled and reported as ignored on Windows; 18 passed on Linux CI (2026-11-12) |
 
 Test-token wasm (spike build, same command without remapping, from
 `contracts/test-token/`): 148,419 bytes, SHA-256

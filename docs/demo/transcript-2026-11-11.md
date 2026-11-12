@@ -109,5 +109,6 @@ settle.
 
 - The Stage B model judge: every verdict above is Stage A (deterministic
   gates) only.
-- The sandbox test suite, which still has not run on any host.
+- The sandbox test suite. It had not run when this transcript was
+  recorded; it passed on Linux CI the next day (2026-11-12).
 - Mainnet: nothing here touched mainnet.
