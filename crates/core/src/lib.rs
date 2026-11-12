@@ -22,5 +22,5 @@ pub use account::Balances;
 pub use error::CoreError;
 pub use ledger::{DepositReceipt, JobSnapshot, Ledger, RefundReceipt, Reservation, Settlement};
 pub use money::{parse_decimal, Amount, SETTLEMENT_DECIMALS};
-pub use pricebook::{PriceBook, SCAN_SKU};
+pub use pricebook::{PriceBook, SCAN_SKU, TRIAGE_V2_SKU};
 pub use state::{JobId, JobState, ReportHash};

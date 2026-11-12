@@ -88,6 +88,13 @@ async fn main() {
         }
     };
     let provider_kind = provider.kind();
+    let Some(sku) = aps_api::scanbridge::sku_from_env() else {
+        eprintln!(
+            "aps-api: APS_SCAN_SKU must be one of {}",
+            aps_api::scanbridge::SCANNER_SKUS.join(", ")
+        );
+        std::process::exit(2);
+    };
 
     let mut state = AppState::with_provider(DEV_CALLER, provider);
     match x402_terms_from_env(&state) {
@@ -107,7 +114,9 @@ async fn main() {
         }
     };
 
-    eprintln!("aps-api listening on http://127.0.0.1:{port} (payment provider: {provider_kind})");
+    eprintln!(
+        "aps-api listening on http://127.0.0.1:{port} (payment provider: {provider_kind}, sku: {sku})"
+    );
     if let Err(err) = axum::serve(listener, app).await {
         eprintln!("aps-api: server error: {err}");
         std::process::exit(1);

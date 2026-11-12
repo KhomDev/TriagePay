@@ -42,7 +42,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use aps_core::{Amount, ReportHash, SCAN_SKU};
+use aps_core::{Amount, ReportHash};
 use aps_payment::{
     AssetId, CreateIntent, DepositIntent, IntentId, ProviderError, ReconcileOutcome,
 };
@@ -331,7 +331,7 @@ fn payment_failure(
 }
 
 /// One `accepts[]` entry for an issued intent.
-fn requirement(config: &X402Config, intent: &DepositIntent) -> Value {
+fn requirement(config: &X402Config, intent: &DepositIntent, sku: &str) -> Value {
     json!({
         "scheme": SCHEME,
         "network": config.network,
@@ -345,22 +345,22 @@ fn requirement(config: &X402Config, intent: &DepositIntent) -> Value {
             "memo": intent.intent_id.as_str(),
             "intentId": intent.intent_id.as_str(),
             "expiresAt": intent.expires_at_unix,
-            "sku": SCAN_SKU,
+            "sku": sku,
         }
     })
 }
 
-fn payment_required(config: &X402Config, intent: &DepositIntent, error: &str) -> Value {
+fn payment_required(config: &X402Config, intent: &DepositIntent, error: &str, sku: &str) -> Value {
     json!({
         "x402Version": X402_VERSION,
         "error": error,
         "resource": {
             "url": RESOURCE_PATH,
-            "description": "TriagePay finding triage scan (scan.v1)",
+            "description": format!("TriagePay finding triage ({sku})"),
             "mimeType": "application/json",
             "serviceName": "TriagePay",
         },
-        "accepts": [requirement(config, intent)],
+        "accepts": [requirement(config, intent, sku)],
     })
 }
 
@@ -733,7 +733,7 @@ async fn run_paid_scan(
             .reserve(
                 state.caller(),
                 &record.account,
-                SCAN_SKU,
+                state.scan_launcher().sku(),
                 record.amount,
                 &idem,
             )
@@ -909,7 +909,12 @@ async fn issue_requirement(state: &AppState) -> Result<Response, Response> {
             settled: None,
         },
     );
-    let required = payment_required(&config, &intent, "PAYMENT-SIGNATURE header is required");
+    let required = payment_required(
+        &config,
+        &intent,
+        "PAYMENT-SIGNATURE header is required",
+        state.scan_launcher().sku(),
+    );
     let mut response = (
         StatusCode::PAYMENT_REQUIRED,
         Json(json!({

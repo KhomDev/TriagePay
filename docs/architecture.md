@@ -31,7 +31,7 @@ verdict the call pays for.
       |     +---------------------+     +------------------------+
       |     | aps-scanner (Python)|- - >| triage-model (Stage B) |
       |     | validate, normalize,|     | optional, advisory,    |
-      |     | Stage A gates,      |     | never run live         |
+      |     | Stage A gates,      |     | NEAR AI Cloud          |
       |     | report + hash       |     +------------------------+
       v     +---------------------+
  +----------------------+
@@ -47,7 +47,7 @@ verdict the call pays for.
 | API | `crates/api` | x402 transport (`/v2/scan`), facilitator endpoints, prepaid routes, scanner bridge |
 | Ledger | `crates/core` | Dependency-free prepaid ledger with idempotent deposits, reservations, settlements and refunds |
 | Engine | `scanner/`, `knowledge-compiler/` | Envelope validation, hostile-input normalization, Stage A gates from a compiled ruleset, content-hashed report |
-| Model judge | `triage-model/` | Stage B: prompt, schema, retry, cache. Offline tests only |
+| Model judge | `triage-model/` | Stage B: prompt, schema, retry, cache, cassettes. Opt-in with `APS_SCAN_SKU=triage.v2`; advisory |
 | Not wired | `crates/store`, `crates/auth`, `ui/` | SQLite journal, NEP-413 and API keys, static pages |
 
 ## Language split

@@ -44,6 +44,7 @@ def test_fenced_json_is_accepted():
         good(taxonomy_hits=["internal-bucket"]),
         good(taxonomy_hits=["theoretical-only", "theoretical-only"]),
         good(missing_evidence=["a-signed-confession"]),
+        good(missing_evidence=["code-reference", "code-reference"]),
         good(public_rationale="x" * 601),
         good(public_rationale=None),
         dict(good(), extra="field"),

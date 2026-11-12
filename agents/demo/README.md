@@ -41,6 +41,15 @@ node agents/demo/demo.mjs revoke --out-dir DIR --api http://127.0.0.1:8080
 | `direct` | owner | One scan paid with a plain `ft_transfer` from a full-access account, then the same proof replayed and reused |
 | `revoke` | owner, agent | `revoke_agent`; the agent's next `pay` fails with `ERR_AGENT_INACTIVE`; the agent account deletes the key; a transaction signed with it is rejected by the node |
 
+Add `--pause` to `run`, `direct` or `revoke` to stop before each step until
+Enter is pressed: useful when recording a video and talking over it.
+
+With the API started in `triage.v2` mode (`APS_SCAN_SKU=triage.v2`,
+`APS_LIVE_MODEL=1`, `NEARAI_API_KEY`, and `APS_SCANNER_TIMEOUT_SECS=120`),
+each paid call also prints the model judge's severity call, probability and
+rationale. The verdict itself still comes from the deterministic gates when
+they are stricter.
+
 `DIR` must be outside the repository. It receives `keys/` (never printed),
 `agent-demo-EVIDENCE.json` and `transcript.md`. Every command resumes: a
 step already recorded in the evidence file is skipped.

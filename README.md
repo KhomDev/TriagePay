@@ -27,7 +27,7 @@ Needs Rust (stable) and Python 3.12.
 
 | Do | See |
 |---|---|
-| `cargo test --workspace` | `224 passed`, `3 ignored` (the ignored three read mainnet RPC) |
+| `cargo test --workspace` | `225 passed`, `3 ignored` (the ignored three read mainnet RPC) |
 | Terminal 1: `cargo run -p aps-api --bin aps-api` | `aps-api listening on http://127.0.0.1:8080 (payment provider: mock)` |
 | Terminal 2: `python scripts/x402-demo.py` | Step 1: `HTTP 402` and the decoded payment requirement. Step 2: `HTTP 200`, `verdict: needs_evidence`, the content hash the payment settled against. Step 3: the same proof again returns the identical response. Step 4: the proof reused for another finding is `proof_already_consumed` |
 | `./scripts/demo.sh` (or `demo.ps1`) | The prepaid flow without x402: fund, reserve, scan, settle, reject, refund; final balances conserve |
@@ -35,6 +35,14 @@ Needs Rust (stable) and Python 3.12.
 The mock provider accepts any transaction hash on a development-only network
 (`aps:mock`). It shows the HTTP exchange and the ledger, not payment
 verification.
+
+To add the model judge without a NEAR AI key, start the API with
+`APS_SCAN_SKU=triage.v2` and `APS_TRIAGE_CASSETTES=triage-model/cassettes`.
+The walkthrough then also prints `model judge z-ai/glm-5.3-flash (listed as
+TEE-verifiable): high, p=0.75` and the model's rationale, replayed from
+recorded replies for the repository's synthetic findings. With
+`APS_LIVE_MODEL=1` and `NEARAI_API_KEY` set instead, the call goes to NEAR AI
+Cloud (about USD 0.0002 per call).
 
 ### B. Read the testnet run, no setup
 
@@ -89,7 +97,7 @@ transaction hashes. Details: [agents/demo/README.md](agents/demo/README.md).
 | NEP-141 and NEP-297 events | Payment is an `ft_transfer`; the server accepts it only when the token contract's own `ft_transfer` event, in a finalized receipt, pays the gateway with the server-issued memo | `crates/near-adapter/src/verify.rs`; 21 receipt-fixture tests, one a real mainnet capture; transcript |
 | x402 v2 over NEAR | A client-submitted payment proof (`near-tx-proof`) that works from a policy wallet. The upstream NEAR binding needs a full-access key; this one does not. A proposed profile, not upstream | [docs/protocols/x402-near.md](docs/protocols/x402-near.md); 15 flow tests; transcript |
 | NEP-413 signed messages | Login-message verification for future caller authentication | `crates/auth`, 25 tests. A library: the API does not use it yet |
-| NEAR AI Cloud | The optional Stage B model judge targets a TEE-listed model | Not proven. See Status |
+| NEAR AI Cloud | The optional Stage B model judge (`APS_SCAN_SKU=triage.v2`) calls a model the catalogue lists as TEE-verifiable; it is advisory and can never raise a verdict | Spike on 2026-11-12: 50 live calls, 5 models, USD 0.096 ([docs/engine/model-selection.md](docs/engine/model-selection.md)); recorded replies in `triage-model/cassettes`, replayed by 6 tests. No attestation is fetched (ADR-0011) |
 
 ## What the agent's key can and cannot do
 
@@ -142,7 +150,8 @@ by a randomized test.
 |---|---|
 | Run on testnet | Policy wallet (28-step run on 2026-11-06, and the agent demo on 2026-11-11 with the current build); x402 round trips paid through the wallet and directly; receipt verification |
 | Run on mainnet | One native-USDC deposit verified on 2026-10-21 by the earlier, argument-based verifier ([docs/integrations/near.md](docs/integrations/near.md)). Nothing since; the wallet is not on mainnet |
-| Built, tested offline only | Triage engine v2 Stage A (deterministic gates) is what every verdict above comes from. Stage B (model judge on NEAR AI Cloud, `triage-model/`) has never run against the live service: every completion attempt was refused with HTTP 402 because the API key has no spending limit. Also: the x402 facilitator endpoints, the SQLite journal (`crates/store`), NEP-413 and API keys (`crates/auth`), the static UI (`ui/`), the Dockerfile |
+| Run against NEAR AI Cloud | Stage B, the model judge: a 50-call spike on 2026-11-12 and the paid route in `triage.v2` mode. Every verdict in the 2026-11-11 testnet transcript comes from Stage A (deterministic gates) alone; the run predates the working key |
+| Built, tested offline only | The x402 facilitator endpoints, the SQLite journal (`crates/store`), NEP-413 and API keys (`crates/auth`), the static UI (`ui/`), the Dockerfile |
 | Not wired | The API keeps its ledger in memory, serves one development caller with no authentication, binds loopback only, and does not serve the UI |
 | Run in CI only | The 18 sandbox tests in `contracts/tests` (near-workspaces, a local NEAR node): 18 passed on GitHub Actions, Linux, 2026-11-12. The sandbox has no Windows build |
 | Cut | Attested verdicts (ADR-0011), NEAR Intents deposits, a hosted demo, a mainnet campaign, a measured accuracy figure. No accuracy is claimed anywhere |
@@ -172,16 +181,16 @@ commits carry the co-author trailer.
 
 | Suite | Command | Result |
 |---|---|---|
-| Rust workspace | `cargo test --workspace` | 224 passed, 3 ignored |
+| Rust workspace | `cargo test --workspace` | 225 passed, 3 ignored |
 | Contracts | `cd contracts && cargo test` | policy-wallet 65, test-token 3; sandbox 18 (Linux only; passed in CI) |
 | Scanner | `cd scanner && python -m pytest -q` | 319 passed |
 | Knowledge compiler | `cd knowledge-compiler && python -m pytest -q` | 71 passed, 1 skipped |
-| Model judge (offline) | `cd triage-model && python -m pytest -q` | 64 passed |
+| Model judge (offline, with cassette replay) | `cd triage-model && python -m pytest -q` | 73 passed |
 | OpenAPI and Python client | `python -m pytest tests -q` | 14 passed |
 | UI | `python -m pytest ui/tests -q` | 17 passed |
 | TypeScript client | `cd clients/typescript && npm ci && npm test` | 7 passed |
 
-Counts were regenerated on 2026-11-11. The claim-by-claim record is
+Counts were regenerated on 2026-11-12. The claim-by-claim record is
 [docs/claims-audit.md](docs/claims-audit.md).
 
 ## Layout
@@ -196,7 +205,7 @@ crates/near-adapter      NEAR provider: intents, RPC, receipt verification
 crates/api               HTTP API: prepaid routes, /v2/scan (x402), facilitator
 crates/store, crates/auth  SQLite journal; NEP-413 and API keys (not wired)
 scanner/                 triage engine: validation, Stage A gates, reports
-triage-model/            Stage B model judge (offline tests only)
+triage-model/            Stage B model judge on NEAR AI Cloud, recorded cassettes
 knowledge-compiler/      compiles rule sources into hash-addressed rulesets
 clients/                 x402 reference clients (TypeScript, Python)
 agents/demo/             the testnet agent demo
@@ -227,7 +236,11 @@ everywhere: `{"error":{"code","message"}}`.
 | `NEAR_ASSET_CONTRACT` | none | NEP-141 settlement asset; it must emit NEP-297 events (near only) |
 | `NEAR_RPC_URL` | FASTNEAR free endpoint for the network | JSON-RPC endpoint |
 | `APS_X402_PRICE_ATOMIC`, `APS_X402_MAX_TIMEOUT_SECS` | 1000000, 900 | Price of one call; requirement validity |
-| `APS_SCANNER_PYTHON`, `APS_SCANNER_DIR`, `APS_SCANNER_TIMEOUT_SECS` | discovered, discovered, 30 | Scanner subprocess |
+| `APS_SCANNER_PYTHON`, `APS_SCANNER_DIR`, `APS_SCANNER_TIMEOUT_SECS` | discovered, discovered, 30 | Scanner subprocess (use 120 with a live model) |
+| `APS_SCAN_SKU` | scan.v1 | `triage.v2` adds the Stage B model judge |
+| `APS_LIVE_MODEL`, `NEARAI_API_KEY` | unset | Both set: live Stage B calls to NEAR AI Cloud |
+| `APS_TRIAGE_CASSETTES` | unset | Replay Stage B from a cassette directory, no key |
+| `APS_TRIAGE_MODEL_ID` | z-ai/glm-5.3-flash | Stage B model |
 
 ## More
 

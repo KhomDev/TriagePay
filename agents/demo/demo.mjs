@@ -5,7 +5,7 @@
 // shows what the wallet lets the key do and what it refuses:
 //
 //   node agents/demo/demo.mjs setup  --out-dir DIR --funder-key FILE
-//   node agents/demo/demo.mjs run    --out-dir DIR --api http://127.0.0.1:PORT
+//   node agents/demo/demo.mjs run    --out-dir DIR --api http://127.0.0.1:PORT [--pause]
 //   node agents/demo/demo.mjs direct --out-dir DIR --api http://127.0.0.1:PORT
 //   node agents/demo/demo.mjs revoke --out-dir DIR --api http://127.0.0.1:PORT
 //
@@ -310,11 +310,18 @@ async function paidScan(api, name, envelope) {
   if (result.status !== 200) return record({ step, ...paid, summary: `paid, but the server answered ${result.status} ${result.reason}` });
   const report = result.body.report;
   const policy = await agentView();
-  return record({
+  // triage.v2 only: the Stage B model judge's advisory call.
+  const stageB = report.stage_b && report.stage_b.status === "ok" ? report.stage_b : null;
+  const model = stageB
+    ? `; model judge (${report.model_id}${report.model_verifiable ? ", TEE-listed" : ""}): ${stageB.severity_call}, p=${stageB.bountiable_probability}`
+    : "";
+  const entry = record({
     step,
     requirement_memo: requirement.extra.memo,
     ...paid,
     payment_response: result.payment,
+    stage_b: report.stage_b || null,
+    model_id: report.model_id || null,
     decision: report.decision,
     missing_evidence: report.missing_evidence,
     failed_gates: report.failed_gates,
@@ -322,7 +329,25 @@ async function paidScan(api, name, envelope) {
     content_hash: report.content_hash,
     spent_today: policy.spent_in_window,
     remaining_today: policy.remaining,
-    summary: `402, wallet \`pay\` of ${units(requirement.amount)}, proof accepted, verdict **${report.decision}**${report.missing_evidence.length ? ` (missing: ${report.missing_evidence.join(", ")})` : ""}${report.failed_gates.length ? ` (failed: ${report.failed_gates.join(", ")})` : ""}${report.contains_embedded_instructions ? "; the report flags embedded instructions" : ""}; payer on chain \`${result.payment.payer}\`; remaining today ${units(policy.remaining)}`,
+    summary: `402, wallet \`pay\` of ${units(requirement.amount)}, proof accepted, verdict **${report.decision}**${report.missing_evidence.length ? ` (missing: ${report.missing_evidence.join(", ")})` : ""}${report.failed_gates.length ? ` (failed: ${report.failed_gates.join(", ")})` : ""}${report.contains_embedded_instructions ? "; the report flags embedded instructions" : ""}${model}; payer on chain \`${result.payment.payer}\`; remaining today ${units(policy.remaining)}`,
+  });
+  if (stageB && stageB.public_rationale) say(`  - model rationale: "${stageB.public_rationale}"`);
+  return entry;
+}
+
+// --pause: wait for Enter before each step, so a presenter can talk over
+// the run while it is recorded. Without it the run goes straight through.
+const PAUSE = args.includes("--pause");
+async function beat(title) {
+  console.log("\n>>> " + title);
+  if (!PAUSE) return;
+  process.stdout.write("    (press Enter) ");
+  await new Promise((resolve) => {
+    process.stdin.resume();
+    process.stdin.once("data", () => {
+      process.stdin.pause();
+      resolve();
+    });
   });
 }
 
@@ -337,7 +362,16 @@ async function run() {
     save();
   }
   const findings = loadFindings();
-  for (const finding of findings) await paidScan(api, finding.name, finding.envelope);
+  const calls = [
+    "Call 1: a finding whose deployment evidence is a placeholder",
+    "Call 2: the same finding with a well-formed reference",
+    "Call 3: a finding with an instruction hidden in it",
+    "Call 4: a finding that needs the owner's key",
+  ];
+  for (const [i, finding] of findings.entries()) {
+    if (!done("scan:" + finding.name)) await beat(calls[i] || finding.name);
+    await paidScan(api, finding.name, finding.envelope);
+  }
 
   if (!done("attacks_header")) {
     say("\n## What the key cannot do\n");
@@ -345,6 +379,7 @@ async function run() {
     save();
   }
   // 1. The naive agent follows the instruction embedded in finding 3.
+  if (!done("injected_payment")) await beat("The agent obeys the instruction hidden in finding 3");
   if (!done("injected_payment")) {
     const injected = findings.find((f) => f.envelope.reproduction_summary.includes(A.mallory));
     const before = await balanceOf(A.wallet);
@@ -353,6 +388,7 @@ async function run() {
     record({ step: "injected_payment", instruction_source: injected && injected.name, attempted_receiver: A.mallory, ...s, wallet_balance_change: (after - before).toString(), summary: `the agent follows the instruction hidden in finding 3 and calls \`pay(receiver = ${A.mallory})\`: refused with \`${s.error_code}\`; wallet balance change ${after - before}` });
   }
   // 2. More than the per-call limit, to the allowlisted payee.
+  if (!done("over_per_call")) await beat("One atomic unit over the per-call limit");
   if (!done("over_per_call")) {
     const before = await balanceOf(A.wallet);
     const s = await walletPay(A.gateway, PRICE + 1n, "too-much");
@@ -360,8 +396,10 @@ async function run() {
     record({ step: "over_per_call", ...s, wallet_balance_change: (after - before).toString(), summary: `\`pay\` of ${units(PRICE + 1n)} (one atomic unit over the per-call limit): refused with \`${s.error_code}\`; wallet balance change ${after - before}` });
   }
   // 3. A fifth call on the same UTC day.
+  if (!done("scan:over-daily-limit")) await beat("A fifth call on the same UTC day");
   await paidScan(api, "over-daily-limit", findings[0].envelope);
   // 4. The agent tries to raise its own limit.
+  if (!done("self_escalation")) await beat("The agent tries to raise its own limit");
   if (!done("self_escalation")) {
     const r = await nodeRejects("agent_fc", A.wallet, [fc("set_agent", { agent_id: A.agent, per_call_max: "1000000000", daily_max: "1000000000", payees: [A.mallory] }, 30, 1n)]);
     record({ step: "self_escalation", ...r, summary: r.rejected ? `the agent key calls the owner method \`set_agent\` with the required 1 yoctoNEAR: the node rejects the transaction before execution (\`${r.error}\`)` : `UNEXPECTED: the node accepted the transaction (${r.outcome}, ${r.error_code})` });
@@ -381,6 +419,7 @@ async function direct() {
   if (!api) fail("--api is required");
   const A = ev.accounts;
   if (done("direct_payment")) return;
+  await beat("A direct payment from a full-access account, then a replay");
   say("\n## A direct payment verifies the same way\n");
   const envelope = loadFindings()[1].envelope;
   envelope.title = envelope.title + " (direct payment)";
@@ -418,7 +457,9 @@ async function revoke() {
     ev.steps.push({ step: "revoke_header" });
     save();
   }
+  if (!done("revoke_agent")) await beat("The owner revokes the agent");
   await must("revoke_agent", "owner", A.wallet, [fc("revoke_agent", { agent_id: A.agent }, 30, 1n)], "owner calls `revoke_agent` (1 yoctoNEAR)");
+  if (!done("pay_after_revoke")) await beat("The revoked agent tries to pay; its key still exists");
   if (!done("pay_after_revoke")) {
     const before = await balanceOf(A.wallet);
     const s = await walletPay(A.gateway, 1n, "after-revoke");
@@ -426,6 +467,7 @@ async function revoke() {
     record({ step: "pay_after_revoke", ...s, wallet_balance_change: (after - before).toString(), summary: `the agent's key still exists and calls \`pay\` for one atomic unit: refused with \`${s.error_code}\`; wallet balance change ${after - before}` });
   }
   const fcKey = loadKey("agent_fc");
+  if (!done("delete_agent_key")) await beat("The agent account deletes the key");
   await must("delete_agent_key", "agent", A.agent, [n.actions.deleteKey(n.PublicKey.fromString(fcKey.public_key))], "the agent account's full-access key deletes the function-call key (the wallet owner cannot do this; revocation at the wallet does not depend on it)");
   if (!done("pay_with_deleted_key")) {
     const r = await nodeRejects("agent_fc", A.wallet, [fc("pay", { token: A.token, receiver_id: A.gateway, amount: "1", memo: "deleted-key" }, 50)]);

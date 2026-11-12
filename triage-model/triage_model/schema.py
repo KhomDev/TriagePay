@@ -37,6 +37,11 @@ OUTPUT_FIELDS = (
     "public_rationale",
 )
 
+# The schema sent to the model as a structured-output grammar. It carries no
+# `uniqueItems`: NEAR AI Cloud's grammar engine refuses the whole request
+# for it (HTTP 400 "Unimplemented keys: [uniqueItems]", observed
+# 2026-11-12). Distinct items are still required: validate_output enforces
+# them on every reply.
 OUTPUT_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -47,12 +52,10 @@ OUTPUT_SCHEMA = {
         "taxonomy_hits": {
             "type": "array",
             "items": {"type": "string", "enum": list(PUBLIC_CATEGORIES)},
-            "uniqueItems": True,
         },
         "missing_evidence": {
             "type": "array",
             "items": {"type": "string", "enum": list(MISSING_EVIDENCE)},
-            "uniqueItems": True,
         },
         "public_rationale": {"type": "string", "maxLength": RATIONALE_MAX},
     },

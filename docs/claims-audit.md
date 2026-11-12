@@ -17,17 +17,17 @@ qualified in the row), OPEN (not proven; the docs must say so).
 |---|---|
 | aps-core | 23 |
 | aps-payment | 9 |
-| aps-api | 52 (api 12, concurrency 4, error_hygiene 7, near_flow 3, payment_flow 6, scan_flow 5, x402_flow 15) |
+| aps-api | 53 (api 12, concurrency 4, error_hygiene 7, near_flow 3, payment_flow 6, scan_flow 5, x402_flow 16) |
 | aps-near | 58, plus 3 live read-only tests ignored by default |
 | aps-auth | 25 |
 | aps-store | 29 |
 | policy-core | 28 (25 unit, 3 property) |
-| Rust workspace total | 224 passed, 3 ignored |
+| Rust workspace total | 225 passed, 3 ignored |
 | contracts: policy-wallet / test-token | 65 / 3 |
 | contracts: sandbox | 18 passed on Linux CI (2026-11-12, https://github.com/KhomDev/TriagePay/actions/runs/43181541598); not runnable on Windows |
 | scanner | 319 |
 | knowledge-compiler | 71, plus 1 skipped (local private-denylist scan) |
-| triage-model | 64 |
+| triage-model | 73 (6 replay the committed cassettes) |
 | root (OpenAPI, Python client) | 14 |
 | ui | 17 |
 | TypeScript client | 7 |
@@ -53,7 +53,8 @@ hits against the operator's off-repo list).
 | Money is integer-only; conservation holds after every operation | `money.rs`; `ledger_fuzz.rs` | GREEN |
 | Development-only routes answer 403 unless the mock provider is active | `dev_only_routes_refuse_under_the_near_provider`; live check in the transcript | GREEN |
 | One mainnet deposit verified on 2026-10-21 | `docs/integrations/near.md`; the capture is a fixture of the current verifier | LIMITED (verified live by the earlier argument-based verifier; the current verifier checks the same transaction from its recorded receipts) |
-| Stage B has never run live | `docs/engine/model-selection.md` outcome log; a probe on 2026-11-11 was again refused with HTTP 402 | GREEN (as a statement of what is missing) |
+| Stage B runs against NEAR AI Cloud | 2026-11-12 spike, 50 calls, USD 0.096 (`docs/engine/model-selection.md`); paid route in `triage.v2` mode, live and from cassettes | GREEN |
+| Stage B without a key, from recorded replies | `triage-model/tests/test_committed_cassettes.py` (6 tests) | GREEN |
 | The 18 sandbox tests pass | GitHub Actions run https://github.com/KhomDev/TriagePay/actions/runs/43181541598: 18 passed | GREEN |
 | No code predates the hackathon window | `git log --reverse`: first commit 2026-10-20; rules Q-001 count code from 2026-10-19 | GREEN |
 
@@ -90,7 +91,7 @@ hits against the operator's off-repo list).
 | The combiner never raises a decision above Stage A | `test_combiner.py` (exhaustive table) | GREEN |
 | Embedded instructions are flagged and never change an outcome | Injection corpus tests; transcript finding 3 | GREEN |
 | No accuracy figure is claimed | None appears in any document | GREEN |
-| Stage B prompt, schema, retry and cache behaviour | `triage-model` tests with a fake model | LIMITED (offline only) |
+| Stage B prompt, schema, retry and cache behaviour | `triage-model` tests with a fake model; the live spike | GREEN |
 | The default model is TEE-verifiable | Catalogue flag recorded in `config.py`; no attestation is fetched (ADR-0011) | LIMITED |
 
 ## docs/architecture.md, threat-model.md, security-review.md, ADRs
@@ -116,10 +117,10 @@ hits against the operator's off-repo list).
 | 2026-11-11 | `wrap.testnet` cannot be the settlement asset: it emits no NEP-297 events. The x402 example and the testnet runs use an event-emitting token |
 | 2026-11-11 | The README described the 2026-10-21 state; rewritten |
 | 2026-11-12 | First GitHub CI run: `cargo audit` failed on RUSTSEC-2026-0459 (libsqlite3-sys via rusqlite 0.37) and RUSTSEC-2026-0384 (tokio 1.54.0); rusqlite moved to 0.41.0 and tokio to 1.54.1. The contracts workflow could not install cargo-near (missing libudev headers on the runner) |
+| 2026-11-12 | First live Stage B calls: every request was refused (HTTP 400 for `uniqueItems` in the output schema and for a model that left the catalogue) or came back empty (reasoning used the whole 1024-token budget). Fixed in the client; the spike then ran clean |
 | 2026-11-12 | First sandbox run: 3 of 18 failed on test bugs. `pay` with a deposit is refused by near-sdk's non-payable guard, so the contract's `ERR_DEPOSIT_NOT_ZERO` is not reached on chain; the overflow test funded the wallet before allowlisting the token; the close test measured the gas-paying owner as beneficiary |
 
 ## Open items
 
-- Stage B live run: blocked on an API key with a spending limit.
 - Persistence, authentication and rate limiting are built as crates and not
   wired into the API.

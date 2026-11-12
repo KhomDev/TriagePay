@@ -93,8 +93,11 @@ The full 4x4 table over all four decisions is proven exhaustively in
 - Cassettes (`triage-model/cassettes/`) store a request digest, the model id, the reply content
   and the usage, never the request text or any auth header. Only synthetic or public-benchmark
   inputs may be recorded.
-- Cost per call is the API's usage fields times the catalogue price. It is unmeasured until the
-  spike runs (docs/engine/model-selection.md). The `triage.v2` price is a 1 USDC placeholder.
+- Cost per call is the API's usage fields times the catalogue price: about USD 0.0002 for the
+  pinned model in the 2026-11-12 spike (docs/engine/model-selection.md). The `triage.v2` price
+  is still a 1 USDC placeholder, far above that cost.
+- The paid route runs `triage.v2` when the API starts with `APS_SCAN_SKU=triage.v2`; the 402
+  requirement then names that SKU. The default stays `scan.v1`.
 
 ## Threat model rows
 

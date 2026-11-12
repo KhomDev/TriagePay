@@ -594,6 +594,49 @@ async fn the_mock_provider_speaks_the_same_protocol_on_a_dev_network() {
     assert_eq!(reply.header_json("payment-response")["success"], true);
 }
 
+/// `APS_SCAN_SKU=triage.v2`: the requirement names the SKU, and the paid
+/// report carries the Stage B section. With no model configured Stage B
+/// is "unavailable", which caps the decision at needs_evidence.
+#[tokio::test]
+async fn the_triage_v2_sku_runs_the_two_stage_engine() {
+    if std::env::var("APS_LIVE_MODEL").as_deref() == Ok("1") {
+        eprintln!("skipped: APS_LIVE_MODEL=1 would make a live model call");
+        return;
+    }
+    let launcher = aps_api::scanbridge::ScanLauncher::discover().with_sku(aps_core::TRIAGE_V2_SKU);
+    let provider = Provider::Mock(aps_payment::MockProvider::new(aps_payment::MockClock::new(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_secs(),
+    )));
+    let app = router(AppState::with_provider_and_launcher(
+        "dev-agent",
+        provider,
+        launcher,
+    ));
+    let required = require(&app).await;
+    let accepted = required["accepts"][0].clone();
+    assert_eq!(accepted["extra"]["sku"], "triage.v2");
+    assert_eq!(
+        required["resource"]["description"],
+        "TriagePay finding triage (triage.v2)"
+    );
+    let reply = send(
+        &app,
+        "POST",
+        "/v2/scan",
+        Some(&signature(&accepted, "mock-tx-v2")),
+        Some(envelope()),
+    )
+    .await;
+    assert_eq!(reply.status, 200, "{}", reply.body);
+    let report = &reply.body["report"];
+    assert_eq!(report["report_version"], 2);
+    assert_eq!(report["stage_b"]["status"], "unavailable");
+    assert_eq!(report["decision"], "needs_evidence");
+}
+
 // ----- facilitator -----------------------------------------------------------
 
 fn third_party_requirements(memo: &str) -> Value {

@@ -9,6 +9,11 @@
 //! - `APS_SCANNER_DIR`: directory containing the `aps_scanner` package
 //!   (default: discovered relative to the working directory);
 //! - `APS_SCANNER_TIMEOUT_SECS`: hard per-scan timeout (default: 30).
+//! - `APS_SCAN_SKU`: `scan.v1` (default; deterministic gates only) or
+//!   `triage.v2` (the gates plus the Stage B model judge). The scanner
+//!   subprocess inherits the environment, so `APS_LIVE_MODEL` and
+//!   `NEARAI_API_KEY` reach the judge; without them Stage B reports
+//!   "unavailable" and the verdict stays at Stage A's or lower.
 
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -24,6 +29,20 @@ pub struct ScanLauncher {
     python: String,
     scanner_dir: PathBuf,
     timeout: Duration,
+    sku: &'static str,
+}
+
+/// The SKUs the scanner CLI accepts.
+pub const SCANNER_SKUS: [&str; 2] = [aps_core::SCAN_SKU, aps_core::TRIAGE_V2_SKU];
+
+/// Resolve `APS_SCAN_SKU` to a supported SKU; `None` when it is set to
+/// anything else.
+pub fn sku_from_env() -> Option<&'static str> {
+    match std::env::var("APS_SCAN_SKU") {
+        Err(_) => Some(aps_core::SCAN_SKU),
+        Ok(raw) if raw.trim().is_empty() => Some(aps_core::SCAN_SKU),
+        Ok(raw) => SCANNER_SKUS.iter().copied().find(|sku| *sku == raw.trim()),
+    }
 }
 
 impl ScanLauncher {
@@ -33,7 +52,19 @@ impl ScanLauncher {
             python: python.into(),
             scanner_dir,
             timeout,
+            sku: aps_core::SCAN_SKU,
         }
+    }
+
+    /// The same launcher running another supported SKU.
+    pub fn with_sku(mut self, sku: &'static str) -> Self {
+        self.sku = sku;
+        self
+    }
+
+    /// The SKU every scan runs (and every paid requirement names).
+    pub fn sku(&self) -> &'static str {
+        self.sku
     }
 
     /// Discover settings from the environment with safe defaults.
@@ -52,6 +83,7 @@ impl ScanLauncher {
             python,
             scanner_dir,
             timeout,
+            sku: sku_from_env().unwrap_or(aps_core::SCAN_SKU),
         }
     }
 
@@ -64,6 +96,8 @@ impl ScanLauncher {
         let mut child = Command::new(&self.python)
             .arg("-m")
             .arg("aps_scanner")
+            .arg("--sku")
+            .arg(self.sku)
             .current_dir(&self.scanner_dir)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

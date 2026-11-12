@@ -50,6 +50,10 @@ def test_request_shape_matches_the_documented_api():
     assert body["stream"] is False
     assert body["response_format"]["type"] == "json_schema"
     assert body["response_format"]["json_schema"]["strict"] is True
+    # Reasoning models spend max_tokens on hidden reasoning first; the
+    # defaults leave room for the answer (observed 2026-11-12).
+    assert body["reasoning_effort"] == "low"
+    assert body["max_tokens"] == 4096
     assert completion.content == '{"a": 1}'
     assert completion.usage == {"prompt_tokens": 9}
     assert completion.request_id == "req-1"
@@ -105,6 +109,19 @@ def test_construction_guards():
         ChatClient(FAKE_KEY, base_url="http://cloud-api.near.ai/v1")
     with pytest.raises(ValueError):
         ChatClient(FAKE_KEY, response_format="xml")
+    with pytest.raises(ValueError):
+        ChatClient(FAKE_KEY, reasoning_effort="maximum")
+
+
+def test_reasoning_effort_none_sends_no_field():
+    body = ChatClient(FAKE_KEY, reasoning_effort="none").request_body([], "m", OUTPUT_SCHEMA)
+    assert "reasoning_effort" not in body
+
+
+def test_output_schema_carries_no_keyword_the_grammar_engine_refuses():
+    # NEAR AI Cloud answered HTTP 400 "Unimplemented keys: [uniqueItems]"
+    # for the whole request; validate_output enforces distinct items.
+    assert "uniqueItems" not in json.dumps(OUTPUT_SCHEMA)
 
 
 @pytest.mark.parametrize(

@@ -34,7 +34,11 @@ from aps_scanner.report import compute_content_hash  # noqa: E402
 from aps_scanner.stage_a import run_stage_a  # noqa: E402
 from triage_model import config  # noqa: E402
 from triage_model.backends import LiveBackend, RecordingBackend  # noqa: E402
-from triage_model.client import ChatClient  # noqa: E402
+from triage_model.client import (  # noqa: E402
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_REASONING_EFFORT,
+    ChatClient,
+)
 from triage_model.judge import judge  # noqa: E402
 from triage_model.schema import parse_output  # noqa: E402
 
@@ -159,7 +163,8 @@ def main(argv=None):
     parser.add_argument("--already-spent-usd", type=float, default=0.0)
     parser.add_argument("--stop-fraction", type=float, default=0.9)
     parser.add_argument("--response-format", default="json_schema")
-    parser.add_argument("--max-tokens", type=int, default=1024)
+    parser.add_argument("--max-tokens", type=int, default=DEFAULT_MAX_TOKENS)
+    parser.add_argument("--reasoning-effort", default=DEFAULT_REASONING_EFFORT)
     parser.add_argument("--record", help="optional cassette directory (outside the repo)")
     args = parser.parse_args(argv)
     if not config.live_enabled(os.environ):
@@ -176,6 +181,7 @@ def main(argv=None):
         base_url=config.base_url(os.environ),
         max_tokens=args.max_tokens,
         response_format=args.response_format,
+        reasoning_effort=args.reasoning_effort,
     )
     summaries, stopped = [], False
     for spec in args.model:
@@ -204,6 +210,7 @@ def main(argv=None):
     report = {
         "response_format": args.response_format,
         "max_tokens": args.max_tokens,
+        "reasoning_effort": args.reasoning_effort,
         "rows": len(rows),
         "cap_usd": args.cap_usd,
         "spent_usd_total": ledger["spent"],

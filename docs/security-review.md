@@ -5,9 +5,9 @@ control, the test that verifies it, the residual risk, and the owner. The
 table below was written on 2026-10-21 for the prepaid routes; the
 2026-11-11 review of the x402 path and the wallet is the section after it.
 
-**Suites (regenerated 2026-11-11):** Rust workspace 224 passed and 3
+**Suites (regenerated 2026-11-12):** Rust workspace 225 passed and 3
 ignored live tests; contracts 65 and 3; scanner 319; knowledge-compiler 71
-and 1 skipped; triage-model 64; root 14; ui 17. Per-crate counts are in
+and 1 skipped; triage-model 73; root 14; ui 17. Per-crate counts are in
 docs/claims-audit.md.
 
 ## Threat → control → verification

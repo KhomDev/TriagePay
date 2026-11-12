@@ -19,7 +19,13 @@ from dataclasses import dataclass
 
 DEFAULT_BASE_URL = "https://cloud-api.near.ai/v1"
 DEFAULT_TIMEOUT_SECS = 60
-DEFAULT_MAX_TOKENS = 1024
+# Every TEE-listed chat model in the catalogue reasons before it answers,
+# and the reasoning tokens count against max_tokens. With 1024 tokens and
+# the default effort, all of them stopped at the limit before writing any
+# content (2026-11-12). With effort "low" a verdict took about 150 tokens.
+DEFAULT_MAX_TOKENS = 4096
+DEFAULT_REASONING_EFFORT = "low"
+REASONING_EFFORTS = ("low", "medium", "high", "none")
 USER_AGENT = "aps-triage-model/0.1"
 # json_schema: strict structured output (default); json_object: JSON mode
 # for models without structured outputs; none: plain text, strict parse.
@@ -68,6 +74,7 @@ class ChatClient:
         timeout: float = DEFAULT_TIMEOUT_SECS,
         max_tokens: int = DEFAULT_MAX_TOKENS,
         response_format: str = "json_schema",
+        reasoning_effort: str = DEFAULT_REASONING_EFFORT,
         transport=urllib_transport,
     ):
         if not api_key:
@@ -81,6 +88,10 @@ class ChatClient:
         if response_format not in RESPONSE_FORMATS:
             raise ValueError(f"response_format must be one of {RESPONSE_FORMATS}")
         self.response_format = response_format
+        if reasoning_effort not in REASONING_EFFORTS:
+            raise ValueError(f"reasoning_effort must be one of {REASONING_EFFORTS}")
+        # "none" sends no reasoning_effort field (the provider's default).
+        self.reasoning_effort = reasoning_effort
         self._transport = transport
 
     def __repr__(self):
@@ -94,6 +105,8 @@ class ChatClient:
             "stream": False,
             "max_tokens": self.max_tokens,
         }
+        if self.reasoning_effort != "none":
+            body["reasoning_effort"] = self.reasoning_effort
         if self.response_format == "json_schema":
             body["response_format"] = {
                 "type": "json_schema",

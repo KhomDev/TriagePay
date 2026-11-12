@@ -31,6 +31,7 @@ configured model id (docs/engine/overview.md).
 - No document may describe a verdict as attested, confidential or
   TEE-verified. "The configured model is listed as TEE-verifiable" is the
   strongest true statement.
-- Stage B itself has not run against the live service: every completion
-  attempt up to 2026-11-11 was refused with HTTP 402 because the API key
-  has no spending limit (docs/engine/model-selection.md).
+- Stage B runs against the live service since 2026-11-12, when a key with
+  a spending limit arrived (docs/engine/model-selection.md). Running on a
+  TEE-listed model is still not an attested verdict: nothing verifies
+  where the call ran.

@@ -8,6 +8,11 @@ Then, in another:
 
     python scripts/x402-demo.py [--api http://127.0.0.1:8080]
 
+To include the Stage B model judge without a NEAR AI key, start the API
+with ``APS_SCAN_SKU=triage.v2`` and ``APS_TRIAGE_CASSETTES`` set to
+``triage-model/cassettes`` (recorded replies for the repository's synthetic
+findings).
+
 It shows the three protocol steps: the 402 with its payment requirement,
 the retry with a payment proof, and the replay of the same proof. With the
 mock provider the network is the development-only ``aps:mock`` and any
@@ -92,6 +97,14 @@ def main() -> int:
     report = body["report"]
     print(f"   HTTP {status}; verdict: {report['decision']}")
     print(f"   missing evidence: {report.get('missing_evidence')}")
+    stage_b = report.get("stage_b") or {}
+    if stage_b.get("status") == "ok":
+        listed = " (listed as TEE-verifiable)" if report.get("model_verifiable") else ""
+        print(f"   model judge {report.get('model_id')}{listed}: "
+              f"{stage_b.get('severity_call')}, p={stage_b.get('bountiable_probability')}")
+        print(f"   rationale: {stage_b.get('public_rationale')}")
+    elif stage_b.get("status"):
+        print(f"   model judge: {stage_b.get('status')} (verdict from the deterministic gates)")
     print(f"   content hash the payment settled against: {report['content_hash']}")
     print(f"   charged: {body['settlement']['charged']['decimal']}")
     print("   PAYMENT-RESPONSE: " + json.dumps(header(headers, "payment-response")))
