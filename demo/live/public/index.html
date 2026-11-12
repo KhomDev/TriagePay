@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Live demo - TriagePay</title>
+<link rel="stylesheet" href="style.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site">
+  <p class="brand">TriagePay <span>live demo (NEAR testnet)</span></p>
+</header>
+<main id="main">
+  <h1>Watch the wallet refuse a payment</h1>
+  <p class="lead">An injected instruction tells the agent who to pay. The agent obeys.
+    The spend-policy wallet on NEAR testnet is what says no. Signing happens on the server;
+    this page never holds a key.</p>
+  <p id="status" role="status" aria-live="polite"></p>
+
+  <section class="card" aria-labelledby="h-attack">
+    <h2 id="h-attack">Run an attempt</h2>
+    <form id="run-form" novalidate>
+      <div class="field">
+        <label for="scenario">Scenario</label>
+        <select id="scenario" name="scenario"></select>
+        <span id="scenario-hint" class="hint"></span>
+      </div>
+      <div class="field">
+        <label for="injection">Instruction the agent follows</label>
+        <textarea id="injection" readonly rows="4"></textarea>
+      </div>
+      <div class="actions">
+        <button id="btn-run" type="submit">Run attack</button>
+        <button id="btn-refresh" type="button" class="secondary">Refresh dashboard</button>
+      </div>
+    </form>
+    <div id="result" aria-live="polite"></div>
+  </section>
+
+  <section class="card" aria-labelledby="h-spend">
+    <h2 id="h-spend">Spending</h2>
+    <p id="spend-label">Today's spend loads from the wallet.</p>
+    <div class="bar" id="spend-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-labelledby="spend-label">
+      <span id="spend-bar-fill"></span>
+    </div>
+    <p id="spend-meta" class="hint"></p>
+    <div class="actions">
+      <button id="btn-revoke" type="button">Revoke spending</button>
+      <button id="btn-restore" type="button" class="secondary">Restore spending</button>
+    </div>
+    <p class="hint">Revoke calls <span class="mono">revoke_agent</span> with the owner key.
+      The agent's key remains, and the next <span class="mono">pay</span> fails.
+      Restore turns that agent back on without resetting today's spend.</p>
+    <div id="owner-result" aria-live="polite"></div>
+  </section>
+
+  <section class="card" aria-labelledby="h-risk">
+    <h2 id="h-risk">Payee risk</h2>
+    <p class="hint">Before a payment, the policy reads the account on testnet RPC
+      (code hash, and age from the creation transaction when it is known) and classifies it
+      allow, warn, or block.</p>
+    <div id="risks"></div>
+  </section>
+
+  <section class="card" aria-labelledby="h-recent">
+    <h2 id="h-recent">Recent attempts</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>What</th>
+            <th>Risk</th>
+            <th>Chain</th>
+            <th>Explorer</th>
+          </tr>
+        </thead>
+        <tbody id="recent"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<footer class="site">
+  <p>Testnet only. The server signs at most once per cooldown and caps attempts per UTC day.
+    Refused transactions are still on the explorer. The function-call key can call only <span class="mono">pay</span>,
+    and the contract caps the call, the day, and the payee.</p>
+</footer>
+</body>
+</html>
