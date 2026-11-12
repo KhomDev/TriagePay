@@ -48,8 +48,12 @@ jobs:
           rustc --version
           cargo --version
 
+      # cargo-near builds hidapi (hardware-wallet support), whose Linux
+      # build script needs the libudev headers and pkg-config.
       - name: Install cargo-near
         run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends libudev-dev pkg-config
           cargo install cargo-near --version "$CARGO_NEAR_VERSION" --locked
           cargo near --version
 
