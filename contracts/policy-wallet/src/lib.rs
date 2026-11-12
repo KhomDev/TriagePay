@@ -48,6 +48,17 @@ pub const ERR_TOO_MANY_TOKENS: &str = "ERR_TOO_MANY_TOKENS";
 pub const ERR_SELF_ACCOUNT: &str = "ERR_SELF_ACCOUNT";
 /// `close` was called while the wallet is not paused.
 pub const ERR_NOT_PAUSED: &str = "ERR_NOT_PAUSED";
+/// The owner-approval queue already holds [`MAX_PENDING`] payments.
+pub const ERR_REVIEW_QUEUE_FULL: &str = "ERR_REVIEW_QUEUE_FULL";
+/// `approve_payment` or `reject_payment` named an id that is not waiting.
+pub const ERR_NOT_PENDING: &str = "ERR_NOT_PENDING";
+
+/// Largest number of payments waiting for the owner.
+pub const MAX_PENDING: usize = 8;
+/// Queued because the payee is not on the allowlist.
+pub const REASON_NEW_PAYEE: &str = "new_payee";
+/// Queued because the amount is above the owner's approval threshold.
+pub const REASON_ABOVE_THRESHOLD: &str = "above_threshold";
 
 /// Largest accepted memo, in bytes.
 pub const MAX_MEMO_LEN: usize = 256;
@@ -96,6 +107,7 @@ pub trait FungibleToken {
 #[derive(BorshStorageKey)]
 enum StorageKey {
     Agents,
+    Pending,
 }
 
 /// An agent's stored policy. Mirrors [`policy_core::AgentPolicy`] with
@@ -153,6 +165,62 @@ pub struct AgentView {
     pub resets_at_ns: U64,
 }
 
+/// A payment reserved against the daily limit and not yet transferred.
+#[near(serializers = [borsh, json])]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingPayment {
+    /// The agent that called `pay`.
+    pub agent_id: AccountId,
+    /// The NEP-141 token contract.
+    pub token: AccountId,
+    /// The payee.
+    pub receiver_id: AccountId,
+    /// Amount in token atomic units.
+    pub amount: u128,
+    /// Memo to use if the owner approves.
+    pub memo: Option<String>,
+    /// `new_payee` or `above_threshold`.
+    pub reason: String,
+    /// UTC day the amount was reserved in.
+    pub window_index: u64,
+}
+
+/// One queued payment, as returned by `get_pending`.
+#[near(serializers = [json])]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingView {
+    /// Id to pass to `approve_payment` or `reject_payment`.
+    pub payment_id: U64,
+    /// The agent that called `pay`.
+    pub agent_id: AccountId,
+    /// The NEP-141 token contract.
+    pub token: AccountId,
+    /// The payee.
+    pub receiver_id: AccountId,
+    /// Amount in token atomic units.
+    pub amount: U128,
+    /// Memo that an approval will pass to `ft_transfer`.
+    pub memo: Option<String>,
+    /// `new_payee` or `above_threshold`.
+    pub reason: String,
+    /// UTC day the amount was reserved in.
+    pub window_index: U64,
+}
+
+/// Owner-approval settings.
+#[near(serializers = [json])]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewView {
+    /// Amounts strictly above this wait for the owner. Zero disables it.
+    pub approval_threshold: U128,
+    /// When true, a payee outside the allowlist is queued instead of refused.
+    pub review_unknown_payees: bool,
+    /// Payments currently waiting.
+    pub pending_count: u64,
+    /// Queue capacity.
+    pub max_pending: u64,
+}
+
 /// View of the wallet configuration.
 #[near(serializers = [json])]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -180,6 +248,14 @@ pub struct PolicyWallet {
     tokens: Vec<AccountId>,
     agents: LookupMap<AccountId, StoredAgent>,
     next_payment_id: u64,
+    /// Payments waiting for `approve_payment` or `reject_payment`.
+    pending: LookupMap<u64, PendingPayment>,
+    /// Queue order, oldest first. Bounded by [`MAX_PENDING`].
+    pending_order: Vec<u64>,
+    /// Zero means an allowlisted payment is never queued for its amount.
+    approval_threshold: u128,
+    /// When true, `pay` to a payee outside the allowlist queues the payment.
+    review_unknown_payees: bool,
 }
 
 fn fail(err: PolicyError) -> ! {
@@ -222,6 +298,10 @@ impl PolicyWallet {
             tokens: normalize_tokens(tokens),
             agents: LookupMap::new(StorageKey::Agents),
             next_payment_id: 0,
+            pending: LookupMap::new(StorageKey::Pending),
+            pending_order: Vec::new(),
+            approval_threshold: 0,
+            review_unknown_payees: false,
         }
     }
 
@@ -233,23 +313,25 @@ impl PolicyWallet {
     /// Refusals panic with a stable code and change no state: `ERR_PAUSED`,
     /// `ERR_AGENT_INACTIVE`, `ERR_TOKEN_NOT_ALLOWED`, `ERR_PAYEE_NOT_ALLOWED`,
     /// `ERR_ZERO_AMOUNT`, `ERR_PER_CALL_LIMIT`, `ERR_DAILY_LIMIT`,
-    /// `ERR_OVERFLOW`, plus `ERR_DEPOSIT_NOT_ZERO`, `ERR_MEMO_TOO_LONG` and
-    /// `ERR_INSUFFICIENT_GAS`.
+    /// `ERR_OVERFLOW`, `ERR_REVIEW_QUEUE_FULL`, plus `ERR_DEPOSIT_NOT_ZERO`,
+    /// `ERR_MEMO_TOO_LONG` and `ERR_INSUFFICIENT_GAS`.
+    ///
+    /// When the owner has turned review on, a new payee or an amount above
+    /// the threshold is reserved and queued instead of transferred. The
+    /// return is then the payment id. Otherwise the return is the transfer
+    /// promise. Review is off until `set_review_policy`.
     pub fn pay(
         &mut self,
         token: AccountId,
         receiver_id: AccountId,
         amount: U128,
         memo: Option<String>,
-    ) -> Promise {
+    ) -> PromiseOrValue<U64> {
         if !env::attached_deposit().is_zero() {
             fail_with(ERR_DEPOSIT_NOT_ZERO, "pay takes no deposit");
         }
         if memo.as_ref().is_some_and(|m| m.len() > MAX_MEMO_LEN) {
             fail_with(ERR_MEMO_TOO_LONG, "memo exceeds 256 bytes");
-        }
-        if env::prepaid_gas() < GAS_MIN_PREPAID {
-            fail_with(ERR_INSUFFICIENT_GAS, "attach at least 35 TGas");
         }
         if self.paused {
             fail(PolicyError::Paused);
@@ -260,6 +342,74 @@ impl PolicyWallet {
             token_allowed: self.tokens.contains(&token),
         };
         let now = env::block_timestamp();
+        let allowlisted = self
+            .agents
+            .get(&agent_id)
+            .unwrap_or_else(|| fail(PolicyError::AgentInactive))
+            .policy()
+            .is_payee_allowed(receiver_id.as_str());
+        let hold_new = self.review_unknown_payees && !allowlisted;
+        let hold_amount =
+            allowlisted && self.approval_threshold > 0 && amount.0 > self.approval_threshold;
+        if hold_new || hold_amount {
+            if receiver_id == env::current_account_id() {
+                fail_with(ERR_SELF_ACCOUNT, "the wallet cannot be a payee");
+            }
+            if self.pending_order.len() >= MAX_PENDING {
+                fail_with(
+                    ERR_REVIEW_QUEUE_FULL,
+                    "the owner still has payments waiting",
+                );
+            }
+            let stored = self
+                .agents
+                .get_mut(&agent_id)
+                .unwrap_or_else(|| fail(PolicyError::AgentInactive));
+            let mut policy = stored.policy();
+            let reservation = if hold_new {
+                policy
+                    .check_and_reserve_unlisted(gate, amount.0, now)
+                    .unwrap_or_else(|e| fail(e))
+            } else {
+                policy
+                    .check_and_reserve(gate, receiver_id.as_str(), amount.0, now)
+                    .unwrap_or_else(|e| fail(e))
+            };
+            stored.store_spend(&policy);
+            let payment_id = self.alloc_payment_id();
+            let reason = if hold_new {
+                REASON_NEW_PAYEE
+            } else {
+                REASON_ABOVE_THRESHOLD
+            };
+            self.pending.insert(
+                payment_id,
+                PendingPayment {
+                    agent_id: agent_id.clone(),
+                    token: token.clone(),
+                    receiver_id: receiver_id.clone(),
+                    amount: amount.0,
+                    memo: memo.clone(),
+                    reason: reason.to_string(),
+                    window_index: reservation.window_index,
+                },
+            );
+            self.pending_order.push(payment_id);
+            WalletEvent::PaymentQueued {
+                payment_id: U64(payment_id),
+                agent_id,
+                token,
+                receiver_id,
+                amount,
+                reason: reason.to_string(),
+            }
+            .emit();
+            return PromiseOrValue::Value(U64(payment_id));
+        }
+
+        if env::prepaid_gas() < GAS_MIN_PREPAID {
+            fail_with(ERR_INSUFFICIENT_GAS, "attach at least 35 TGas");
+        }
         let stored = self
             .agents
             .get_mut(&agent_id)
@@ -269,38 +419,16 @@ impl PolicyWallet {
             .check_and_reserve(gate, receiver_id.as_str(), amount.0, now)
             .unwrap_or_else(|e| fail(e));
         stored.store_spend(&policy);
-
-        let payment_id = self.next_payment_id;
-        self.next_payment_id = payment_id
-            .checked_add(1)
-            .unwrap_or_else(|| fail(PolicyError::Overflow));
-
-        WalletEvent::PayRequested {
-            payment_id: U64(payment_id),
-            agent_id: agent_id.clone(),
-            token: token.clone(),
-            receiver_id: receiver_id.clone(),
+        let payment_id = self.alloc_payment_id();
+        PromiseOrValue::Promise(self.schedule_transfer(ScheduledTransfer {
+            agent_id,
+            token,
+            receiver_id,
             amount,
-            window_index: U64(reservation.window_index),
-        }
-        .emit();
-
-        ext_ft::ext(token.clone())
-            .with_attached_deposit(ONE_YOCTO)
-            .with_static_gas(GAS_FT_TRANSFER)
-            .ft_transfer(receiver_id.clone(), amount, memo)
-            .then(
-                Self::ext(env::current_account_id())
-                    .with_static_gas(GAS_CALLBACK)
-                    .on_pay_complete(
-                        agent_id,
-                        token,
-                        receiver_id,
-                        amount,
-                        U64(payment_id),
-                        U64(reservation.window_index),
-                    ),
-            )
+            memo,
+            payment_id,
+            window_index: reservation.window_index,
+        }))
     }
 
     /// Completion callback for `pay`. Emits `pay_settled` on success; on
@@ -456,6 +584,90 @@ impl PolicyWallet {
         self.paused = false;
         WalletEvent::Unpaused {
             by: self.owner.clone(),
+        }
+        .emit();
+    }
+
+    /// Set when `pay` queues a payment instead of transferring it.
+    ///
+    /// `approval_threshold` of zero disables the amount rule. A positive
+    /// threshold queues an allowlisted payment whose amount is strictly
+    /// greater. `review_unknown_payees` queues a payee that is not on the
+    /// allowlist; while it is false, that payee is still `ERR_PAYEE_NOT_ALLOWED`.
+    /// Either way the per-call limit, the daily limit, the token allowlist,
+    /// pause, and revocation still apply, and the queued amount is reserved.
+    #[payable]
+    pub fn set_review_policy(&mut self, approval_threshold: U128, review_unknown_payees: bool) {
+        self.assert_owner();
+        self.approval_threshold = approval_threshold.0;
+        self.review_unknown_payees = review_unknown_payees;
+    }
+
+    /// Pay a queued payment. Owner only. The reservation from `pay` is kept;
+    /// a failed transfer releases it in `on_pay_complete`. Refuses while the
+    /// wallet is paused or the agent is inactive, and leaves the queue entry
+    /// in place so the owner can `reject_payment` instead.
+    #[payable]
+    pub fn approve_payment(&mut self, payment_id: U64) -> Promise {
+        self.assert_owner();
+        if env::prepaid_gas() < GAS_MIN_PREPAID {
+            fail_with(ERR_INSUFFICIENT_GAS, "attach at least 35 TGas");
+        }
+        if self.paused {
+            fail(PolicyError::Paused);
+        }
+        let pending =
+            self.pending.get(&payment_id.0).cloned().unwrap_or_else(|| {
+                fail_with(ERR_NOT_PENDING, "no payment is waiting with that id")
+            });
+        let stored = self
+            .agents
+            .get(&pending.agent_id)
+            .unwrap_or_else(|| fail(PolicyError::AgentInactive));
+        if !stored.policy().active() {
+            fail(PolicyError::AgentInactive);
+        }
+        self.take_pending(payment_id.0);
+        self.schedule_transfer(ScheduledTransfer {
+            agent_id: pending.agent_id,
+            token: pending.token,
+            receiver_id: pending.receiver_id,
+            amount: U128(pending.amount),
+            memo: pending.memo,
+            payment_id: payment_id.0,
+            window_index: pending.window_index,
+        })
+    }
+
+    /// Drop a queued payment and return its reservation to the agent's
+    /// window when that window is still current. Works while paused, so a
+    /// paused wallet can release a hold.
+    #[payable]
+    pub fn reject_payment(&mut self, payment_id: U64) {
+        self.assert_owner();
+        let pending = self.take_pending(payment_id.0);
+        let release = match self.agents.get_mut(&pending.agent_id) {
+            Some(stored) => {
+                let mut policy = stored.policy();
+                let reservation = Reservation {
+                    amount: pending.amount,
+                    window_index: pending.window_index,
+                };
+                match policy.release(reservation) {
+                    Ok(ReleaseOutcome::Restored) => {
+                        stored.store_spend(&policy);
+                        ReleaseStatus::Restored
+                    }
+                    Ok(ReleaseOutcome::WindowExpired) => ReleaseStatus::WindowExpired,
+                    Err(_) => ReleaseStatus::Mismatch,
+                }
+            }
+            None => ReleaseStatus::Mismatch,
+        };
+        WalletEvent::PaymentRejected {
+            payment_id,
+            agent_id: pending.agent_id,
+            release,
         }
         .emit();
     }
@@ -646,6 +858,35 @@ impl PolicyWallet {
         )
     }
 
+    /// Payments waiting for the owner, oldest first.
+    pub fn get_pending(&self) -> Vec<PendingView> {
+        self.pending_order
+            .iter()
+            .filter_map(|id| {
+                self.pending.get(id).map(|pending| PendingView {
+                    payment_id: U64(*id),
+                    agent_id: pending.agent_id.clone(),
+                    token: pending.token.clone(),
+                    receiver_id: pending.receiver_id.clone(),
+                    amount: U128(pending.amount),
+                    memo: pending.memo.clone(),
+                    reason: pending.reason.clone(),
+                    window_index: U64(pending.window_index),
+                })
+            })
+            .collect()
+    }
+
+    /// The owner-approval settings. Both switches default to off.
+    pub fn get_review_policy(&self) -> ReviewView {
+        ReviewView {
+            approval_threshold: U128(self.approval_threshold),
+            review_unknown_payees: self.review_unknown_payees,
+            pending_count: self.pending_order.len() as u64,
+            max_pending: MAX_PENDING as u64,
+        }
+    }
+
     /// Wallet configuration.
     pub fn get_config(&self) -> ConfigView {
         ConfigView {
@@ -659,7 +900,71 @@ impl PolicyWallet {
     }
 }
 
+struct ScheduledTransfer {
+    agent_id: AccountId,
+    token: AccountId,
+    receiver_id: AccountId,
+    amount: U128,
+    memo: Option<String>,
+    payment_id: u64,
+    window_index: u64,
+}
+
 impl PolicyWallet {
+    fn alloc_payment_id(&mut self) -> u64 {
+        let payment_id = self.next_payment_id;
+        self.next_payment_id = payment_id
+            .checked_add(1)
+            .unwrap_or_else(|| fail(PolicyError::Overflow));
+        payment_id
+    }
+
+    fn take_pending(&mut self, payment_id: u64) -> PendingPayment {
+        let pending = self
+            .pending
+            .remove(&payment_id)
+            .unwrap_or_else(|| fail_with(ERR_NOT_PENDING, "no payment is waiting with that id"));
+        self.pending_order.retain(|id| *id != payment_id);
+        pending
+    }
+
+    fn schedule_transfer(&self, transfer: ScheduledTransfer) -> Promise {
+        let ScheduledTransfer {
+            agent_id,
+            token,
+            receiver_id,
+            amount,
+            memo,
+            payment_id,
+            window_index,
+        } = transfer;
+        WalletEvent::PayRequested {
+            payment_id: U64(payment_id),
+            agent_id: agent_id.clone(),
+            token: token.clone(),
+            receiver_id: receiver_id.clone(),
+            amount,
+            window_index: U64(window_index),
+        }
+        .emit();
+        ext_ft::ext(token.clone())
+            .with_attached_deposit(ONE_YOCTO)
+            .with_static_gas(GAS_FT_TRANSFER)
+            .ft_transfer(receiver_id.clone(), amount, memo)
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(GAS_CALLBACK)
+                    .on_pay_complete(
+                        agent_id,
+                        token,
+                        receiver_id,
+                        amount,
+                        U64(payment_id),
+                        U64(window_index),
+                    ),
+            )
+    }
+
     /// Exactly 1 yoctoNEAR attached and the owner as predecessor. The
     /// deposit check runs first: a function-call key can never satisfy it.
     fn assert_owner(&self) {

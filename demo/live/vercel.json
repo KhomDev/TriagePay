@@ -6,5 +6,8 @@
       "maxDuration": 60,
       "includeFiles": "config.json"
     }
-  }
+  },
+  "crons": [
+    { "path": "/api/cron", "schedule": "17 4 * * *" }
+  ]
 }

@@ -47,6 +47,8 @@ export function applyEnv(config, env) {
   }
   next.cooldownSeconds = Math.max(0, numberOr(env.TRIAGEPAY_COOLDOWN_SECONDS, next.cooldownSeconds));
   next.maxAttemptsPerDay = Math.max(0, numberOr(env.TRIAGEPAY_MAX_ATTEMPTS_PER_DAY, next.maxAttemptsPerDay));
+  next.ipLimit = Math.max(1, numberOr(env.TRIAGEPAY_IP_LIMIT, next.ipLimit || 4));
+  next.ipWindowSeconds = Math.max(1, numberOr(env.TRIAGEPAY_IP_WINDOW_SECONDS, next.ipWindowSeconds || 60));
   if ((!next.policy.payees || next.policy.payees.length === 0) && next.accounts.payee) {
     next.policy.payees = [next.accounts.payee];
   }

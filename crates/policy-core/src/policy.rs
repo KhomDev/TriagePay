@@ -228,6 +228,31 @@ impl AgentPolicy {
         amount: u128,
         now_ns: u64,
     ) -> Result<Reservation, PolicyError> {
+        self.reserve(gate, payee, amount, now_ns, false)
+    }
+
+    /// Same checks and reservation as [`check_and_reserve`], except the
+    /// payee allowlist. The wallet uses this when the owner has asked to
+    /// hold an unknown payee for approval. The amount still counts against
+    /// the per-call and daily limits, and a failure still leaves the policy
+    /// unchanged.
+    pub fn check_and_reserve_unlisted(
+        &mut self,
+        gate: WalletGate,
+        amount: u128,
+        now_ns: u64,
+    ) -> Result<Reservation, PolicyError> {
+        self.reserve(gate, "", amount, now_ns, true)
+    }
+
+    fn reserve(
+        &mut self,
+        gate: WalletGate,
+        payee: &str,
+        amount: u128,
+        now_ns: u64,
+        skip_allowlist: bool,
+    ) -> Result<Reservation, PolicyError> {
         if gate.paused {
             return Err(PolicyError::Paused);
         }
@@ -237,7 +262,7 @@ impl AgentPolicy {
         if !gate.token_allowed {
             return Err(PolicyError::TokenNotAllowed);
         }
-        if !self.is_payee_allowed(payee) {
+        if !skip_allowlist && !self.is_payee_allowed(payee) {
             return Err(PolicyError::PayeeNotAllowed);
         }
         if amount == 0 {
@@ -348,6 +373,20 @@ mod tests {
         assert_eq!(p.spent_in_window(), 50_000);
         assert_eq!(p.window_index(), 5);
         assert_eq!(p.remaining_at(DAY5), 150_000);
+    }
+
+    #[test]
+    fn unlisted_reserve_skips_the_allowlist_and_keeps_the_limits() {
+        let mut p = policy();
+        let reserved = p.check_and_reserve_unlisted(OPEN, 50_000, DAY5).unwrap();
+        assert_eq!(reserved.amount, 50_000);
+        assert_eq!(p.spent_in_window(), 50_000);
+        assert!(!p.is_payee_allowed("stranger.near"));
+        assert_eq!(
+            p.check_and_reserve_unlisted(OPEN, 50_001, DAY5),
+            Err(PolicyError::PerCallLimit)
+        );
+        assert_eq!(p.spent_in_window(), 50_000);
     }
 
     #[test]

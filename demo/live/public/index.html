@@ -11,17 +11,73 @@
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site">
-  <p class="brand">TriagePay <span>live demo (NEAR testnet)</span></p>
+  <p class="brand">TriagePay</p>
+  <p class="tag">NEAR testnet · built at NEAR HACKATHON</p>
 </header>
 <main id="main">
-  <h1>Watch the wallet refuse a payment</h1>
-  <p class="lead">An injected instruction tells the agent who to pay. The agent obeys.
-    The spend-policy wallet on NEAR testnet is what says no. Signing happens on the server;
-    this page never holds a key.</p>
-  <p id="status" role="status" aria-live="polite"></p>
+  <section class="hero" aria-labelledby="h-hero">
+    <p class="eyebrow">30-second judge path</p>
+    <h1 id="h-hero">Launch a prompt injection. Watch the wallet refuse it.</h1>
+    <p class="lead">The agent obeys the injected payee. The spend-policy wallet on NEAR testnet is what says no. Signing happens on the server. This page never holds a key.</p>
+    <p id="status" role="status" aria-live="polite"></p>
+    <button id="btn-launch" type="button" disabled>Launch prompt-injection attack</button>
+    <ol id="flow" class="flow" hidden>
+      <li id="step-agent" class="step"><span class="dot"></span><span>Agent</span></li>
+      <li id="step-instruction" class="step"><span class="dot"></span><span>Injected instruction</span></li>
+      <li id="step-wallet" class="step"><span class="dot"></span><span>Policy wallet</span></li>
+      <li id="step-verdict" class="step"><span class="dot"></span><span>Verdict</span></li>
+    </ol>
+    <div id="verdict" aria-live="assertive"></div>
+    <div class="actions hero-actions">
+      <button id="btn-revoke" type="button" disabled>Revoke</button>
+      <button id="btn-restore" type="button" class="secondary" disabled>Restore</button>
+    </div>
+    <p class="hint">Revoke and Restore are public buttons. They use the owner account's full-access key, held on the server as <span class="mono">TRIAGEPAY_OWNER_SECRET_KEY</span>. This page never receives that key. If a previous visitor left the agent revoked, Launch restores it before the attack.</p>
+    <div id="owner-result" aria-live="polite"></div>
+  </section>
 
-  <section class="card" aria-labelledby="h-attack">
-    <h2 id="h-attack">Run an attempt</h2>
+  <section class="card" aria-labelledby="h-spend">
+    <h2 id="h-spend">Today's spend</h2>
+    <p id="spend-label">Today's spend loads from the wallet.</p>
+    <div class="gauge" id="spend-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-labelledby="spend-label">
+      <span id="spend-bar-fill"></span>
+    </div>
+    <p id="spend-percent" class="percent" aria-hidden="true">0%</p>
+    <p id="spend-meta" class="hint"></p>
+  </section>
+
+  <section class="card" aria-labelledby="h-risk">
+    <h2 id="h-risk">Payee risk</h2>
+    <p class="hint">An allowlisted payee shows <strong>warn</strong> when the account is under 7 days old, or when its age could not be read. The demo payee was created for this page, so warn is expected. Warn does not move money. Block is a reason to look twice; the wallet still enforces the allowlist. This check reads that allowlist from the wallet contract, the same list the dashboard shows.</p>
+    <div id="risks"></div>
+  </section>
+
+  <section class="card" aria-labelledby="h-review">
+    <h2 id="h-review">Human in the loop</h2>
+    <p id="review-copy" class="hint"></p>
+    <ol class="flow mini" id="review-flow">
+      <li class="step"><span class="dot"></span><span>Warn</span></li>
+      <li class="step"><span class="dot"></span><span>Queue</span></li>
+      <li class="step"><span class="dot"></span><span>Owner</span></li>
+      <li class="step"><span class="dot"></span><span>Reject</span></li>
+    </ol>
+    <div id="pending"></div>
+    <div class="actions">
+      <button id="btn-queue" type="button" disabled>Queue a new payee</button>
+      <button id="btn-walk" type="button" class="secondary">Walk the approval</button>
+    </div>
+    <div id="review-result" aria-live="polite"></div>
+  </section>
+
+  <section class="card" aria-labelledby="h-attest">
+    <h2 id="h-attest">Model attestation</h2>
+    <p class="hint">I ask NEAR AI Cloud for an attestation report and check that the HTTP body echoes a nonce I just generated. I do not verify the Intel quote, so this is not an attested verdict. The paid scan route still does not attach a report.</p>
+    <button id="btn-attest" type="button">Check attestation</button>
+    <div id="attest-result" aria-live="polite"></div>
+  </section>
+
+  <details class="card">
+    <summary>Other scenarios</summary>
     <form id="run-form" novalidate>
       <div class="field">
         <label for="scenario">Scenario</label>
@@ -33,37 +89,12 @@
         <textarea id="injection" readonly rows="4"></textarea>
       </div>
       <div class="actions">
-        <button id="btn-run" type="submit">Run attack</button>
+        <button id="btn-run" type="submit" disabled>Run scenario</button>
         <button id="btn-refresh" type="button" class="secondary">Refresh dashboard</button>
       </div>
     </form>
     <div id="result" aria-live="polite"></div>
-  </section>
-
-  <section class="card" aria-labelledby="h-spend">
-    <h2 id="h-spend">Spending</h2>
-    <p id="spend-label">Today's spend loads from the wallet.</p>
-    <div class="bar" id="spend-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-labelledby="spend-label">
-      <span id="spend-bar-fill"></span>
-    </div>
-    <p id="spend-meta" class="hint"></p>
-    <div class="actions">
-      <button id="btn-revoke" type="button">Revoke spending</button>
-      <button id="btn-restore" type="button" class="secondary">Restore spending</button>
-    </div>
-    <p class="hint">Revoke calls <span class="mono">revoke_agent</span> with the owner key.
-      The agent's key remains, and the next <span class="mono">pay</span> fails.
-      Restore turns that agent back on without resetting today's spend.</p>
-    <div id="owner-result" aria-live="polite"></div>
-  </section>
-
-  <section class="card" aria-labelledby="h-risk">
-    <h2 id="h-risk">Payee risk</h2>
-    <p class="hint">Before a payment, the policy reads the account on testnet RPC
-      (code hash, and age from the creation transaction when it is known) and classifies it
-      allow, warn, or block.</p>
-    <div id="risks"></div>
-  </section>
+  </details>
 
   <section class="card" aria-labelledby="h-recent">
     <h2 id="h-recent">Recent attempts</h2>
@@ -84,9 +115,8 @@
   </section>
 </main>
 <footer class="site">
-  <p>Testnet only. The server signs at most once per cooldown and caps attempts per UTC day.
-    Refused transactions are still on the explorer. The function-call key can call only <span class="mono">pay</span>,
-    and the contract caps the call, the day, and the payee.</p>
+  <p>built at NEAR HACKATHON · <a href="https://x.com/hashtag/NEARHackathon">#NEARHackathon</a> · <a href="https://x.com/NEARProtocol">@NEARProtocol</a></p>
+  <p>Testnet only. The server signs at most once per cooldown, caps attempts per UTC day, and limits each address. With <span class="mono">KV_REST_API_URL</span> or <span class="mono">UPSTASH_REDIS_REST_URL</span> those caps hold across instances. Refused transactions stay on the explorer.</p>
 </footer>
 </body>
 </html>

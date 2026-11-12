@@ -5,13 +5,15 @@
 import { describeAttack, explain, listScenarios, shouldSubmit } from "./attacks.js";
 import { chainReady, loadConfig, loadKeys, signingReady } from "./config.js";
 import { assessCooldown, cooldownMessage } from "./cooldown.js";
-import { payeeFacts, fetchIndexerTxns } from "./facts.js";
+import { payeeFacts, fetchIndexerTxns, fetchDayStamps } from "./facts.js";
 import { formatAtomic, nsToIso } from "./format.js";
 import { DemoError } from "./http.js";
 import { recall, remember } from "./journal.js";
+import { clientIp, releaseLock, reserveAttempt } from "./limits.js";
 import { functionCall, signCall, viewCall, assertTestnet } from "./near.js";
 import { classifyAmount, classifyPayee } from "./risk.js";
 import { mergeRecent } from "./recent.js";
+import { storeFromEnv } from "./store.js";
 
 let signing = false;
 const ONE_YOCTO = 1n;
@@ -41,40 +43,88 @@ function asBig(value) {
   return BigInt(value);
 }
 
-async function gate(config) {
-  const indexed = await fetchIndexerTxns(config.indexerAccountsBase, config.accounts.agent);
-  const stamps = [
-    ...indexed.map((row) => row.atMs).filter((value) => value != null),
-    ...recall().map((row) => row.atMs),
-  ];
-  const decision = assessCooldown({
-    nowMs: Date.now(),
-    timestampsMs: stamps,
+function limitMessage(decision, config) {
+  if (decision.code === "ip_rate_limit") {
+    return `This address has used its ${config.ipLimit} requests for this minute. Try again in ${decision.retryAfterSeconds} seconds.`;
+  }
+  if (decision.code === "limit_unavailable") {
+    return "The attempt counter could not be read, so this server did not sign. Set the shared store or wait for the chain index.";
+  }
+  if (decision.code === "limit_store_unavailable") {
+    return "The shared attempt store is configured and did not answer, so this server did not sign.";
+  }
+  return cooldownMessage(decision, config.cooldownSeconds, config.maxAttemptsPerDay);
+}
+
+async function chainDecision(config, nowMs) {
+  const day = await fetchDayStamps(config.indexerAccountsBase, config.accounts.agent, nowMs);
+  if (day.unavailable) return null;
+  if (day.truncated) {
+    const next = Date.UTC(new Date(nowMs).getUTCFullYear(), new Date(nowMs).getUTCMonth(), new Date(nowMs).getUTCDate()) + 86400000;
+    return {
+      allowed: false,
+      code: "daily_attempt_cap",
+      retryAfterSeconds: Math.max(1, Math.ceil((next - nowMs) / 1000)),
+      attemptsToday: day.stamps.length,
+    };
+  }
+  const newest = day.stamps.reduce((max, value) => (value > max ? value : max), 0);
+  const extra = recall().map((row) => row.atMs).filter((value) => value && value > newest);
+  return assessCooldown({
+    nowMs,
+    timestampsMs: [...day.stamps, ...extra],
     cooldownMs: config.cooldownSeconds * 1000,
     maxPerDay: config.maxAttemptsPerDay,
   });
-  if (!decision.allowed) {
-    throw new DemoError(
-      decision.code,
-      cooldownMessage(decision, config.cooldownSeconds, config.maxAttemptsPerDay),
-      429,
-      { retry_after_seconds: decision.retryAfterSeconds, attempts_today: decision.attemptsToday },
-    );
-  }
-  return decision;
 }
 
-function riskInput(config, facts) {
+async function gate(config, request) {
+  const nowMs = Date.now();
+  const chain = await chainDecision(config, nowMs);
+  const store = storeFromEnv();
+  let decision;
+  try {
+    decision = await reserveAttempt({
+      store,
+      nowMs,
+      ip: clientIp(request),
+      maxPerDay: config.maxAttemptsPerDay,
+      cooldownMs: config.cooldownSeconds * 1000,
+      ipLimit: config.ipLimit || 4,
+      ipWindowMs: (config.ipWindowSeconds || 60) * 1000,
+      chain,
+    });
+  } catch {
+    throw new DemoError(
+      "limit_store_unavailable",
+      "The shared attempt store is configured and did not answer, so this server did not sign.",
+      503,
+      { retry_after_seconds: 15 },
+    );
+  }
+  if (!decision.allowed) {
+    throw new DemoError(decision.code, limitMessage(decision, config), 429, {
+      retry_after_seconds: decision.retryAfterSeconds,
+      attempts_today: decision.attemptsToday,
+      limit_source: decision.source,
+    });
+  }
+  return { ...decision, store };
+}
+
+function riskInput(config, facts, chainPayees) {
+  const fromChain = Array.isArray(chainPayees);
   return {
     ...facts,
-    allowlist: config.policy.payees || [],
+    allowlist: fromChain ? chainPayees.map(String) : (config.policy.payees || []),
+    allowlistSource: fromChain ? "chain" : "config",
     flagged: config.flaggedAccounts || [],
     verifiedCodeHashes: config.verifiedCodeHashes || [],
     newAccountWindowMs: config.newAccountWindowMs,
   };
 }
 
-async function classifyAccount(config, accountId) {
+async function classifyAccount(config, accountId, chainPayees) {
   const creation = (config.creationTx && config.creationTx[accountId]) || null;
   const facts = await payeeFacts({
     rpcUrl: config.rpcUrl,
@@ -83,15 +133,41 @@ async function classifyAccount(config, accountId) {
     nowMs: Date.now(),
     indexerBase: config.indexerAccountsBase,
   });
-  const risk = classifyPayee(riskInput(config, facts));
+  const input = riskInput(config, facts, chainPayees);
+  const risk = classifyPayee(input);
   return {
     accountId,
     exists: facts.exists,
     codeHash: facts.codeHash,
     ageSource: facts.ageSource,
     createdAt: facts.createdAtMs ? new Date(facts.createdAtMs).toISOString() : null,
+    allowlistSource: input.allowlistSource,
     ...risk,
   };
+}
+
+async function readReview(config) {
+  try {
+    const policy = await viewCall(config.rpcUrl, config.accounts.wallet, "get_review_policy", {});
+    const pending = await viewCall(config.rpcUrl, config.accounts.wallet, "get_pending", {});
+    return {
+      supported: true,
+      approvalThreshold: policy ? policy.approval_threshold : "0",
+      reviewUnknownPayees: Boolean(policy && policy.review_unknown_payees),
+      pendingCount: policy ? Number(policy.pending_count) : 0,
+      maxPending: policy ? Number(policy.max_pending) : 0,
+      pending: Array.isArray(pending) ? pending : [],
+    };
+  } catch (error) {
+    if (error instanceof DemoError && error.code === "method_missing") {
+      return {
+        supported: false,
+        reason: "This wallet build refuses unknown payees immediately. The approval queue is in the contract source and turns on after a new deploy.",
+        pending: [],
+      };
+    }
+    throw error;
+  }
 }
 
 function scenarioView(scenario) {
@@ -127,6 +203,9 @@ export async function getHealth() {
     agent: config.accounts.agent || null,
     cooldownSeconds: config.cooldownSeconds,
     maxAttemptsPerDay: config.maxAttemptsPerDay,
+    ipLimit: config.ipLimit || 4,
+    ipWindowSeconds: config.ipWindowSeconds || 60,
+    sharedLimits: Boolean(storeFromEnv()),
   };
 }
 
@@ -157,7 +236,11 @@ export async function getDashboard() {
     config.accounts.flagged,
     config.accounts.token,
   ].filter(Boolean);
-  const risks = await Promise.all(previewIds.map((id) => classifyAccount(config, id)));
+  const chainPayees = agent && Array.isArray(agent.payees) ? agent.payees : undefined;
+  const [risks, review] = await Promise.all([
+    Promise.all(previewIds.map((id) => classifyAccount(config, id, chainPayees))),
+    readReview(config),
+  ]);
   const spentToday = agent ? asBig(agent.spent_in_window) : asBig(spent);
   const dailyMax = agent ? asBig(agent.daily_max) : asBig(config.policy.dailyMax);
   const perCall = agent ? asBig(agent.per_call_max) : asBig(config.policy.perCallMax);
@@ -187,11 +270,48 @@ export async function getDashboard() {
       percent,
       active: Boolean(agent && agent.active),
       payees: (agent && agent.payees) || config.policy.payees,
+      allowlistSource: chainPayees ? "chain" : "config",
       resetsAt: agent ? nsToIso(agent.resets_at_ns) : null,
     },
     scenarios: listScenarios(config).map(scenarioView),
     risks,
+    review,
     recent: mergeRecent(indexed, recall(), config.explorerTxBase),
+  };
+}
+
+async function ownerCall(config, keys, action) {
+  const call = action === "revoke"
+    ? await functionCall("revoke_agent", { agent_id: config.accounts.agent }, 30, ONE_YOCTO)
+    : await functionCall(
+      "set_agent",
+      {
+        agent_id: config.accounts.agent,
+        per_call_max: config.policy.perCallMax,
+        daily_max: config.policy.dailyMax,
+        payees: config.policy.payees,
+      },
+      30,
+      ONE_YOCTO,
+    );
+  return signCall({
+    rpcUrl: config.rpcUrl,
+    signerId: config.accounts.owner,
+    secretKey: keys.owner,
+    receiverId: config.accounts.wallet,
+    actions: [call],
+  });
+}
+
+function chainView(config, signed) {
+  return {
+    submitted: true,
+    txHash: signed.txHash,
+    explorerUrl: signed.txHash ? config.explorerTxBase + signed.txHash : null,
+    outcome: signed.outcome,
+    errorCode: signed.errorCode,
+    rejected: Boolean(signed.rejected),
+    detail: signed.detail || null,
   };
 }
 
@@ -216,7 +336,33 @@ async function submitPay(config, keys, attack) {
   });
 }
 
-export async function runScenario(id) {
+async function assertReviewWillHold(config, attack) {
+  if (attack.kind !== "review") return;
+  const review = await readReview(config);
+  if (!review.supported) {
+    throw new DemoError("review_not_enabled", review.reason, 409);
+  }
+  if (attack.id === "review-payee" && !review.reviewUnknownPayees) {
+    throw new DemoError(
+      "review_not_enabled",
+      "Owner review of unknown payees is off, so this payment would be refused instead of queued. Enable it with set_review_policy.",
+      409,
+    );
+  }
+  if (attack.id === "above-threshold") {
+    const threshold = BigInt(review.approvalThreshold || "0");
+    const amount = BigInt(attack.amount);
+    if (threshold === 0n || amount <= threshold) {
+      throw new DemoError(
+        "review_not_enabled",
+        "The approval threshold is off or this amount is not above it, so the wallet would pay immediately. This server did not sign.",
+        409,
+      );
+    }
+  }
+}
+
+export async function runScenario(id, request) {
   const config = loadConfig();
   const keys = loadKeys();
   requireChain(config);
@@ -224,15 +370,33 @@ export async function runScenario(id) {
   const attack = describeAttack(id, config);
   if (!attack) throw new DemoError("unknown_attack", "unknown scenario", 400);
   await assertTestnet(config.rpcUrl);
+  await assertReviewWillHold(config, attack);
   if (signing) {
     throw new DemoError("cooldown", "A signature is already in progress.", 429, { retry_after_seconds: 2 });
   }
   signing = true;
+  let decision = null;
   try {
-    const decision = await gate(config);
-    const agent = await viewCall(config.rpcUrl, config.accounts.wallet, "get_agent", {
+    decision = await gate(config, request);
+    let agent = await viewCall(config.rpcUrl, config.accounts.wallet, "get_agent", {
       agent_id: config.accounts.agent,
     });
+    let restored = null;
+    if (!agent || !agent.active) {
+      const signed = await ownerCall(config, keys, "restore");
+      restored = chainView(config, signed);
+      if (signed.outcome !== "success") {
+        throw new DemoError(
+          "restore_failed",
+          `The agent was inactive and the restore did not succeed${signed.errorCode ? ` (${signed.errorCode})` : ""}.`,
+          502,
+        );
+      }
+      agent = await viewCall(config.rpcUrl, config.accounts.wallet, "get_agent", {
+        agent_id: config.accounts.agent,
+      });
+    }
+    const chainPayees = agent && Array.isArray(agent.payees) ? agent.payees : undefined;
     const facts = await payeeFacts({
       rpcUrl: config.rpcUrl,
       accountId: attack.payee,
@@ -240,7 +404,8 @@ export async function runScenario(id) {
       nowMs: Date.now(),
       indexerBase: config.indexerAccountsBase,
     });
-    const risk = classifyPayee(riskInput(config, facts));
+    const riskInputFacts = riskInput(config, facts, chainPayees);
+    const risk = classifyPayee(riskInputFacts);
     const amountCheck = classifyAmount({
       amount: attack.amount,
       perCallMax: agent ? agent.per_call_max : config.policy.perCallMax,
@@ -250,13 +415,15 @@ export async function runScenario(id) {
     const chain = { submitted: false, txHash: null, explorerUrl: null, outcome: null, errorCode: null, rejected: false };
     if (shouldSubmit(attack, risk, amountCheck)) {
       const signed = await submitPay(config, keys, attack);
-      chain.submitted = true;
-      chain.txHash = signed.txHash;
-      chain.explorerUrl = signed.txHash ? config.explorerTxBase + signed.txHash : null;
-      chain.outcome = signed.outcome;
-      chain.errorCode = signed.errorCode;
-      chain.rejected = Boolean(signed.rejected);
-      chain.detail = signed.detail || null;
+      Object.assign(chain, chainView(config, signed));
+      if (attack.kind === "review" && signed.outcome === "success") {
+        chain.held = true;
+        try {
+          chain.pending = await viewCall(config.rpcUrl, config.accounts.wallet, "get_pending", {});
+        } catch {
+          chain.pending = [];
+        }
+      }
       remember({
         atMs: Date.now(),
         kind: attack.kind,
@@ -269,20 +436,32 @@ export async function runScenario(id) {
         txHash: signed.txHash,
       });
     }
+    const summary = explain(attack, risk, amountCheck, chain);
     return {
       scenario: scenarioView(attack),
-      risk: { ...risk, ageSource: facts.ageSource, exists: facts.exists, codeHash: facts.codeHash },
+      risk: {
+        ...risk,
+        ageSource: facts.ageSource,
+        exists: facts.exists,
+        codeHash: facts.codeHash,
+        allowlistSource: riskInputFacts.allowlistSource,
+      },
       amountCheck,
       chain,
-      summary: explain(attack, risk, amountCheck, chain),
-      attemptsToday: decision.attemptsToday + (chain.submitted ? 1 : 0),
+      restored,
+      summary: restored
+        ? `The agent was revoked, so I restored it before this attempt. ${summary}`
+        : summary,
+      attemptsToday: decision.attemptsToday,
+      limitSource: decision.source,
     };
   } finally {
     signing = false;
+    if (decision) await releaseLock(decision.store, decision.lockToken);
   }
 }
 
-export async function setSpending(action) {
+export async function setSpending(action, request) {
   if (action !== "revoke" && action !== "restore") {
     throw new DemoError("bad_action", "action must be revoke or restore", 400);
   }
@@ -291,42 +470,24 @@ export async function setSpending(action) {
   requireChain(config);
   requireKeys(keys);
   await assertTestnet(config.rpcUrl);
+  const agent = await viewCall(config.rpcUrl, config.accounts.wallet, "get_agent", {
+    agent_id: config.accounts.agent,
+  });
+  const active = Boolean(agent && agent.active);
+  if (action === "revoke" && !active) {
+    return { action, changed: false, summary: "Spending is already revoked. The key still exists. The next launch restores the agent before it pays, so a revoked agent does not brick the demo." };
+  }
+  if (action === "restore" && active) {
+    return { action, changed: false, summary: "Spending is already enabled." };
+  }
   if (signing) {
     throw new DemoError("cooldown", "A signature is already in progress.", 429, { retry_after_seconds: 2 });
   }
   signing = true;
+  let decision = null;
   try {
-    await gate(config);
-    const agent = await viewCall(config.rpcUrl, config.accounts.wallet, "get_agent", {
-      agent_id: config.accounts.agent,
-    });
-    const active = Boolean(agent && agent.active);
-    if (action === "revoke" && !active) {
-      return { action, changed: false, summary: "Spending is already revoked. The agent key cannot pay until the owner restores it." };
-    }
-    if (action === "restore" && active) {
-      return { action, changed: false, summary: "Spending is already enabled." };
-    }
-    const call = action === "revoke"
-      ? await functionCall("revoke_agent", { agent_id: config.accounts.agent }, 30, ONE_YOCTO)
-      : await functionCall(
-        "set_agent",
-        {
-          agent_id: config.accounts.agent,
-          per_call_max: config.policy.perCallMax,
-          daily_max: config.policy.dailyMax,
-          payees: config.policy.payees,
-        },
-        30,
-        ONE_YOCTO,
-      );
-    const signed = await signCall({
-      rpcUrl: config.rpcUrl,
-      signerId: config.accounts.owner,
-      secretKey: keys.owner,
-      receiverId: config.accounts.wallet,
-      actions: [call],
-    });
+    decision = await gate(config, request);
+    const signed = await ownerCall(config, keys, action);
     remember({
       atMs: Date.now(),
       kind: action,
@@ -337,23 +498,84 @@ export async function setSpending(action) {
     });
     const summary = signed.outcome === "success"
       ? action === "revoke"
-        ? "The owner revoked the agent. The key still exists, and the next pay fails closed."
+        ? "The owner revoked the agent. The key still exists, and the next pay fails closed until the agent is restored."
         : "The owner restored the agent. The day's spend was kept."
       : `The owner transaction did not succeed${signed.errorCode ? ` (${signed.errorCode})` : ""}.`;
     return {
       action,
       changed: signed.outcome === "success",
-      chain: {
-        submitted: true,
-        txHash: signed.txHash,
-        explorerUrl: signed.txHash ? config.explorerTxBase + signed.txHash : null,
-        outcome: signed.outcome,
-        errorCode: signed.errorCode,
-        rejected: Boolean(signed.rejected),
-      },
+      chain: chainView(config, signed),
       summary,
     };
   } finally {
     signing = false;
+    if (decision) await releaseLock(decision.store, decision.lockToken);
   }
+}
+
+export async function decideReview(action, paymentId, request) {
+  if (action !== "approve" && action !== "reject") {
+    throw new DemoError("bad_action", "action must be approve or reject", 400);
+  }
+  if (!/^\d+$/.test(String(paymentId || ""))) {
+    throw new DemoError("bad_payment", "payment id must be an integer", 400);
+  }
+  const config = loadConfig();
+  const keys = loadKeys();
+  requireChain(config);
+  requireKeys(keys);
+  await assertTestnet(config.rpcUrl);
+  const review = await readReview(config);
+  if (!review.supported) throw new DemoError("review_not_enabled", review.reason, 409);
+  if (signing) {
+    throw new DemoError("cooldown", "A signature is already in progress.", 429, { retry_after_seconds: 2 });
+  }
+  signing = true;
+  let decision = null;
+  try {
+    decision = await gate(config, request);
+    const call = await functionCall(
+      action === "approve" ? "approve_payment" : "reject_payment",
+      { payment_id: String(paymentId) },
+      action === "approve" ? 80 : 30,
+      ONE_YOCTO,
+    );
+    const signed = await signCall({
+      rpcUrl: config.rpcUrl,
+      signerId: config.accounts.owner,
+      secretKey: keys.owner,
+      receiverId: config.accounts.wallet,
+      actions: [call],
+    });
+    remember({
+      atMs: Date.now(),
+      kind: action,
+      title: action === "approve" ? "Approve held payment" : "Reject held payment",
+      outcome: signed.outcome,
+      errorCode: signed.errorCode,
+      txHash: signed.txHash,
+    });
+    const summary = signed.outcome === "success"
+      ? action === "approve"
+        ? "The owner approved the held payment. The wallet scheduled the transfer."
+        : "The owner rejected the held payment. The reserved amount returned to today's budget."
+      : `The owner transaction did not succeed${signed.errorCode ? ` (${signed.errorCode})` : ""}.`;
+    return { action, paymentId: String(paymentId), chain: chainView(config, signed), summary };
+  } finally {
+    signing = false;
+    if (decision) await releaseLock(decision.store, decision.lockToken);
+  }
+}
+
+export async function restoreIfInactive(request) {
+  const config = loadConfig();
+  if (!chainReady(config)) return { changed: false, summary: "The demo wallet is not configured." };
+  const keys = loadKeys();
+  if (!signingReady(keys)) return { changed: false, summary: "Signing keys are not set." };
+  await assertTestnet(config.rpcUrl);
+  const agent = await viewCall(config.rpcUrl, config.accounts.wallet, "get_agent", {
+    agent_id: config.accounts.agent,
+  });
+  if (agent && agent.active) return { changed: false, summary: "The agent is already active." };
+  return setSpending("restore", request);
 }

@@ -155,6 +155,34 @@ pub enum WalletEvent {
         /// The tokens that blocked the close.
         tokens: Vec<TokenBalance>,
     },
+    /// `pay` reserved the amount and left it for the owner. No transfer
+    /// was scheduled.
+    #[event_version("1.0.0")]
+    PaymentQueued {
+        /// Monotonic id of this payment within the wallet.
+        payment_id: U64,
+        /// The paying agent.
+        agent_id: AccountId,
+        /// The NEP-141 token contract.
+        token: AccountId,
+        /// The payee, which is not yet being paid.
+        receiver_id: AccountId,
+        /// Amount in token atomic units.
+        amount: U128,
+        /// Why the payment is waiting: `new_payee` or `above_threshold`.
+        reason: String,
+    },
+    /// The owner rejected a queued payment and the reservation was handled
+    /// as `release`.
+    #[event_version("1.0.0")]
+    PaymentRejected {
+        /// Payment id from `payment_queued`.
+        payment_id: U64,
+        /// The paying agent.
+        agent_id: AccountId,
+        /// What happened to the reservation.
+        release: ReleaseStatus,
+    },
     /// An owner withdrawal transfer failed; no tokens left the wallet.
     #[event_version("1.0.0")]
     WithdrawFailed {

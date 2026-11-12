@@ -115,8 +115,14 @@ fn setup() -> PolicyWallet {
     w
 }
 
+fn settle(result: PromiseOrValue<U64>) {
+    if let PromiseOrValue::Promise(promise) = result {
+        promise.detach();
+    }
+}
+
 fn pay(w: &mut PolicyWallet, amount: u128) {
-    w.pay(usdc(), gateway(), U128(amount), None).detach();
+    settle(w.pay(usdc(), gateway(), U128(amount), None));
 }
 
 fn events() -> Vec<String> {
@@ -209,8 +215,7 @@ fn limits_sized_for_one_token_cannot_move_another() {
     w.set_agent(agent(), U128(per_call), U128(daily), vec![gateway()]);
     as_agent().set();
     // One billion USDC in atomic units: far inside the integer limits.
-    w.pay(usdc(), gateway(), U128(1_000_000_000_000_000), None)
-        .detach();
+    settle(w.pay(usdc(), gateway(), U128(1_000_000_000_000_000), None));
 }
 
 // ----- pay: happy path and events -------------------------------------------
@@ -219,8 +224,7 @@ fn limits_sized_for_one_token_cannot_move_another() {
 fn pay_reserves_schedules_transfer_and_emits() {
     let mut w = setup();
     as_agent().set();
-    w.pay(usdc(), gateway(), U128(PER_CALL), Some("job-1".into()))
-        .detach();
+    settle(w.pay(usdc(), gateway(), U128(PER_CALL), Some("job-1".into())));
     assert_eq!(w.get_spent(agent()), U128(PER_CALL));
     assert_eq!(w.get_config().next_payment_id, U64(1));
     assert_eq!(
@@ -305,7 +309,7 @@ fn pay_over_daily_limit() {
 fn pay_to_non_allowlisted_payee() {
     let mut w = setup();
     as_agent().set();
-    w.pay(usdc(), acc("attacker.near"), U128(1), None).detach();
+    settle(w.pay(usdc(), acc("attacker.near"), U128(1), None));
 }
 
 #[test]
@@ -313,7 +317,7 @@ fn pay_to_non_allowlisted_payee() {
 fn pay_with_disallowed_token() {
     let mut w = setup();
     as_agent().set();
-    w.pay(dai(), gateway(), U128(1), None).detach();
+    settle(w.pay(dai(), gateway(), U128(1), None));
 }
 
 #[test]
@@ -365,13 +369,12 @@ fn pay_with_deposit() {
 fn pay_with_long_memo() {
     let mut w = setup();
     as_agent().set();
-    w.pay(
+    settle(w.pay(
         usdc(),
         gateway(),
         U128(1),
         Some("m".repeat(MAX_MEMO_LEN + 1)),
-    )
-    .detach();
+    ));
 }
 
 #[test]
@@ -551,6 +554,13 @@ agent_cannot_call!(agent_full_key_cannot_set_agent, 1, "ERR_NOT_OWNER", |w| w
 agent_cannot_call!(agent_full_key_cannot_withdraw, 1, "ERR_NOT_OWNER", |w| w
     .withdraw(usdc(), U128(1), agent())
     .detach());
+agent_cannot_call!(fc_key_cannot_set_review, 0, "exactly 1 yoctoNEAR", |w| w
+    .set_review_policy(U128(1), true));
+agent_cannot_call!(fc_key_cannot_approve, 0, "exactly 1 yoctoNEAR", |w| w
+    .approve_payment(U64(0))
+    .detach());
+agent_cannot_call!(fc_key_cannot_reject, 0, "exactly 1 yoctoNEAR", |w| w
+    .reject_payment(U64(0)));
 agent_cannot_call!(fc_key_cannot_close, 0, "exactly 1 yoctoNEAR", |w| w
     .close(agent())
     .detach());
@@ -921,4 +931,172 @@ fn views_for_unknown_agent() {
     as_agent().set();
     assert_eq!(w.get_agent(acc("stranger.near")), None);
     assert_eq!(w.get_spent(acc("stranger.near")), U128(0));
+    let review = w.get_review_policy();
+    assert_eq!(review.approval_threshold, U128(0));
+    assert!(!review.review_unknown_payees);
+    assert!(w.get_pending().is_empty());
+}
+
+fn enable_review(w: &mut PolicyWallet, threshold: u128) {
+    as_owner().set();
+    w.set_review_policy(U128(threshold), true);
+}
+
+#[test]
+fn review_defaults_off_and_an_unknown_payee_is_still_refused() {
+    let mut w = setup();
+    as_agent().set();
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        settle(w.pay(usdc(), acc("stranger.near"), U128(1), None));
+    }));
+    assert!(caught.is_err());
+    assert!(w.get_pending().is_empty());
+    assert_eq!(w.get_spent(agent()), U128(0));
+}
+
+#[test]
+fn unknown_payee_is_queued_when_review_is_on_and_counts_against_the_day() {
+    let mut w = setup();
+    enable_review(&mut w, 0);
+    as_agent().set();
+    let stranger = acc("stranger.near");
+    match w.pay(usdc(), stranger.clone(), U128(1_000), Some("hold".into())) {
+        PromiseOrValue::Value(U64(id)) => assert_eq!(id, 0),
+        PromiseOrValue::Promise(_) => panic!("a new payee must wait, not transfer"),
+    }
+    assert!(get_created_receipts().is_empty());
+    let pending = w.get_pending();
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0].reason, REASON_NEW_PAYEE);
+    assert_eq!(pending[0].receiver_id, stranger);
+    assert_eq!(pending[0].memo.as_deref(), Some("hold"));
+    assert_eq!(w.get_spent(agent()), U128(1_000));
+    assert!(events()[0].contains(r#""event":"payment_queued""#));
+    assert!(events()[0].contains(r#""reason":"new_payee""#));
+}
+
+#[test]
+fn allowlisted_amount_above_the_threshold_waits_for_the_owner() {
+    let mut w = setup();
+    enable_review(&mut w, 1_000);
+    as_agent().set();
+    // At the threshold the payment still settles.
+    settle(w.pay(usdc(), gateway(), U128(1_000), None));
+    assert!(w.get_pending().is_empty());
+    match w.pay(usdc(), gateway(), U128(1_001), None) {
+        PromiseOrValue::Value(U64(id)) => assert_eq!(id, 1),
+        PromiseOrValue::Promise(_) => panic!("above the threshold must wait"),
+    }
+    assert_eq!(w.get_pending()[0].reason, REASON_ABOVE_THRESHOLD);
+    assert_eq!(w.get_spent(agent()), U128(2_001));
+}
+
+#[test]
+fn queued_payment_still_obeys_the_per_call_and_daily_limits() {
+    let mut w = setup();
+    enable_review(&mut w, 0);
+    as_agent().set();
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        settle(w.pay(usdc(), acc("stranger.near"), U128(PER_CALL + 1), None));
+    }));
+    assert!(caught.is_err());
+    assert!(w.get_pending().is_empty());
+    assert_eq!(w.get_spent(agent()), U128(0));
+}
+
+#[test]
+fn owner_rejects_a_queued_payment_and_restores_the_budget() {
+    let mut w = setup();
+    enable_review(&mut w, 0);
+    as_agent().set();
+    settle(w.pay(usdc(), acc("stranger.near"), U128(4_000), None));
+    as_owner().set();
+    w.reject_payment(U64(0));
+    assert!(w.get_pending().is_empty());
+    assert_eq!(w.get_spent(agent()), U128(0));
+    assert!(events()
+        .iter()
+        .any(|event| event.contains(r#""event":"payment_rejected""#)
+            && event.contains(r#""release":"restored""#)));
+}
+
+#[test]
+fn owner_approves_a_queued_payment_and_schedules_the_transfer() {
+    let mut w = setup();
+    enable_review(&mut w, 0);
+    as_agent().set();
+    settle(w.pay(
+        usdc(),
+        acc("stranger.near"),
+        U128(4_000),
+        Some("later".into()),
+    ));
+    as_owner().set();
+    w.approve_payment(U64(0)).detach();
+    assert!(w.get_pending().is_empty());
+    // The reservation stays until the transfer callback.
+    assert_eq!(w.get_spent(agent()), U128(4_000));
+    let receipts = get_created_receipts();
+    assert_eq!(receipts.len(), 2);
+    let (method, deposit, args) = function_call(&receipts[0]);
+    assert_eq!((method.as_str(), deposit), ("ft_transfer", 1));
+    assert_eq!(
+        args,
+        r#"{"receiver_id":"stranger.near","amount":"4000","memo":"later"}"#
+    );
+    assert!(events()
+        .iter()
+        .any(|event| event.contains(r#""event":"pay_requested""#)));
+}
+
+#[test]
+#[should_panic(expected = "ERR_NOT_PENDING")]
+fn approve_missing_payment_panics() {
+    let mut w = setup();
+    as_owner().set();
+    w.approve_payment(U64(9)).detach();
+}
+
+#[test]
+fn approve_refuses_a_revoked_agent_and_keeps_the_queue() {
+    let mut w = setup();
+    enable_review(&mut w, 0);
+    as_agent().set();
+    settle(w.pay(usdc(), acc("stranger.near"), U128(10), None));
+    as_owner().set();
+    w.revoke_agent(agent());
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        w.approve_payment(U64(0)).detach();
+    }));
+    assert!(caught.is_err());
+    assert_eq!(w.get_pending().len(), 1);
+    assert_eq!(w.get_spent(agent()), U128(10));
+}
+
+#[test]
+fn reject_still_works_after_revoke() {
+    let mut w = setup();
+    enable_review(&mut w, 0);
+    as_agent().set();
+    settle(w.pay(usdc(), acc("stranger.near"), U128(10), None));
+    as_owner().set();
+    w.revoke_agent(agent());
+    w.reject_payment(U64(0));
+    assert!(w.get_pending().is_empty());
+    assert_eq!(w.get_spent(agent()), U128(0));
+}
+
+#[test]
+#[should_panic(expected = "ERR_REVIEW_QUEUE_FULL")]
+fn the_queue_stops_at_eight_and_does_not_reserve_the_ninth() {
+    let mut w = setup();
+    enable_review(&mut w, 0);
+    as_agent().set();
+    for index in 0..MAX_PENDING {
+        let payee = acc(&format!("p{index}.near"));
+        settle(w.pay(usdc(), payee, U128(1), None));
+    }
+    assert_eq!(w.get_pending().len(), MAX_PENDING);
+    assert_eq!(w.get_spent(agent()), U128(MAX_PENDING as u128));
+    settle(w.pay(usdc(), acc("overflow.near"), U128(1), None));
 }

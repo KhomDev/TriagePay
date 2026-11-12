@@ -13,6 +13,10 @@ qualified in the row), OPEN (not proven; the docs must say so).
 
 ## Suites (regenerated 2026-11-11, not hand-edited)
 
+The policy-core and policy-wallet rows below were updated on 2026-11-12
+after those two suites were re-run. The other rows are still the
+2026-11-11 audit.
+
 | Suite | Count |
 |---|---|
 | aps-core | 23 |
@@ -21,9 +25,9 @@ qualified in the row), OPEN (not proven; the docs must say so).
 | aps-near | 58, plus 3 live read-only tests ignored by default |
 | aps-auth | 25 |
 | aps-store | 29 |
-| policy-core | 28 (25 unit, 3 property) |
-| Rust workspace total | 225 passed, 3 ignored |
-| contracts: policy-wallet / test-token | 65 / 3 |
+| policy-core | 29 (26 unit, 3 property). The new unit test was re-run on 2026-11-12; the other 28 are from the audit date |
+| Rust workspace total | 226 passed, 3 ignored, counting that one new test on top of the 2026-11-12 workspace run |
+| contracts: policy-wallet / test-token | 78 / 3. The 78 are the lib tests re-run on 2026-11-12; test-token was not re-run |
 | contracts: sandbox | 18 passed on Linux CI (2026-11-12, https://github.com/KhomDev/TriagePay/actions/runs/43181541598); not runnable on Windows |
 | scanner | 319 |
 | knowledge-compiler | 71, plus 1 skipped (local private-denylist scan) |
@@ -75,7 +79,7 @@ hits against the operator's off-repo list).
 
 | Claim | Evidence | Status |
 |---|---|---|
-| Interface, events, error codes | 65 unit tests | GREEN |
+| Interface, events, error codes | 78 unit tests, re-run 2026-11-12, including the review queue | GREEN |
 | One token per wallet | `new_rejects_a_second_token`, `set_tokens_rejects_a_second_token`, `limits_sized_for_one_token_cannot_move_another` | GREEN |
 | Testnet run of 2026-11-06, 28 steps | Evidence table in `policy-wallet.md`; step 12 re-read from an archival RPC on 2026-11-10 | GREEN for step 12; the other 27 rows are as recorded by the run |
 | Current build on testnet | Transcript: deployed, initialized, key deleted in one batch; wasm SHA-256 in the evidence equals `build.md` | GREEN |
@@ -92,7 +96,7 @@ hits against the operator's off-repo list).
 | Embedded instructions are flagged and never change an outcome | Injection corpus tests; transcript finding 3 | GREEN |
 | No accuracy figure is claimed | None appears in any document | GREEN |
 | Stage B prompt, schema, retry and cache behaviour | `triage-model` tests with a fake model; the live spike | GREEN |
-| The default model is TEE-verifiable | Catalogue flag recorded in `config.py`; no attestation is fetched (ADR-0011) | LIMITED |
+| The default model is TEE-verifiable | Catalogue flag recorded in `config.py`. The paid route does not fetch an attestation (ADR-0011). The hosted demo fetches a report and checks the nonce echo only ([attestation.md](engine/attestation.md)) | LIMITED |
 
 ## docs/architecture.md, threat-model.md, security-review.md, ADRs
 

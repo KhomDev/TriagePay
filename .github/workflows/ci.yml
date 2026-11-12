@@ -82,7 +82,7 @@ jobs:
       - name: UI tests (static checks; browser-hash parity with the runner's Node)
         run: python -m pytest ui/tests -q
   live-demo:
-    name: Hosted demo unit tests
+    name: Hosted demo and SDK unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -92,3 +92,6 @@ jobs:
       - name: Risk check, attacks, cooldown
         working-directory: demo/live
         run: npm ci && npm test
+      - name: Policy-wallet SDK
+        working-directory: packages/triagepay-sdk
+        run: npm test

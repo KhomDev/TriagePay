@@ -25,13 +25,52 @@ export async function fetchIndexerAccount(base, accountId) {
 }
 
 export async function fetchIndexerTxns(base, accountId) {
-  if (!base || !accountId) return [];
+  const page = await fetchIndexerPage(base, accountId, { limit: 8 });
+  return page.rows;
+}
+
+export async function fetchIndexerPage(base, accountId, { limit = 25, next = null } = {}) {
+  if (!base || !accountId) return { rows: [], next: null, ok: false };
   try {
-    const body = await getJson(`${base}${encodeURIComponent(accountId)}/txns?limit=8`);
-    return body ? parseIndexerTxns(body) : [];
+    const url = new URL(`${base}${encodeURIComponent(accountId)}/txns`);
+    url.searchParams.set("limit", String(limit));
+    if (next) url.searchParams.set("next", next);
+    const body = await getJson(url);
+    if (!body) return { rows: [], next: null, ok: false };
+    const cursor = body.meta && typeof body.meta.next_page === "string" ? body.meta.next_page : null;
+    return { rows: parseIndexerTxns(body), next: cursor, ok: true };
   } catch {
-    return [];
+    return { rows: [], next: null, ok: false };
   }
+}
+
+// Walk the index until a transaction is older than the UTC day, or until
+// `maxPages`. `truncated` means the day may contain more transactions than
+// the pages that were read. `unavailable` means the index could not be read.
+export async function fetchDayStamps(base, accountId, nowMs, { maxPages = 6, limit = 25 } = {}) {
+  const dayStart = Date.UTC(
+    new Date(nowMs).getUTCFullYear(),
+    new Date(nowMs).getUTCMonth(),
+    new Date(nowMs).getUTCDate(),
+  );
+  const stamps = [];
+  let cursor = null;
+  for (let page = 0; page < maxPages; page++) {
+    const batch = await fetchIndexerPage(base, accountId, { limit, next: cursor });
+    if (!batch.ok) return { stamps, truncated: false, unavailable: true };
+    let crossed = false;
+    for (const row of batch.rows) {
+      if (row.atMs == null) continue;
+      if (row.atMs < dayStart) {
+        crossed = true;
+        break;
+      }
+      stamps.push(row.atMs);
+    }
+    if (crossed || !batch.next) return { stamps, truncated: false, unavailable: false };
+    cursor = batch.next;
+  }
+  return { stamps, truncated: true, unavailable: false };
 }
 
 export async function payeeFacts({ rpcUrl, accountId, creation, nowMs, indexerBase }) {
