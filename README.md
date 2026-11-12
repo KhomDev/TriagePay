@@ -4,11 +4,11 @@ An agent key that can sign freely will pay whoever a prompt tells it to.
 TriagePay puts a wallet contract between that key and the money: the key can call only `pay`, and the contract caps each call, caps the day, and allowlists the payee.
 A judge opens the hosted demo, runs a prompt-injected payment on NEAR testnet, and watches the wallet refuse it.
 
-**Demo video:** _No recording is linked in this repository yet. Paste the URL on this line._
+**Demo video:** _Placeholder. No recording is linked in this repository yet. Paste the URL on this line._
 
-**Live demo:** _Not deployed from this commit. Deploy from `demo/live` ([Hosted demo](#hosted-demo)), then paste the URL on this line._
+**Live demo:** https://triagepay-demo.vercel.app/
 
-**Refused on testnet:** [prompt injection, `ERR_PAYEE_NOT_ALLOWED`](https://testnet.nearblocks.io/txns/CStp2vCeTKMSSUAw2f55uzUMBWh27FpFs22EH4RxYq7v)
+**Refused on testnet:** [refused on the live demo, `ERR_PAYEE_NOT_ALLOWED`](https://testnet.nearblocks.io/txns/7AebGceWGwhFfG6vADxPykNNeyfGGZMr9C8mrtXNWbPB)
 
 **Allowed on testnet:** [payee on the allowlist, inside the cap](https://testnet.nearblocks.io/txns/AKXsG4JMZSoR6h4Sr5uNMmk5VenESE6KxAU36mcA72pr)
 

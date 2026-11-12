@@ -1,16 +1,16 @@
 // NEAR testnet JSON-RPC and signing. near-api-js is the same 7.3.1 the
 // agent demo uses. This module is the only place a secret key is passed
 // to a signer.
+//
+// Static ESM import. createRequire() loads the package's CJS build, and
+// that build pulls the ESM-only @noble/curves package, which breaks
+// /api/run when Vercel bundles the function.
 
-import { createRequire } from "node:module";
+import * as nearApi from "near-api-js";
 import { DemoError, redact } from "./http.js";
 import { nsToMs } from "./format.js";
 
-const require = createRequire(import.meta.url);
-let nearApi;
-
 export function near() {
-  if (!nearApi) nearApi = require("near-api-js");
   return nearApi;
 }
 
