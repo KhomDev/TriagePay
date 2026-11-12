@@ -20,6 +20,18 @@ receipt.
 
 Built for NEAR HACKATHON, tracks `security` and `agents`.
 
+## Live on mainnet
+
+I also deployed the policy wallet on NEAR mainnet and ran it with real (tiny) wNEAR amounts on 2026-11-12. The wallet is still live.
+
+- Wallet contract: [`tp-wallet.hlpok1lad.tg`](https://nearblocks.io/address/tp-wallet.hlpok1lad.tg) (0 access keys; owner `hlpok1lad.tg`; token `wrap.near`; payee allowlist `[gateway.hlpok1lad.tg]`)
+- Agent: [`tp-agent2.hlpok1lad.tg`](https://nearblocks.io/address/tp-agent2.hlpok1lad.tg), whose only key is a function-call key for `pay` on the wallet
+- **Paid on mainnet:** [allowlisted payee, inside the cap, `pay_settled`](https://nearblocks.io/txns/2RH77VLsLHovF3m4kzR76jk71X8tYKAyugxQ9YJMXLJJ)
+- **Refused on mainnet:** [prompt-injected payee, `ERR_PAYEE_NOT_ALLOWED`, no balance change](https://nearblocks.io/txns/HskzPv94J1JY16K5WdUG8wfGznnhnMMKcXgE1acks63F)
+- **Revoked on mainnet:** [owner `revoke_agent`](https://nearblocks.io/txns/CFutaZM9XMLBBcfm2jwH2JnQQJA8ReNGyTRhH1PZLzFh), then [the same key refused, `ERR_AGENT_INACTIVE`](https://nearblocks.io/txns/C1BnCCrEMYfxhirf283GfGr2sfeBMaZ88fimxQwoKt2d)
+
+Every transaction, the costs, and two setup mistakes I hit are in [`docs/demo/mainnet-e2e/2026-11-12/`](docs/demo/mainnet-e2e/2026-11-12/README.md); the script is `scripts/mainnet/mainnet-proof.mjs`. The x402 receipt check runs on testnet only: `wrap.near` emits no NEP-141 events for the verifier to read.
+
 ## Hosted demo
 
 `demo/live` is the judge page: pick a prompt injection, an over-limit
