@@ -154,6 +154,18 @@
       "errorCode": null,
       "expected": "success",
       "ok": true
+    },
+    {
+      "name": "agent_keys_cleanup",
+      "signer": "tpd-e947e7-agent.testnet",
+      "signerPublicKey": "ed25519:8ru6CS4177rNfXznP2VoByjozvUTE696Pws7o6nsxF4F",
+      "receiver": "tpd-e947e7-agent.testnet",
+      "txHash": "74a2PEiV98G5gJppaiXTNZ2vmGBCEDbPxUAuSzPpsAsC",
+      "url": "https://testnet.nearblocks.io/txns/74a2PEiV98G5gJppaiXTNZ2vmGBCEDbPxUAuSzPpsAsC",
+      "outcome": "success",
+      "errorCode": null,
+      "expected": "success",
+      "ok": true
     }
   ],
   "review": {
@@ -230,5 +242,19 @@
   "hostedKeys": {
     "agentPayKey": "ed25519:9iERawak26p4uGVfktNgcpG1zxuEV31d8GAnY1qUxUis",
     "ownerKey": "ed25519:9GNK747csiMRCG8iTyLk6Jb75SKDBVFExwfkn49UMNua"
-  }
+  },
+  "agentKeysAfter": [
+    {
+      "public_key": "ed25519:9iERawak26p4uGVfktNgcpG1zxuEV31d8GAnY1qUxUis",
+      "permission": {
+        "FunctionCall": {
+          "allowance": "249607848808526700000000",
+          "method_names": [
+            "pay"
+          ],
+          "receiver_id": "tpd-e947e7-wallet.testnet"
+        }
+      }
+    }
+  ]
 }

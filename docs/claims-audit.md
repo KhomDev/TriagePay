@@ -85,7 +85,10 @@ hits against the operator's off-repo list).
 | Current build on testnet | Transcript: deployed, initialized, key deleted in one batch; wasm SHA-256 in the evidence equals `build.md` | GREEN |
 | The build is not reproducible | `build.md` says so; a third party cannot re-derive the hash from source | OPEN |
 | Sandbox suite | 18 passed on Linux CI on 2026-11-12. The first run found three test bugs, no contract bug (see corrections) | GREEN |
-| Nothing is deployed on mainnet | No mainnet transaction exists for the wallet | GREEN |
+| The policy wallet is live on mainnet (`tp-wallet.hlpok1lad.tg`, built from `82d64e3`, before the review queue) | Four mainnet transactions in `docs/demo/mainnet-e2e/2026-11-12` (paid, refused payee, revoke, revoked-agent refusal) | GREEN |
+| The review queue is live on testnet (`tpd-e947e7-wallet.testnet`): held, approved and settled, rejected | `docs/demo/testnet-review/2026-11-12` (EVIDENCE.json with balances before and after) | GREEN |
+| The hosted agent `tpd-e947e7-agent.testnet` has one key, `pay` only | Cleanup transaction `74a2PEiV` and the `agentKeysAfter` list in the evidence | GREEN |
+| Chain Signatures: one testnet signature that recovers to the derived address | `docs/contracts/chain-signatures.md`, `docs/demo/testnet-chainsig/2026-11-12/EVIDENCE.json`; SDK tests; ethers v6 cross-check | LIMITED (not broadcast; the request came from the owner account, not from the wallet contract) |
 
 ## docs/engine/
 

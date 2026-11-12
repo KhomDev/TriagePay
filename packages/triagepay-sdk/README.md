@@ -38,9 +38,13 @@ the model asks for it. The wallet still refuses a payee that is not allowed.
 
 ## Chain Signatures
 
-`ecdsaSignRequest` and `erc20TransferCalldata` build a NEAR `sign` request
-for an ERC-20 `transfer` on Base Sepolia. They do not submit it. The design
-and the gap are in [docs/contracts/chain-signatures.md](../../docs/contracts/chain-signatures.md).
+`erc20TransferCalldata`, `eip1559SigningHash` and `ecdsaSignRequest` build a
+NEAR `sign` request for an ERC-20 `transfer` on Base Sepolia.
+`evmAddressFromNearKey` turns the signer's `derived_public_key` into the
+EVM address, and `normalizeMpcSignature` plus `signedEip1559` turn the MPC
+answer into a raw transaction. The package does not submit anything. One
+real testnet request, its signature and the recovery check are in
+[docs/contracts/chain-signatures.md](../../docs/contracts/chain-signatures.md).
 
 ## Tests
 

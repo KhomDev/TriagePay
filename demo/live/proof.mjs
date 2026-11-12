@@ -164,12 +164,12 @@ async function finish() {
   const keep = evidence.hostedKeys && evidence.hostedKeys.agentPayKey;
   if (!keep) throw new Error("run adopt first");
   const keys = await viewAccessKeys(RPC, A.agent);
-  const list = (keys && keys.keys) || keys || [];
+  const list = Array.isArray(keys) ? keys : [];
   const drop = list.map((k) => k.public_key).filter((pk) => pk !== keep);
   if (!list.some((k) => k.public_key === keep)) throw new Error("hosted pay key is not on the agent");
   await send("agent_keys_cleanup", "agent-full", A.agent, drop.map((pk) => deleteKey(pk)), "success");
   const after = await viewAccessKeys(RPC, A.agent);
-  evidence.agentKeysAfter = ((after && after.keys) || after || []).map((k) => ({ public_key: k.public_key, permission: k.access_key.permission }));
+  evidence.agentKeysAfter = (Array.isArray(after) ? after : []).map((k) => ({ public_key: k.public_key, permission: k.access_key.permission }));
   save();
   console.log(JSON.stringify(evidence.agentKeysAfter));
 }

@@ -1,9 +1,10 @@
-// Partial Chain Signatures proof of concept.
+// Chain Signatures request builder.
 //
 // This builds the bytes a policy wallet would ask NEAR to sign for an
-// ERC-20 transfer, and the `sign` arguments for v1.signer. It does not
-// derive an EVM address, request a signature, or broadcast a transaction.
-// See docs/contracts/chain-signatures.md.
+// ERC-20 transfer, and the `sign` arguments for v1.signer. It submits
+// nothing. evm.js holds the EIP-1559 hash and address helpers.
+// demo/live/chainsig-proof.mjs sends one real testnet request; see
+// docs/contracts/chain-signatures.md.
 
 import { keccak256Hex } from "./keccak.js";
 
