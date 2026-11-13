@@ -18,7 +18,14 @@ export async function GET(request) {
   const fields = sanitizeReceiptQuery(url.searchParams);
   if (!fields) return fail(400, "bad_receipt", "The receipt fields were rejected.");
   const origin = publicOrigin(request);
-  const image = `${origin}/api/og?${url.searchParams.toString()}`;
+  const imageParams = new URLSearchParams();
+  imageParams.set("kind", fields.kind);
+  if (fields.rule) imageParams.set("rule", fields.rule);
+  if (fields.payee) imageParams.set("payee", fields.payee);
+  if (fields.amount) imageParams.set("amount", fields.amount);
+  if (fields.tx) imageParams.set("tx", fields.tx);
+  if (fields.tried) imageParams.set("tried", fields.tried);
+  const image = `${origin}/api/og?${imageParams.toString()}`;
   const title = `TriagePay ${fields.headline}`;
   const description = `${fields.headline} ${fields.rule}. ${fields.amount || "an amount"} to ${fields.payee || "a payee"}. ${SHARE_TAIL}`;
   const html = `<!doctype html>

@@ -7,6 +7,13 @@
       "includeFiles": "config.json,lib/fonts/**,node_modules/satori/layout.wasm,node_modules/@resvg/resvg-wasm/index_bg.wasm"
     }
   },
+  "rewrites": [
+    { "source": "/api/agent", "destination": "/api/live?route=agent" },
+    { "source": "/api/drain", "destination": "/api/live?route=drain" },
+    { "source": "/api/kill", "destination": "/api/live?route=kill" },
+    { "source": "/api/og", "destination": "/api/live?route=og" },
+    { "source": "/api/share", "destination": "/api/live?route=share" }
+  ],
   "crons": [
     { "path": "/api/cron", "schedule": "17 4 * * *" }
   ]

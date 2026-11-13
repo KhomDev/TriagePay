@@ -11,12 +11,12 @@ import { POST as revoke } from "./api/revoke.js";
 import { POST as review } from "./api/review.js";
 import { GET as judgment } from "./api/judgment.js";
 import { GET as cron } from "./api/cron.js";
-import { POST as agent } from "./api/agent.js";
-import { GET as drainGet, POST as drainPost } from "./api/drain.js";
-import { GET as og } from "./api/og.js";
-import { GET as share } from "./api/share.js";
+import { POST as agent } from "./routes/agent.js";
+import { GET as drainGet, POST as drainPost } from "./routes/drain.js";
+import { GET as og } from "./routes/og.js";
+import { GET as share } from "./routes/share.js";
 import { POST as telegram } from "./api/telegram.js";
-import { GET as killGet, POST as killPost } from "./api/kill.js";
+import { GET as killGet, POST as killPost } from "./routes/kill.js";
 
 const ROOT = fileURLToPath(new URL("./public/", import.meta.url));
 const PORT = Number(process.env.PORT || 8787);

@@ -149,7 +149,7 @@
         : "Unknown payees are still refused. "
     ));
     copy.appendChild(document.createTextNode(
-      "Approval threshold " + (review.approvalThreshold || "0") + ". " + (review.pendingCount || 0) + " waiting."
+      "Approval threshold " + (review.approvalThresholdDisplay || review.approvalThreshold || "0") + ". " + (review.pendingCount || 0) + " waiting."
     ));
     state.queueScenario = review.reviewUnknownPayees ? "review-payee" : (BigInt(review.approvalThreshold || "0") > 0n ? "above-threshold" : null);
     $("btn-queue").textContent = state.queueScenario === "review-payee" ? "Queue a new payee" : "Queue a payment above the threshold";

@@ -2,6 +2,8 @@
 
 I added these on the judge page in `demo/live`. None of them put a key in the browser. Names only here. Values stay out of git.
 
+The Hobby plan allows 12 serverless functions. `api/telegram.js` is its own function. Agent, Drain Me, the kill switch, and the receipt image share `api/live.js`. `vercel.json` rewrites `/api/agent`, `/api/drain`, `/api/kill`, `/api/og`, and `/api/share` onto that function, so those URLs stay the same.
+
 ## Drain Me
 
 The form posts to `/api/drain`. I keep the text under 500 characters, drop null bytes, and store a redacted 180-character line. The redaction covers an `ed25519:` secret and a 64-character hex string.

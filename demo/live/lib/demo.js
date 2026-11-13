@@ -6,7 +6,7 @@ import { describeAttack, explain, listScenarios, shouldSubmit } from "./attacks.
 import { chainReady, loadConfig, loadKeys, signingReady } from "./config.js";
 import { assessCooldown, cooldownMessage } from "./cooldown.js";
 import { payeeFacts, fetchIndexerTxns, fetchDayStamps } from "./facts.js";
-import { formatAtomic, nsToIso } from "./format.js";
+import { formatAmount, formatAtomic, nsToIso, tokenSymbol } from "./format.js";
 import { DemoError } from "./http.js";
 import { recall, remember } from "./journal.js";
 import { clientIp, releaseLock, reserveAttempt } from "./limits.js";
@@ -282,7 +282,16 @@ export async function getDashboard() {
     },
     scenarios: listScenarios(config).map(scenarioView),
     risks,
-    review,
+    review: review && review.supported
+      ? {
+        ...review,
+        approvalThresholdDisplay: formatAmount(
+          review.approvalThreshold || "0",
+          decimals,
+          tokenSymbol(config.accounts.token),
+        ),
+      }
+      : review,
     recent: mergeRecent(indexed, recall(), config.explorerTxBase),
   };
 }
