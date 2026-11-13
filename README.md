@@ -75,8 +75,8 @@ What is on the page, and what it needs:
 | Scripted agent | Default. The page says `scripted` | none |
 | NEAR AI agent | Used when the key is set. If the call fails, I fall back and still say `scripted` | `NEARAI_API_KEY`, optional `NEARAI_MODEL` |
 | Receipts and the PNG share card | No secret. Share text includes the hackathon line | none |
-| Attack replay | `/replay/<tx>` plays about ten seconds. The narrative is stored when this server signed the transaction. Without that record the page links the explorer and says so | shared store optional (`KV_REST_API_*` or `UPSTASH_REDIS_REST_*`) |
-| Honeypot payee | The injected account is the trap. A refusal of that payee is listed with the transaction link. The list is kept by this server. The deployed wallet has no attacker registry of its own | optional `TRIAGEPAY_HONEYPOT_ACCOUNT` (defaults to the injected account) |
+| Attack replay | `/replay/<tx>` plays about ten seconds. A stored narrative is used when this server signed the transaction. Otherwise I rebuild the payee, the amount, the error code, and the demo sentence from the transaction | shared store optional |
+| Honeypot payee | The injected account is the trap. The list is the agent's refused `pay` calls to that account, read from the chain index and the RPC. The deployed wallet has no attacker registry of its own | optional `TRIAGEPAY_HONEYPOT_ACCOUNT` (defaults to the injected account) |
 | Telegram approval | A hold can message the owner with Approve and Reject. Off until the three variables are set | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OWNER_CHAT_ID`, `TELEGRAM_WEBHOOK_SECRET` |
 | Kill switch | An expiring single-use link and a QR code. Off until the secret is set. Revoke on the page still works | `KILL_SWITCH_SECRET` |
 | Natural-language policy | Preview always. Apply signs `set_agent` / `set_review_policy` only when the flag is `1`. It is off on the public demo | `TRIAGEPAY_POLICY_APPLY=1` to apply; `NEARAI_API_KEY` optional, otherwise the parser |

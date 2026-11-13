@@ -17,6 +17,7 @@ import { mergeRecent } from "./recent.js";
 import { storeFromEnv } from "./store.js";
 import { notifyHold } from "./telegram.js";
 import { traceOutcome } from "./trace.js";
+import { enrichRecent } from "./txread.js";
 import { modelFromEnv } from "./agent.js";
 
 let signing = false;
@@ -294,7 +295,7 @@ export async function getDashboard() {
         ),
       }
       : review,
-    recent: mergeRecent(indexed, recall(), config.explorerTxBase),
+    recent: await enrichRecent(config, mergeRecent(indexed, recall(), config.explorerTxBase)),
   };
 }
 

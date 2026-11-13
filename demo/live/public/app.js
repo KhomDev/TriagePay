@@ -228,11 +228,15 @@
       text = (text ? text + " " : "") + "built at NEAR HACKATHON @NEARProtocol #NEARHackathon";
     }
     var intent = "https://x.com/intent/post?text=" + encodeURIComponent(text) + "&url=" + encodeURIComponent(location.origin + page);
-    var rows = el("dl", null,
-      el("dt", null, "Rule"), el("dd", null, (receipt.rule || "") + (receipt.ruleText ? " — " + receipt.ruleText : "")),
-      el("dt", null, "Amount"), el("dd", null, receipt.amount || "—"),
-      el("dt", null, "Payee"), el("dd", { class: "mono" }, receipt.payee || "—")
-    );
+    var rows = el("dl", null);
+    function addRow(label, value, mono) {
+      if (!value) return;
+      rows.appendChild(el("dt", null, label));
+      rows.appendChild(el("dd", mono ? { class: "mono" } : null, value));
+    }
+    addRow("Rule", receipt.rule ? (receipt.rule + (receipt.ruleText ? " — " + receipt.ruleText : "")) : "");
+    addRow("Amount", receipt.amount);
+    addRow("Payee", receipt.payee, true);
     return el("article", { class: "receipt" },
       el("p", { class: "kicker" }, "On-chain receipt"),
       el("h3", null, receipt.headline || "RECEIPT"),
@@ -453,7 +457,7 @@
     var root = $("receipts-feed");
     if (!root) return;
     clear(root);
-    var shown = (rows || []).filter(function (row) { return row.txHash; }).slice(0, 6);
+    var shown = (rows || []).filter(function (row) { return row.txHash && (row.payee || row.amount || row.errorCode || row.title); }).slice(0, 2);
     if (!shown.length) {
       root.appendChild(el("p", { class: "hint" }, "Receipts appear after a signed attempt. A replay link is added when this server stored the agent's text."));
       return;

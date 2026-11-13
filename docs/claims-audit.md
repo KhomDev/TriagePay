@@ -62,7 +62,7 @@ hits against the operator's off-repo list).
 | The 18 sandbox tests pass | GitHub Actions run https://github.com/KhomDev/TriagePay/actions/runs/43181541598: 18 passed | GREEN |
 | No code predates the hackathon window | `git log --reverse`: first commit 2026-10-20; rules Q-001 count code from 2026-10-19 | GREEN |
 | Hosted demo unit tests | `cd demo/live && npm test`: 68 passed on 2026-11-13 | GREEN |
-| Hosted demo model, policy apply, honeypot list | Code and unit tests in `demo/live`. A model call needs `NEARAI_API_KEY`. Apply needs `TRIAGEPAY_POLICY_APPLY=1`. The honeypot list is not a contract registry | LIMITED |
+| Hosted demo model, policy apply, honeypot list | Code and unit tests in `demo/live`. A model call needs `NEARAI_API_KEY`. Apply needs `TRIAGEPAY_POLICY_APPLY=1`. The honeypot list is rebuilt from refused `pay` calls, not a contract registry | LIMITED |
 
 ## docs/protocols/x402-near.md
 

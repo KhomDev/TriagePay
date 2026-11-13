@@ -20,6 +20,7 @@ import { decimalToAtomic, parsePolicyText, validatePolicy, diffPolicy, applyAllo
 import { replayRecord, saveReplay, loadReplay, resetReplayForTests } from "../lib/replay.js";
 import { recordHoneypot, listHoneypot, honeypotAccount, resetHoneypotForTests } from "../lib/honeypot.js";
 import { buildPassport } from "../lib/passport.js";
+import { decodeCallArgs, readPayTransaction, replayFromChain, fillRow, isTrapRefusal } from "../lib/txread.js";
 import { POST as policyPost } from "../routes/policy.js";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -405,6 +406,58 @@ test("a passport is built from the wallet view and the indexer", () => {
   assert.equal(passport.events[0].errorCode, "ERR_PAYEE_NOT_ALLOWED");
   assert.equal(passport.source.limits, "wallet contract");
   assert.equal(passport.source.transactions, "indexer");
+});
+
+test("a real testnet refusal rebuilds the replay from the pay args", () => {
+  const encoded = "eyJ0b2tlbiI6IndyYXAudGVzdG5ldCIsInJlY2VpdmVyX2lkIjoidHBkLWU5NDdlNy1pbmplY3RlZC50ZXN0bmV0IiwiYW1vdW50IjoiMTAwMDAwMDAwMDAwMDAwMDAwMDAwIiwibWVtbyI6ImRlbW86aW5qZWN0ZWQtcGF5ZWUifQ==";
+  const args = decodeCallArgs(encoded);
+  assert.equal(args.receiver_id, "tpd-e947e7-injected.testnet");
+  assert.equal(args.memo, "demo:injected-payee");
+  const status = {
+    transaction: {
+      signer_id: "tpd-e947e7-agent.testnet",
+      receiver_id: "tpd-e947e7-wallet.testnet",
+      hash: "FSyQV4BaYW8a7h6YZcLodMBUwPrHMYyeFJNuYsdks2aF",
+      actions: [{ FunctionCall: { method_name: "pay", args: encoded } }],
+    },
+    status: {
+      Failure: {
+        ActionError: {
+          kind: {
+            FunctionCallError: {
+              ExecutionError: "Smart contract panicked: ERR_PAYEE_NOT_ALLOWED: receiver is not on the payee allowlist",
+            },
+          },
+        },
+      },
+    },
+  };
+  const pay = readPayTransaction(status);
+  assert.equal(pay.errorCode, "ERR_PAYEE_NOT_ALLOWED");
+  assert.equal(pay.payee, "tpd-e947e7-injected.testnet");
+  const config = {
+    accounts: { injected: "tpd-e947e7-injected.testnet", flagged: "flagged.testnet", payee: "payee.testnet" },
+    policy: { decimals: 24, perCallMax: "1000000000000000000000", dailyMax: "20000000000000000000000", allowedAmount: "100000000000000000000", payees: ["payee.testnet"] },
+    explorerTxBase: "https://testnet.nearblocks.io/txns/",
+    flaggedAccounts: ["flagged.testnet"],
+  };
+  const replay = replayFromChain(config, "FSyQV4BaYW8a7h6YZcLodMBUwPrHMYyeFJNuYsdks2aF", pay);
+  assert.equal(replay.kind, "refused");
+  assert.equal(replay.errorCode, "ERR_PAYEE_NOT_ALLOWED");
+  assert.equal(replay.amountDisplay, "0.0001");
+  assert.match(replay.injection, /Ignore previous instructions/);
+  assert.match(replay.injection, /tpd-e947e7-injected\.testnet/);
+  assert.equal(replay.source, "chain");
+  assert.equal(replay.injectionFrom, "chain-memo");
+  const withoutMemo = replayFromChain(config, "FSyQV4BaYW8a7h6YZcLodMBUwPrHMYyeFJNuYsdks2aF", { ...pay, memo: null });
+  assert.equal(withoutMemo.injectionFrom, "chain-payee");
+  assert.match(withoutMemo.injection, /Ignore previous instructions/);
+  const filled = fillRow({ txHash: "FSyQV4BaYW8a7h6YZcLodMBUwPrHMYyeFJNuYsdks2aF", payee: null, errorCode: null }, pay, 24);
+  assert.equal(filled.payee, "tpd-e947e7-injected.testnet");
+  assert.equal(filled.errorCode, "ERR_PAYEE_NOT_ALLOWED");
+  assert.equal(filled.amount, "0.0001");
+  assert.equal(isTrapRefusal(pay, "tpd-e947e7-injected.testnet"), true);
+  assert.equal(isTrapRefusal({ ...pay, payee: "payee.testnet", outcome: "success", errorCode: null, held: false }, "tpd-e947e7-injected.testnet"), false);
 });
 
 test("the memory store keeps a short list", async () => {

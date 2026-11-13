@@ -35,9 +35,10 @@
     var injection = el("p", { class: "theatre-line", id: "rep-injection" });
     var reasoning = el("p", { class: "theatre-line", id: "rep-reason" });
     var checks = el("ol", { class: "theatre-checks", id: "rep-checks" });
-    var stamp = el("p", { class: "stamp", id: "rep-stamp" }, data.kind === "held" ? "HELD" : data.kind === "settled" ? "SETTLED" : data.kind === "unknown" ? "UNRECORDED" : "REFUSED");
+    var stampWord = data.kind === "held" ? "HELD" : data.kind === "settled" ? "SETTLED" : data.kind === "unknown" ? "UNREAD" : "REFUSED";
+    var stamp = el("p", { class: "stamp", id: "rep-stamp" }, stampWord);
     stage.appendChild(kicker);
-    stage.appendChild(el("h1", null, data.kind === "unknown" ? "No replay stored" : "Watch the wallet decide"));
+    stage.appendChild(el("h1", null, data.kind === "unknown" ? "The transaction did not load" : "Watch the wallet decide"));
     stage.appendChild(injection);
     stage.appendChild(reasoning);
     stage.appendChild(checks);
@@ -49,8 +50,13 @@
     root.appendChild(stage);
 
     var lines = [
-      function () { injection.textContent = data.injection || "No injected text is stored for this transaction."; },
-      function () { reasoning.textContent = data.reasoning || (data.agentMode === "scripted" ? "Scripted agent. No model reasoning was stored." : "No reasoning is stored."); },
+      function () {
+        injection.textContent = data.injection || "The transaction text could not be read.";
+        if (data.injectionFrom) injection.appendChild(document.createTextNode(""));
+      },
+      function () {
+        reasoning.textContent = data.reasoning || "No reasoning is stored.";
+      },
     ];
     (data.checks || []).forEach(function (check) {
       lines.push(function () {
