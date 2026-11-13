@@ -3,7 +3,12 @@
 The contract started as a pre-window spike of plan prompt 02 (spend-policy
 wallet contract), built outside the submission repository under ADR-0006
 option C and imported with its history. It landed in this layout inside the
-hackathon window (2026-11-04). Nothing has been deployed to mainnet.
+hackathon window (2026-11-04). It is deployed on mainnet: the review-queue
+build at `tp-wallet.hlpok1lad.tg` (2026-11-13, built from `ef7472c`) and the
+per-account copies the factory `triagepay.hlpok1lad.tg` deploys (built from
+`main` at `1b1a578`). The deployed contracts have no access keys and no
+upgrade method, so a fix to this source reaches mainnet only as a new
+deployment; the evidence for each deployment lists its source commit.
 
 ## Layout
 

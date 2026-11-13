@@ -56,4 +56,8 @@ values. No accuracy figure is claimed for any category.
 
 The private ruleset is compiled outside the repository. Its gates get opaque ids, and each one
 names one of the categories above, so a report produced with it carries the same public vocabulary
-and nothing else. Only its manifest hash is ever printed or documented.
+and nothing else. Documentation cites only its manifest hash. Every report
+does carry `ruleset_hash`, the SHA-256 of the loaded ruleset's gates payload,
+so that a verdict is bound to the exact gates that produced it; for the
+private ruleset that digest identifies the private gate set without
+revealing its contents.

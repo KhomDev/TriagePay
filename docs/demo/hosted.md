@@ -4,7 +4,21 @@ The judge page is `demo/live`, deployed at https://triagepay-demo.vercel.app/. W
 
 The browser never sees a key. Revoke, Restore, Approve and Reject are public buttons. They
 use the owner account's full-access key, which is held on the server as
-`TRIAGEPAY_OWNER_SECRET_KEY`.
+`TRIAGEPAY_OWNER_SECRET_KEY`. The server limits what those buttons can do
+(see the [red-team review 2026-11-13](../security/redteam-2026-11-13.md)):
+
+- Approve releases a held payment only when it pays the allowlisted payee
+  from `config.json` within its per-call cap. A held payment to any other
+  account can be rejected from the page; approving it needs the owner token
+  (`TRIAGEPAY_OWNER_ACTION_TOKEN`, sent as `Authorization: Bearer`), which
+  the page never has. So the caller who queued an injected payment cannot
+  also release it.
+- Restore re-activates the agent with the caps and payees already on chain,
+  never looser than `config.json`, so it cannot undo an owner's tightening.
+- Revoke and Reject move no funds.
+- Every signing request must come from this site's own page (`Origin` and
+  `Sec-Fetch-Site` are checked) with an `application/json` body, so another
+  site cannot fire these buttons from a visitor's browser.
 
 An allowlisted payee shows warn when the account is under seven days old.
 The demo payee was created for the page, so warn is expected. Warn does
@@ -18,7 +32,8 @@ Required Vercel environment variables (names only; values stay out of git):
 | Variable | What it is |
 |---|---|
 | `TRIAGEPAY_AGENT_SECRET_KEY` | `ed25519:...` function-call key. It can call only `pay` on the wallet. |
-| `TRIAGEPAY_OWNER_SECRET_KEY` | `ed25519:...` owner key. Used only to revoke and restore the agent and to approve or reject a held payment. |
+| `TRIAGEPAY_OWNER_SECRET_KEY` | `ed25519:...` owner key. Used to revoke and restore the agent and to approve or reject a held payment, within the limits above. With `TRIAGEPAY_POLICY_APPLY=1` and the owner token it also signs a confirmed policy change. |
+| `CRON_SECRET` | Required for the daily restore. Without it `/api/cron` answers 503 and signs nothing. Vercel sends it on scheduled runs. |
 
 Public account ids, the RPC URL, limits, the flagged account, and the
 verified code hash live in `demo/live/config.json` after setup. Optional
@@ -46,7 +61,18 @@ hosted project has no store connected yet (`/api/health` reports
 `sharedLimits: false`), so it runs on that fallback.
 
 The function-call key also has a limited gas allowance, and the contract's
-own daily limit caps the token.
+own daily limit caps the token. The server reads that allowance from the
+chain before every agent signature and stops signing once it is at
+`TRIAGEPAY_ALLOWANCE_FLOOR_NEAR` (default 0.05). That floor does not depend
+on the indexer or on a shared store, so parallel instances and header
+games cannot spend the last of it.
+
+Rate limits use the platform's client address: on Vercel,
+`x-vercel-forwarded-for` or `x-real-ip`, which Vercel sets itself; in
+`server.mjs`, the socket address. A client-sent `X-Forwarded-For` is never
+trusted. Each outbound NEAR AI call (policy preview, attestation, live
+Launch, Drain Me) is counted before it is made: `TRIAGEPAY_MODEL_CALLS_PER_IP`
+per minute (default 6) and `TRIAGEPAY_MODEL_CALLS_PER_DAY` (default 300).
 
 ```sh
 cd demo/live
@@ -117,8 +143,9 @@ These sit on the same page. Each one is quiet when its setting is missing.
 | `NEARAI_API_KEY` | Launch and Drain Me use the scripted agent, labelled `scripted`. The policy sentence uses the parser |
 | `NEARAI_MODEL` | `z-ai/glm-5.3-flash` |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OWNER_CHAT_ID`, `TELEGRAM_WEBHOOK_SECRET` | No Telegram message. Approve and Reject on the page still work. The webhook stays off until the secret is set |
-| `KILL_SWITCH_SECRET` | No revoke link. The Revoke button still works |
-| `TRIAGEPAY_POLICY_APPLY` | Preview only. I do not sign a policy change |
+| `KILL_SWITCH_SECRET` | No revoke link. The Revoke button still works. A link can only revoke, which the public Revoke button also does, so the link is a convenience, not an authority boundary; minting is rate limited per address. Without a shared store, single use holds per instance only |
+| `TRIAGEPAY_POLICY_APPLY` | Preview only. I do not sign a policy change. Even when set, applying needs `TRIAGEPAY_OWNER_ACTION_TOKEN`, the `confirm` digest of the exact previewed change set, and a change inside the `config.json` bounds (payees from its allowlist, caps no looser) |
+| `TRIAGEPAY_OWNER_ACTION_TOKEN` | No owner-only action from the page: no policy apply, no approval of a held payment to an unlisted payee |
 | `TRIAGEPAY_HONEYPOT_ACCOUNT` | The injected account from config is the trap |
 | `KV_REST_API_URL` and `KV_REST_API_TOKEN`, or the Upstash pair | Replay text, the honeypot list, Drain Me, and kill-switch single-use stay in this process |
 

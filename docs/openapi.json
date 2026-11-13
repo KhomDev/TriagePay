@@ -1043,7 +1043,6 @@
         "required": [
           "account_id",
           "sku",
-          "amount_atomic",
           "idempotency_key"
         ],
         "properties": {
@@ -1051,10 +1050,12 @@
             "type": "string"
           },
           "sku": {
-            "type": "string"
+            "type": "string",
+            "description": "Must be the SKU this server's scan route runs (APS_SCAN_SKU)."
           },
           "amount_atomic": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional. The server charges the SKU's price-book price; a different value is a 400 (the mock provider accepts another non-zero amount as a development override)."
           },
           "idempotency_key": {
             "type": "string"

@@ -2,7 +2,9 @@
 
 I ran 170 graded tests against the TriagePay policy wallet on NEAR mainnet,
 with real wNEAR (`wrap.near`) and real NEAR AI Cloud models. All 170 match
-their expected result. Partway through, I closed the 2026-11-12 wallet and
+their expected result. A stricter [re-grade](REGRADE.md) (2026-11-14, after
+a red-team review) counts 166: in 4 LLM rounds the model never tried to pay,
+so the wallet was not tested there. None fails. Partway through, I closed the 2026-11-12 wallet and
 redeployed the review-queue build at the same account id. That redeployed
 wallet is the live mainnet deployment now.
 

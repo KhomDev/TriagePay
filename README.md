@@ -12,7 +12,7 @@ Three proofs:
 
 1. **Refused on testnet:** [prompt-injected payee, `ERR_PAYEE_NOT_ALLOWED`](https://testnet.nearblocks.io/txns/8y6sEwL8i5sP2aMKo5HS3WGZtZ8NMDP9MUdywYAmVnN4)
 2. **Held, then approved on testnet:** [a payment above the threshold is held](https://testnet.nearblocks.io/txns/8nvs4X4jWrzEzsbUj2ziS5qEdTTi6wvRwfUTBxftdcJi), and [the owner approves it and it settles](https://testnet.nearblocks.io/txns/CwEo7ec8uk25XQbKHNmS3naUhqM9FPbRJzEAjVf223Hp) ([all steps](docs/demo/testnet-review/2026-11-12/README.md))
-3. **Live on mainnet:** [a payment held for the owner](https://nearblocks.io/txns/C91iH3Tmj78kZMAe4dd24suY1hqZzZvpec4n7YKaL475), [approved and settled](https://nearblocks.io/txns/5yK3nM2bozY8d9XuAQtAJjA2LBEcDHCpfuXKVh9n2FWt), and [a hijacked NEAR AI model's payment to the attacker refused](https://nearblocks.io/txns/9xA5AoEG5sdghsaoBcwMkADNSEP3TTHg7B5bd3eCkJL3) on `tp-wallet.hlpok1lad.tg`. That is 3 of 170 mainnet tests ([details](#live-on-mainnet))
+3. **Live on mainnet:** [a payment held for the owner](https://nearblocks.io/txns/C91iH3Tmj78kZMAe4dd24suY1hqZzZvpec4n7YKaL475), [approved and settled](https://nearblocks.io/txns/5yK3nM2bozY8d9XuAQtAJjA2LBEcDHCpfuXKVh9n2FWt), and [a hijacked NEAR AI model's payment to the attacker refused](https://nearblocks.io/txns/9xA5AoEG5sdghsaoBcwMkADNSEP3TTHg7B5bd3eCkJL3) on `tp-wallet.hlpok1lad.tg`. That is 3 of 166 graded mainnet assertions ([details](#live-on-mainnet))
 
 This project was built at NEAR HACKATHON, in the `security` and `agents` tracks. #NEARHackathon @NEARProtocol
 
@@ -45,7 +45,7 @@ These are the facts I can point to. I have not benchmarked other tools.
 - **The limits are on chain, not in the agent.** The agent holds a NEAR function-call key that can call only `pay` on the wallet. Caps, the payee allowlist, pause and revoke live in the contract, so a prompt-injected or stolen key cannot switch them off. Owner methods need 1 yoctoNEAR, which no function-call key can attach.
 - **The server checks the payment from the token contract's own events.** An x402 payment counts only when the token contract's own NEP-141 `ft_transfer` event, in a finalized receipt, pays the gateway with the server-issued memo. Logs from any other contract are ignored. This runs on testnet ([how](#how-the-server-knows-it-was-paid)).
 - **An owner review queue on chain.** A new payee or an amount above a threshold is held in the contract until the owner approves or rejects it. Run on testnet: [held](https://testnet.nearblocks.io/txns/8nvs4X4jWrzEzsbUj2ziS5qEdTTi6wvRwfUTBxftdcJi), [approved](https://testnet.nearblocks.io/txns/CwEo7ec8uk25XQbKHNmS3naUhqM9FPbRJzEAjVf223Hp), [rejected](https://testnet.nearblocks.io/txns/CcUmBvhQPBvtPJ9pg4NF225U4XfaJEmwjLEZV9gCAaWR).
-- **Live on mainnet** with real (tiny) wNEAR amounts: the review-queue wallet, 170 graded tests, three rounds of NEAR AI models as the agent, and the paid, refused, and revoked proofs ([below](#live-on-mainnet)).
+- **Live on mainnet** with real (tiny) wNEAR amounts: the review-queue wallet, 166 graded on-chain assertions, three rounds of NEAR AI models as the agent, and the paid, refused, and revoked proofs ([below](#live-on-mainnet)).
 - **A reusable SDK.** `packages/triagepay-sdk` is a one-line policy-wallet payer, an x402 helper and a NEAR AI tool (12 tests). The two-minute setup, the MCP server, and an outside agent are in [examples](examples/README.md).
 - **A claims audit.** Every testable claim in the docs is mapped to its evidence, with what is limited or open said plainly: [docs/claims-audit.md](docs/claims-audit.md).
 
@@ -66,7 +66,7 @@ I deployed the policy wallet on NEAR mainnet and ran it with real (tiny) wNEAR a
 
 The campaign covered:
 
-- 170 graded tests: limits, zero and overflow amounts, malformed args, everything the pay-only key cannot do, a real non-owner account, revoke and restore, pause, the review queue, and three rounds of LLM agents. All 170 matched their expected result.
+- 170 graded tests: limits, zero and overflow amounts, malformed args, everything the pay-only key cannot do, a real non-owner account, revoke and restore, pause, the review queue, and three rounds of LLM agents. All 166 graded assertions held. A stricter [re-grade](docs/demo/mainnet-campaign/2026-11-13/REGRADE.md) no longer counts 4 model rounds where the model never tried to pay (the first report said 170).
 - 183 transactions, 0.066 NEAR of gas, and about USD 0.046 of NEAR AI.
 - One design issue: an agent can fill the owner's review queue and reserve the day with junk holds. Its own legitimate payments then fail until the owner rejects them. Funds stay safe; the cost is availability.
 
@@ -248,12 +248,13 @@ Money is integer-only (u128 atomic units). Every balance satisfies `deposited ==
 | | |
 |---|---|
 | Run on testnet | Policy wallet (28-step run on 2026-11-06, and the agent demo on 2026-11-11); the owner-review wallet on 2026-11-12 (held, approved, rejected) and again from the production page on 2026-11-13; one Chain Signatures request on 2026-11-12, signed and not broadcast; x402 round trips paid through the wallet and directly; receipt verification |
-| Run on mainnet | The review-queue policy wallet, live since 2026-11-13: 170 graded tests with 183 transactions, including 51 NEAR AI completions that drove the agent's `pay` calls ([Live on mainnet](#live-on-mainnet)). Before that, the first mainnet wallet on 2026-11-12: one paid call, one refused payee, revoke, one revoked-agent refusal, then closed. I re-check the live views every six hours. Earlier, one native-USDC deposit verified on 2026-10-21 by the argument-based verifier ([docs/integrations/near.md](docs/integrations/near.md)). The x402 receipt check has not run on mainnet |
+| Run on mainnet | The review-queue policy wallet, live since 2026-11-13: 166 graded on-chain assertions, none failing, with 183 transactions ([re-graded](docs/demo/mainnet-campaign/2026-11-13/REGRADE.md); the first count of 170 included 4 model rounds that never tried to pay), including 51 NEAR AI completions that drove the agent's `pay` calls ([Live on mainnet](#live-on-mainnet)). Before that, the first mainnet wallet on 2026-11-12: one paid call, one refused payee, revoke, one revoked-agent refusal, then closed. I re-check the live views every six hours. Earlier, one native-USDC deposit verified on 2026-10-21 by the argument-based verifier ([docs/integrations/near.md](docs/integrations/near.md)). The x402 receipt check has not run on mainnet |
 | Run against NEAR AI Cloud | Stage B: a 50-call spike on 2026-11-12 and the paid route in `triage.v2` mode. Every verdict in the 2026-11-11 testnet transcript comes from Stage A alone; the run predates the working key |
 | Built, tested offline only | The x402 facilitator endpoints, the SQLite journal (`crates/store`), NEP-413 and API keys (`crates/auth`), the static UI (`ui/`), the Dockerfile |
 | Not wired | The API keeps its ledger in memory, serves one development caller with no authentication, binds loopback only, and does not serve the UI |
 | Run in CI only | The 23 sandbox tests in `contracts/tests` (near-workspaces, a local NEAR node) run on GitHub Actions, Linux. The sandbox has no Windows build |
 | Hosted judge demo | `demo/live`: Vercel static page plus serverless functions on testnet. Signing keys are environment variables. The cross-instance rate-limit store is not connected yet (`sharedLimits: false`) |
+| Red-team review | An independent review on 2026-11-13 found no Critical and no way to move funds past the wallet's caps. Its 3 High, 7 Medium and 22 Low or Info findings around the contract are fixed or documented, each with a regression test: [record](docs/security/redteam-2026-11-13.md) |
 | Cut | Attested verdicts on the paid route (ADR-0011); the demo checks a nonce echo and does not verify the Intel quote. Also cut: NEAR Intents deposits and a measured accuracy figure. No accuracy is claimed anywhere |
 
 Known limits of the paid route: no rate limiting; the server trusts its RPC endpoint; on `/v2/scan` the envelope is validated after payment (an invalid one keeps the payment claimed and can be retried with a corrected body); The hosted demo calls a NEAR AI model only when `NEARAI_API_KEY` is set, and otherwise uses a scripted agent and says so.
@@ -345,6 +346,7 @@ I also built [VibeWallet](https://vibe-wallet-flame.vercel.app) at NEAR HACKATHO
 
 [Architecture](docs/architecture.md) |
 [threat model](docs/threat-model.md) |
+[red-team record](docs/security/redteam-2026-11-13.md) |
 [wallet](docs/contracts/policy-wallet.md) |
 [x402 profile](docs/protocols/x402-near.md) |
 [engine](docs/engine/overview.md) |

@@ -5,6 +5,18 @@ follows Keep a Changelog; the project has not shipped a tagged release.
 
 ## [Unreleased]
 
+### Security
+- Remediated the red-team review of 2026-11-13 (record:
+  `docs/security/redteam-2026-11-13.md`). Paid API: reservations are
+  priced server-side and bound to the caller; bare transaction hints no
+  longer pin state; the JSON-RPC read runs outside the provider lock;
+  expiry follows the funding block's time. Engine: Stage B fits inside the
+  scan deadline, the number regex is linear, compile-private requires the
+  private denylist. Hosted demo: owner actions are limited to the
+  allowlisted payee, policy apply needs an owner token and a confirmed
+  diff, restore keeps the chain policy, signing POSTs are same-origin JSON,
+  model calls and the agent allowance are budgeted. CI actions are pinned.
+
 ### Added
 - Hosted judge demo (`demo/live`). A page deployable to Vercel where a
   judge runs a prompt-injected payment, an over-limit payment, and a

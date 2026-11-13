@@ -45,7 +45,7 @@ failing test before the fix and is covered by a regression test now.
 | `POST /accounts/{id}/deposits` credited any account with the NEAR provider active | 403 unless the mock provider is active; same for `POST /jobs/{id}/settlements` | `dev_only_routes_refuse_under_the_near_provider` |
 | Wallet limits were shared by every allowlisted token, whatever its decimals | One token per wallet | `limits_sized_for_one_token_cannot_move_another` |
 | A proof presented after expiry left no record; orphans were not readable | The late transaction is read and recorded; `GET /payment/intents/{id}` lists orphans | `an_expired_requirement_never_funds` |
-| Unpaid requirements and per-intent locks grew without bound | Expired unpaid requirements are pruned; locks only for issued requirements | `expired_requirements_nobody_paid_are_forgotten` |
+| Unpaid requirements and per-intent locks grew without bound | Expired requirements without chain evidence are pruned one hour after expiry, hinted or not (a bare hint used to keep them forever, red-team 2026-11-13); locks only for issued requirements | `expired_requirements_nobody_paid_are_forgotten`, `a_bare_hint_keeps_an_intent_only_for_the_grace_window` |
 | Scanner stderr reached 500 bodies | Fixed message; detail withheld | `bridge_failure_message` |
 
 Not fixed, stated as limits: no rate limiting; one development caller; state
