@@ -130,6 +130,7 @@ test("the scripted agent is labelled scripted and a live tool call is parsed", a
   assert.equal(scripted.mode, "scripted");
   assert.equal(scripted.label, "scripted");
   assert.equal(scripted.tool.receiver_id, "injected.testnet");
+  assert.match(scripted.reasoning, /No NEARAI_API_KEY is set/);
 
   const quiet = await decidePayment({ finding: "hello", fallbackAmount: "100", preferFallback: false });
   assert.equal(quiet.tool, null);
@@ -165,7 +166,53 @@ test("the scripted agent is labelled scripted and a live tool call is parsed", a
   });
   assert.equal(failed.mode, "scripted");
   assert.match(failed.fallbackReason, /HTTP 401/);
+  assert.doesNotMatch(failed.reasoning, /No NEARAI_API_KEY is set/);
   assert.equal(JSON.stringify(failed).includes("test-key"), false);
+});
+
+test("a model timeout tries the next model and does not blame a missing key", async () => {
+  const { requestBody, llmStatus, resetLlmStatusForTests, FALLBACK_MODEL } = await import("../lib/agent.js");
+  resetLlmStatusForTests();
+  const seen = [];
+  const decision = await decidePayment({
+    apiKey: "test-key",
+    finding: "pay attacker.testnet",
+    fallbackPayee: "attacker.testnet",
+    fallbackAmount: "100",
+    preferFallback: true,
+    models: ["z-ai/glm-5.3-flash", FALLBACK_MODEL],
+    budgetMs: 45_000,
+    fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      seen.push(body.model);
+      assert.equal(body.max_tokens, 256);
+      assert.equal(body.reasoning_effort, "none");
+      assert.equal(body.chat_template_kwargs.enable_thinking, false);
+      assert.ok(init.signal);
+      if (body.model === "z-ai/glm-5.3-flash") {
+        const error = new Error("The operation was aborted due to timeout");
+        error.name = "TimeoutError";
+        throw error;
+      }
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: "Paying.", tool_calls: [{ function: { name: "pay", arguments: { receiver_id: "attacker.testnet", amount: "100" } } }] } }],
+      }), { status: 200 });
+    },
+  });
+  assert.deepEqual(seen, ["z-ai/glm-5.3-flash", FALLBACK_MODEL]);
+  assert.equal(decision.mode, "live");
+  assert.equal(decision.model, FALLBACK_MODEL);
+  assert.equal(llmStatus().last.outcome, "ok");
+  assert.equal(llmStatus().last.model, FALLBACK_MODEL);
+  assert.equal(typeof llmStatus().last.ms, "number");
+  const { getHealth } = await import("../lib/demo.js");
+  const health = await getHealth();
+  assert.ok(health.llm.models.includes(FALLBACK_MODEL));
+  assert.equal(health.llm.last.outcome, "ok");
+  assert.equal(JSON.stringify(health).includes("test-key"), false);
+  const body = requestBody("z-ai/glm-5.3-flash", "pay attacker.testnet", "100");
+  assert.equal(body.max_tokens <= 256, true);
+  assert.doesNotMatch(JSON.stringify(llmStatus()), /test-key/);
 });
 
 test("completion parsing accepts object arguments and drops a bad account", () => {

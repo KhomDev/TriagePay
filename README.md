@@ -73,7 +73,7 @@ What is on the page, and what it needs:
 | Owner review (hold, Approve, Reject) | Live on the testnet wallet. The threshold is shown in wNEAR | the owner key |
 | Drain Me | A visitor's text runs through the agent and the wallet. I do not sign a payment the wallet would settle | the agent key; per-address cap `TRIAGEPAY_DRAIN_IP_LIMIT` (default 3) |
 | Scripted agent | Default. The page says `scripted` | none |
-| NEAR AI agent | Used when the key is set. If the call fails, I fall back and still say `scripted` | `NEARAI_API_KEY`, optional `NEARAI_MODEL` |
+| NEAR AI agent | Used when the key is set. A timeout or an error tries the next model in `NEARAI_MODEL` inside a 45s budget, then the scripted agent. The page and `/api/health` say whether the key was missing, the call timed out, or the model returned an error. Health also shows the last call's model and latency, not the key | `NEARAI_API_KEY`, optional `NEARAI_MODEL` (comma-separated; default `z-ai/glm-5.3-flash`, then `Qwen/Qwen3.8-27B`) |
 | Receipts and the PNG share card | No secret. Share text includes the hackathon line | none |
 | Attack replay | `/replay/<tx>` plays about ten seconds. A stored narrative is used when this server signed the transaction. Otherwise I rebuild the payee, the amount, the error code, and the demo sentence from the transaction | shared store optional |
 | Honeypot payee | The injected account is the trap. The list is the agent's refused `pay` calls to that account, read from the chain index and the RPC. The deployed wallet has no attacker registry of its own | optional `TRIAGEPAY_HONEYPOT_ACCOUNT` (defaults to the injected account) |

@@ -18,7 +18,7 @@ import { storeFromEnv } from "./store.js";
 import { notifyHold } from "./telegram.js";
 import { traceOutcome } from "./trace.js";
 import { enrichRecent } from "./txread.js";
-import { modelFromEnv } from "./agent.js";
+import { llmStatus, modelFromEnv } from "./agent.js";
 
 let signing = false;
 const ONE_YOCTO = 1n;
@@ -216,6 +216,7 @@ export async function getHealth() {
     agentMode: String(process.env.NEARAI_API_KEY || "").trim() ? "live" : "scripted",
     policyApply: String(process.env.TRIAGEPAY_POLICY_APPLY || "") === "1",
     model: modelFromEnv(),
+    llm: llmStatus(),
   };
 }
 
