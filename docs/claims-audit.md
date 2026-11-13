@@ -61,6 +61,8 @@ hits against the operator's off-repo list).
 | Stage B without a key, from recorded replies | `triage-model/tests/test_committed_cassettes.py` (6 tests) | GREEN |
 | The 18 sandbox tests pass | GitHub Actions run https://github.com/KhomDev/TriagePay/actions/runs/43181541598: 18 passed | GREEN |
 | No code predates the hackathon window | `git log --reverse`: first commit 2026-10-20; rules Q-001 count code from 2026-10-19 | GREEN |
+| Hosted demo unit tests | `cd demo/live && npm test`: 68 passed on 2026-11-13 | GREEN |
+| Hosted demo model, policy apply, honeypot list | Code and unit tests in `demo/live`. A model call needs `NEARAI_API_KEY`. Apply needs `TRIAGEPAY_POLICY_APPLY=1`. The honeypot list is not a contract registry | LIMITED |
 
 ## docs/protocols/x402-near.md
 
@@ -126,6 +128,7 @@ hits against the operator's off-repo list).
 | 2026-11-12 | First GitHub CI run: `cargo audit` failed on RUSTSEC-2026-0459 (libsqlite3-sys via rusqlite 0.37) and RUSTSEC-2026-0384 (tokio 1.54.0); rusqlite moved to 0.41.0 and tokio to 1.54.1. The contracts workflow could not install cargo-near (missing libudev headers on the runner) |
 | 2026-11-12 | First live Stage B calls: every request was refused (HTTP 400 for `uniqueItems` in the output schema and for a model that left the catalogue) or came back empty (reasoning used the whole 1024-token budget). Fixed in the client; the spike then ran clean |
 | 2026-11-12 | First sandbox run: 3 of 18 failed on test bugs. `pay` with a deposit is refused by near-sdk's non-payable guard, so the contract's `ERR_DEPOSIT_NOT_ZERO` is not reached on chain; the overflow test funded the wallet before allowlisting the token; the close test measured the gas-paying owner as beneficiary |
+| 2026-11-13 | The hosted demo can call NEAR AI when `NEARAI_API_KEY` is set. Without it the agent is scripted and labelled as such. A natural-language policy is previewed by a parser (or a schema-checked model). Applying it is off unless `TRIAGEPAY_POLICY_APPLY=1`. The honeypot list is not an on-chain registry |
 
 ## Open items
 

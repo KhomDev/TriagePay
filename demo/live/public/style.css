@@ -30,20 +30,30 @@
 
 :root {
   --bg: #07080c;
-  --bg-2: #101218;
-  --ink: #f4f1e8;
-  --muted: #a39e92;
-  --faint: #6f6b62;
-  --line: rgba(244, 241, 232, 0.12);
+  --bg-2: #10131a;
+  --ink: #f6f3ea;
+  --muted: #a7a294;
+  --faint: #746f66;
+  --line: rgba(246, 243, 234, 0.1);
   --accent: #e2ff54;
   --accent-ink: #14160a;
   --ok: #c6f5a2;
   --warn: #ffc857;
-  --bad: #ff7a7a;
+  --bad: #ff8d8d;
   --display: Syne, Geist, system-ui, sans-serif;
   --sans: Geist, system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
   --pad: clamp(16px, 3vw, 32px);
+  --space-1: 8px;
+  --space-2: 12px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 40px;
+  --space-6: 72px;
+  --text-sm: 0.82rem;
+  --text-md: 1.02rem;
+  --text-lg: 1.35rem;
+  --shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
 }
 
 * { box-sizing: border-box; }
@@ -116,12 +126,12 @@ main { padding-bottom: 64px; }
 }
 h1 {
   margin: 0;
-  max-width: 16ch;
+  max-width: 14ch;
   font-family: var(--display);
-  font-weight: 750;
-  font-size: clamp(3.1rem, 8vw, 6.4rem);
-  line-height: 0.9;
-  letter-spacing: -0.055em;
+  font-weight: 740;
+  font-size: clamp(3.2rem, 6.4vw, 5.5rem);
+  line-height: 0.92;
+  letter-spacing: -0.05em;
 }
 h1 span { color: var(--accent); }
 h2 {
@@ -238,7 +248,7 @@ button[disabled] { opacity: 0.45; cursor: not-allowed; transform: none; }
   background: var(--accent);
   opacity: 0;
 }
-.pipeline.is-live .packet { animation: travel 1.1s ease-in-out infinite; }
+.pipeline.is-live .packet { animation: travel 1.35s cubic-bezier(.2, .7, .2, 1) infinite; box-shadow: 0 0 16px var(--accent); }
 .stamp {
   margin: 14px 0 0;
   display: inline-block;
@@ -269,11 +279,14 @@ button[disabled] { opacity: 0.45; cursor: not-allowed; transform: none; }
 .percent { margin: 6px 0 0; font-family: var(--mono); font-size: 0.8rem; color: var(--accent); }
 
 .challenge, .panel, details.panel {
-  background: rgba(16, 18, 24, 0.72);
+  background:
+    linear-gradient(180deg, rgba(226, 255, 84, 0.035), transparent 90px),
+    rgba(14, 16, 22, 0.9);
   border: 1px solid var(--line);
   border-radius: 24px;
-  padding: clamp(18px, 3vw, 28px);
-  margin: 18px 0;
+  padding: clamp(20px, 3vw, 32px);
+  margin: var(--space-4) 0;
+  box-shadow: var(--shadow);
 }
 .challenge-head, .split { display: grid; gap: 22px; }
 .challenge-head { grid-template-columns: 1.4fr 1fr; align-items: end; }
@@ -338,7 +351,17 @@ table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
 th { color: var(--faint); font-weight: 600; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; }
 summary { cursor: pointer; font-family: var(--display); font-weight: 700; font-size: 1.3rem; }
-.site { color: var(--muted); padding: 8px 0 40px; font-size: 0.92rem; }
+.site { color: var(--muted); padding: 8px 0 48px; font-size: 0.92rem; }
+.how-list, .proof-list { margin: 0; padding-left: 1.1rem; display: grid; gap: 12px; }
+.how-list li, .proof-list li { padding-left: 4px; }
+.theatre { min-height: 70vh; padding: 24px 0 48px; }
+.theatre h1 { max-width: 16ch; }
+.theatre-line { min-height: 3.2em; font-size: 1.15rem; max-width: 62ch; }
+.theatre-checks { margin: 12px 0; padding-left: 1.1rem; }
+.passport h1 { font-size: clamp(1.8rem, 4vw, 2.8rem); max-width: none; }
+.passport-dl { display: grid; grid-template-columns: 11rem 1fr; gap: 6px 12px; }
+.honeypot { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--line); }
+.sheet { padding-top: 12px; }
 
 @media (max-width: 900px) {
   .pipeline, .stats, .challenge-head, .split { grid-template-columns: 1fr; }

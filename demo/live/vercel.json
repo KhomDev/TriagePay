@@ -12,7 +12,15 @@
     { "source": "/api/drain", "destination": "/api/live?route=drain" },
     { "source": "/api/kill", "destination": "/api/live?route=kill" },
     { "source": "/api/og", "destination": "/api/live?route=og" },
-    { "source": "/api/share", "destination": "/api/live?route=share" }
+    { "source": "/api/share", "destination": "/api/live?route=share" },
+    { "source": "/api/replay", "destination": "/api/live?route=replay" },
+    { "source": "/api/honeypot", "destination": "/api/live?route=honeypot" },
+    { "source": "/api/policy", "destination": "/api/live?route=policy" },
+    { "source": "/api/passport", "destination": "/api/live?route=passport" },
+    { "source": "/api/passport-og", "destination": "/api/live?route=passport-og" },
+    { "source": "/api/site-og", "destination": "/api/live?route=site-og" },
+    { "source": "/replay/:tx", "destination": "/api/live?route=replay-page&tx=:tx" },
+    { "source": "/agent/:account", "destination": "/api/live?route=passport-page&account=:account" }
   ],
   "crons": [
     { "path": "/api/cron", "schedule": "17 4 * * *" }

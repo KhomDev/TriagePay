@@ -105,3 +105,30 @@ export async function renderReceiptPng(fields) {
   const png = new Resvg(svg, { fitTo: { mode: "width", value: 1200 } }).render().asPng();
   return png;
 }
+
+export async function renderSitePng() {
+  await loadRenderers();
+  const font = await readFile(FONT_PATH);
+  const svg = await satori(
+    box(
+      {
+        width: "100%",
+        height: "100%",
+        flexDirection: "column",
+        justifyContent: "center",
+        background: "#07080c",
+        color: "#f4f1e8",
+        padding: "72px",
+        fontFamily: "Geist",
+      },
+      [
+        box({ fontSize: 22, letterSpacing: 6, color: "#e2ff54" }, "TRIAGEPAY"),
+        box({ fontSize: 68, marginTop: 28, fontWeight: 700 }, "It will pay the attacker."),
+        box({ fontSize: 68, marginTop: 8, color: "#e2ff54", fontWeight: 700 }, "The wallet will not."),
+        box({ fontSize: 24, marginTop: 36, color: "#b7b3a8" }, "A policy wallet for AI agents on NEAR. built at NEAR HACKATHON @NEARProtocol #NEARHackathon"),
+      ],
+    ),
+    { width: 1200, height: 630, fonts: [{ name: "Geist", data: font, weight: 400, style: "normal" }] },
+  );
+  return new Resvg(svg, { fitTo: { mode: "width", value: 1200 } }).render().asPng();
+}
