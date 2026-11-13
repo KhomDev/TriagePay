@@ -121,8 +121,14 @@ fn new_starts_with_one_near_and_the_default_recipient() {
     let quote = f.get_create_cost();
     assert_eq!(quote.fee, U128(SERVICE_FEE));
     assert_eq!(quote.total.0, quote.fee.0 + quote.storage.0);
-    assert_eq!(quote.storage.0, WALLET_STORAGE_BYTES as u128 * STORAGE_BYTE_COST);
-    assert_eq!(f.get_wallet_id("alpha".into()).as_deref(), Some("alpha.triagepay.hlpok1lad.tg"));
+    assert_eq!(
+        quote.storage.0,
+        WALLET_STORAGE_BYTES as u128 * STORAGE_BYTE_COST
+    );
+    assert_eq!(
+        f.get_wallet_id("alpha".into()).as_deref(),
+        Some("alpha.triagepay.hlpok1lad.tg")
+    );
 }
 
 #[test]
@@ -210,9 +216,14 @@ fn exact_deposit_schedules_creation_and_does_not_count_yet() {
     assert_eq!(f.get_config().wallets_created, 0);
     let receipts = get_created_receipts();
     assert!(
-        receipts.iter().any(|r| r.receiver_id.as_str() == "alpha.triagepay.hlpok1lad.tg"),
+        receipts
+            .iter()
+            .any(|r| r.receiver_id.as_str() == "alpha.triagepay.hlpok1lad.tg"),
         "{:?}",
-        receipts.iter().map(|r| r.receiver_id.to_string()).collect::<Vec<_>>()
+        receipts
+            .iter()
+            .map(|r| r.receiver_id.to_string())
+            .collect::<Vec<_>>()
     );
 }
 
@@ -239,9 +250,13 @@ fn excess_is_scheduled_back_to_the_user() {
 #[test]
 fn failed_creation_refunds_fee_and_storage_and_does_not_pay_the_recipient() {
     let mut f = ready();
-    as_factory()
-        .set_with_result(PromiseResult::Failed);
-    f.on_wallet_created(user(), acc("alpha.triagepay.hlpok1lad.tg"), U128(SERVICE_FEE), U128(storage_cost()));
+    as_factory().set_with_result(PromiseResult::Failed);
+    f.on_wallet_created(
+        user(),
+        acc("alpha.triagepay.hlpok1lad.tg"),
+        U128(SERVICE_FEE),
+        U128(storage_cost()),
+    );
     assert_eq!(f.get_config().wallets_created, 0);
     let receipts = get_created_receipts();
     assert_eq!(receipts.len(), 1);
@@ -256,14 +271,22 @@ fn failed_creation_refunds_fee_and_storage_and_does_not_pay_the_recipient() {
         .sum();
     assert_eq!(transferred, SERVICE_FEE + storage_cost());
     assert!(events()[0].contains(r#""event":"wallet_creation_failed""#));
-    assert!(events()[0].contains(&format!("\"refunded\":\"{}\"", SERVICE_FEE + storage_cost())));
+    assert!(events()[0].contains(&format!(
+        "\"refunded\":\"{}\"",
+        SERVICE_FEE + storage_cost()
+    )));
 }
 
 #[test]
 fn successful_creation_pays_the_fee_recipient_and_emits() {
     let mut f = ready();
     as_factory().set_with_result(PromiseResult::Successful(Vec::new()));
-    f.on_wallet_created(user(), acc("alpha.triagepay.hlpok1lad.tg"), U128(SERVICE_FEE), U128(storage_cost()));
+    f.on_wallet_created(
+        user(),
+        acc("alpha.triagepay.hlpok1lad.tg"),
+        U128(SERVICE_FEE),
+        U128(storage_cost()),
+    );
     assert_eq!(f.get_config().wallets_created, 1);
     let receipts = get_created_receipts();
     assert_eq!(receipts.len(), 1);
@@ -290,7 +313,12 @@ fn a_zero_fee_success_does_not_transfer() {
     as_owner().set();
     f.set_fee(U128(0));
     as_factory().set_with_result(PromiseResult::Successful(Vec::new()));
-    f.on_wallet_created(user(), acc("alpha.triagepay.hlpok1lad.tg"), U128(0), U128(storage_cost()));
+    f.on_wallet_created(
+        user(),
+        acc("alpha.triagepay.hlpok1lad.tg"),
+        U128(0),
+        U128(storage_cost()),
+    );
     assert_eq!(f.get_config().wallets_created, 1);
     assert!(get_created_receipts().is_empty());
 }
@@ -466,8 +494,18 @@ fn get_wallet_id_rejects_garbage() {
 fn two_success_callbacks_count_two_wallets() {
     let mut f = ready();
     as_factory().set_with_result(PromiseResult::Successful(Vec::new()));
-    f.on_wallet_created(user(), acc("a.triagepay.hlpok1lad.tg"), U128(SERVICE_FEE), U128(1));
+    f.on_wallet_created(
+        user(),
+        acc("a.triagepay.hlpok1lad.tg"),
+        U128(SERVICE_FEE),
+        U128(1),
+    );
     as_factory().set_with_result(PromiseResult::Successful(Vec::new()));
-    f.on_wallet_created(stranger(), acc("b.triagepay.hlpok1lad.tg"), U128(SERVICE_FEE), U128(1));
+    f.on_wallet_created(
+        stranger(),
+        acc("b.triagepay.hlpok1lad.tg"),
+        U128(SERVICE_FEE),
+        U128(1),
+    );
     assert_eq!(f.get_config().wallets_created, 2);
 }

@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc d89b6d4770f8e3e6bc17016ee5d95ab550e0bb033108a5a770e35c24652fcd8f # shrinks to ops = [Pay { amount: 0, payee: Allowlisted, bad_token: false }]

@@ -72,7 +72,12 @@ pub fn required_deposit(fee: u128, storage: u128) -> Result<u128, QuoteError> {
 /// refund, which is still a complete accounting. `Err(Overflow)` is the
 /// only failure, and the contract treats it like a short deposit (panic,
 /// runtime refunds the attachment).
-pub fn settle(attached: u128, fee: u128, storage: u128, created: bool) -> Result<Flows, QuoteError> {
+pub fn settle(
+    attached: u128,
+    fee: u128,
+    storage: u128,
+    created: bool,
+) -> Result<Flows, QuoteError> {
     let cost = match required_deposit(fee, storage) {
         Ok(cost) => cost,
         Err(QuoteError::Overflow) => return Err(QuoteError::Overflow),
@@ -121,7 +126,10 @@ pub fn wallet_account_id(parent: &str, name: &str) -> Result<String, &'static st
     {
         return Err("name characters");
     }
-    if bytes[0] == b'-' || bytes[0] == b'_' || bytes[bytes.len() - 1] == b'-' || bytes[bytes.len() - 1] == b'_'
+    if bytes[0] == b'-'
+        || bytes[0] == b'_'
+        || bytes[bytes.len() - 1] == b'-'
+        || bytes[bytes.len() - 1] == b'_'
     {
         return Err("name separator");
     }

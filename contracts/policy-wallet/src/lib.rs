@@ -17,8 +17,23 @@
 //! token balances are all zero; that deletes the wallet account and returns
 //! its NEAR, including the storage stake, to a beneficiary.
 
+#![warn(clippy::pedantic)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::doc_markdown,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::module_name_repetitions,
+    clippy::must_use_candidate,
+    clippy::needless_pass_by_value,
+    clippy::similar_names,
+    clippy::too_many_lines
+)]
+
 pub mod events;
 
+#[cfg(test)]
+mod properties;
 #[cfg(test)]
 mod tests;
 
@@ -183,7 +198,7 @@ impl StoredAgent {
         AgentPolicy::from_parts(
             self.per_call_max,
             self.daily_max,
-            self.payees.iter().map(|p| p.to_string()).collect(),
+            self.payees.iter().map(ToString::to_string).collect(),
             self.active,
             self.spent_in_window,
             self.window_index,
@@ -398,13 +413,18 @@ fn normalize_tokens(mut tokens: Vec<AccountId>) -> Vec<AccountId> {
 
 #[near]
 impl PolicyWallet {
-    /// Initialize the wallet. Callable once, and only by the wallet account
-    /// itself (deploy and `new` go in one batch transaction). `tokens` holds
-    /// at most [`MAX_TOKENS`] contracts. Native USDC and `wrap.near` start
-    /// with the beta deposit cap; any other token is uncapped until
-    /// `set_deposit_cap`.
+    /// Initialize the wallet. Callable once.
+    ///
+    /// A direct deploy puts `new` in the same transaction as the deploy, signed
+    /// by this account. The factory puts `new` in the same receipt as
+    /// `create_account` and `use_global_contract`. In that receipt the
+    /// predecessor is the factory, not this account, so `new` is not
+    /// `#[private]`. `#[init]` still rejects a second call, and the factory
+    /// receipt is atomic, so nothing can initialize the account first.
+    /// `tokens` holds at most [`MAX_TOKENS`] contracts. Native USDC and
+    /// `wrap.near` start with the beta deposit cap; any other token is
+    /// uncapped until `set_deposit_cap`.
     #[init]
-    #[private]
     pub fn new(owner: AccountId, tokens: Vec<AccountId>) -> Self {
         if owner == env::current_account_id() {
             fail_with(ERR_SELF_ACCOUNT, "the wallet cannot own itself");
@@ -459,6 +479,7 @@ impl PolicyWallet {
         if self.paused {
             fail(PolicyError::Paused);
         }
+        self.sweep_expired();
         let agent_id = env::predecessor_account_id();
         let gate = WalletGate {
             paused: self.paused,
@@ -480,7 +501,6 @@ impl PolicyWallet {
             if receiver_id == env::current_account_id() {
                 fail_with(ERR_SELF_ACCOUNT, "the wallet cannot be a payee");
             }
-            self.sweep_expired();
             if self.pending_order.len() >= MAX_PENDING {
                 fail_with(
                     ERR_REVIEW_QUEUE_FULL,
@@ -572,7 +592,7 @@ impl PolicyWallet {
             .unwrap_or_else(|e| fail(e));
         write_spend(stored, &token, &policy);
         let payment_id = self.alloc_payment_id();
-        PromiseOrValue::Promise(self.schedule_transfer(ScheduledTransfer {
+        PromiseOrValue::Promise(Self::schedule_transfer(ScheduledTransfer {
             agent_id,
             token,
             receiver_id,
@@ -666,10 +686,7 @@ impl PolicyWallet {
         let previous = self.agents.get(&agent_id).cloned();
         if self.tokens.len() > 1 {
             if per_call_max.0 != 0 || daily_max.0 != 0 {
-                fail_with(
-                    ERR_AMBIGUOUS_LIMITS,
-                    "call set_token_limits once per token",
-                );
+                fail_with(ERR_AMBIGUOUS_LIMITS, "call set_token_limits once per token");
             }
             let mut stored = previous.unwrap_or_else(|| empty_agent());
             stored.payees = payees.clone();
@@ -772,11 +789,14 @@ impl PolicyWallet {
             return;
         }
         let payee_names: Vec<String> = stored.payees.iter().map(|p| p.to_string()).collect();
-        let previous = stored
-            .budgets
-            .iter()
-            .find(|b| b.token == token)
-            .map(|b| (b.per_call_max, b.daily_max, b.spent_in_window, b.window_index));
+        let previous = stored.budgets.iter().find(|b| b.token == token).map(|b| {
+            (
+                b.per_call_max,
+                b.daily_max,
+                b.spent_in_window,
+                b.window_index,
+            )
+        });
         let policy = match previous {
             Some((per_call, daily, spent, window)) => {
                 let mut policy = AgentPolicy::from_parts(
@@ -930,9 +950,10 @@ impl PolicyWallet {
             fail(PolicyError::Paused);
         }
         self.sweep_expired();
-        let pending = self.pending.get(&payment_id.0).cloned().unwrap_or_else(|| {
-            fail_with(ERR_NOT_PENDING, "no payment is waiting with that id")
-        });
+        let pending =
+            self.pending.get(&payment_id.0).cloned().unwrap_or_else(|| {
+                fail_with(ERR_NOT_PENDING, "no payment is waiting with that id")
+            });
         let tokens = self.tokens.clone();
         let now = env::block_timestamp();
         let gate = WalletGate {
@@ -969,7 +990,7 @@ impl PolicyWallet {
         quota.close_one();
         stored.store_quota(quota);
         self.take_pending(payment_id.0);
-        self.schedule_transfer(ScheduledTransfer {
+        Self::schedule_transfer(ScheduledTransfer {
             agent_id: pending.agent_id,
             token: pending.token,
             receiver_id: pending.receiver_id,
@@ -1179,9 +1200,10 @@ impl PolicyWallet {
             fail(PolicyError::TokenNotAllowed);
         }
         if let Some(cap) = self.caps.iter_mut().find(|c| c.token == token) {
-            let next = cap.custody.checked_add(amount.0).unwrap_or_else(|| {
-                fail_with(ERR_BETA_CAP, "beta deposit cap exceeded")
-            });
+            let next = cap
+                .custody
+                .checked_add(amount.0)
+                .unwrap_or_else(|| fail_with(ERR_BETA_CAP, "beta deposit cap exceeded"));
             if next > cap.max_balance {
                 fail_with(ERR_BETA_CAP, "beta deposit cap exceeded");
             }
@@ -1359,9 +1381,9 @@ impl PolicyWallet {
             .iter()
             .copied()
             .filter(|id| {
-                self.pending.get(id).is_some_and(|pending| {
-                    now.saturating_sub(pending.created_at_ns) >= HOLD_TTL_NS
-                })
+                self.pending
+                    .get(id)
+                    .is_some_and(|pending| now.saturating_sub(pending.created_at_ns) >= HOLD_TTL_NS)
             })
             .collect();
         for id in expired {
@@ -1419,7 +1441,7 @@ impl PolicyWallet {
         }]
     }
 
-    fn schedule_transfer(&self, transfer: ScheduledTransfer) -> Promise {
+    fn schedule_transfer(transfer: ScheduledTransfer) -> Promise {
         let ScheduledTransfer {
             agent_id,
             token,
@@ -1510,7 +1532,11 @@ fn initial_caps(tokens: &[AccountId]) -> Vec<TokenCap> {
 }
 
 /// The policy that applies to `token`, or `None` when that token has no limits.
-fn load_policy(tokens: &[AccountId], stored: &StoredAgent, token: &AccountId) -> Option<AgentPolicy> {
+fn load_policy(
+    tokens: &[AccountId],
+    stored: &StoredAgent,
+    token: &AccountId,
+) -> Option<AgentPolicy> {
     if let Some(budget) = stored.budgets.iter().find(|b| &b.token == token) {
         return AgentPolicy::from_parts(
             budget.per_call_max,

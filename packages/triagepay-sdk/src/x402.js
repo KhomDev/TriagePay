@@ -1,17 +1,24 @@
 // Minimal x402 v2 client for the near-tx-proof method. The payer is
 // injected, so this file does not import a NEAR library.
 
+/** x402 protocol version this client speaks. */
 export const X402_VERSION = 2;
 
+/** Base64 (standard alphabet) of a JSON header value. */
 export function encodeHeader(value) {
   return Buffer.from(JSON.stringify(value), "utf8").toString("base64");
 }
 
+/** Inverse of `encodeHeader`. Accepts the standard and URL-safe alphabets. */
 export function decodeHeader(raw) {
   const text = String(raw || "").trim().replace(/-/g, "+").replace(/_/g, "/");
   return JSON.parse(Buffer.from(text, "base64").toString("utf8"));
 }
 
+/**
+ * Pick the upfront `exact` / `near-tx-proof` requirement, optionally on
+ * `network`. Requirements without a memo are skipped.
+ */
 export function selectRequirement(paymentRequired, network) {
   if (!paymentRequired || paymentRequired.x402Version !== X402_VERSION) {
     throw new Error("the server did not answer with an x402 v2 payment requirement");
@@ -28,6 +35,7 @@ export function selectRequirement(paymentRequired, network) {
   throw new Error("no near-tx-proof requirement was offered");
 }
 
+/** The `payment-signature` body: the accepted requirement plus the proof. */
 export function buildPaymentPayload(requirement, proof) {
   return {
     x402Version: X402_VERSION,

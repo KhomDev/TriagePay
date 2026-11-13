@@ -23,9 +23,7 @@ mod tests;
 
 use accounting::{required_deposit, wallet_account_id, QuoteError};
 use near_sdk::json_types::{Base64VecU8, U128};
-use near_sdk::{
-    assert_one_yocto, env, near, AccountId, Gas, NearToken, PanicOnDefault, Promise,
-};
+use near_sdk::{assert_one_yocto, env, near, AccountId, Gas, NearToken, PanicOnDefault, Promise};
 
 /// Service fee charged for each wallet, in yoctoNEAR. 1 NEAR.
 pub const SERVICE_FEE: u128 = 1_000_000_000_000_000_000_000_000;
@@ -43,7 +41,10 @@ pub const STORAGE_BYTE_COST: u128 = 10_000_000_000_000_000_000;
 /// Bytes of state a new wallet locks, including the account record, for the
 /// longest accepted name and the two default tokens. Measured in sandbox
 /// and kept at or above that measurement. `get_create_cost` charges it.
-pub const WALLET_STORAGE_BYTES: u64 = 3_000;
+/// Measured in sandbox for a 32-character name: 281 bytes. 1_000 bytes is
+/// headroom for a 64-character owner and the 64-character USDC account id,
+/// and it is 0.01 NEAR, under the 0.05 NEAR aim.
+pub const WALLET_STORAGE_BYTES: u64 = 1_000;
 
 /// Gas for the new wallet's `new`.
 const GAS_INIT: Gas = Gas::from_tgas(40);
@@ -161,11 +162,7 @@ impl WalletFactory {
     /// Initialize the factory. Callable once, by the factory account.
     #[init]
     #[private]
-    pub fn new(
-        owner: AccountId,
-        fee_recipient: AccountId,
-        default_tokens: Vec<AccountId>,
-    ) -> Self {
+    pub fn new(owner: AccountId, fee_recipient: AccountId, default_tokens: Vec<AccountId>) -> Self {
         if default_tokens.len() > 8 {
             fail(ERR_BAD_CODE, "at most 8 default tokens");
         }
