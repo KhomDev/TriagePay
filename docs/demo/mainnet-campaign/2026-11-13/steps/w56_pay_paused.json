@@ -1,0 +1,42 @@
+{
+  "id": "w56_pay_paused",
+  "phase": "wallet",
+  "test": "agent pays while the wallet is paused",
+  "signer": "tp-agent2.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "pay",
+  "args": {
+    "token": "wrap.near",
+    "receiver_id": "gateway.hlpok1lad.tg",
+    "amount": "1",
+    "memo": null
+  },
+  "expected": "ERR_PAUSED",
+  "actual": "ERR_PAUSED",
+  "pass": true,
+  "at": "2026-11-13T02:57:12.573Z",
+  "tx_hash": "88drrk5gz72n6bbn63tjXW7gRtDeDjopUJtrNiJFW6mk",
+  "explorer": "https://nearblocks.io/txns/88drrk5gz72n6bbn63tjXW7gRtDeDjopUJtrNiJFW6mk",
+  "outcome": "failure",
+  "error_code": "ERR_PAUSED",
+  "error_message": "Smart contract panicked: ERR_PAUSED: wallet is paused",
+  "return_value": null,
+  "events": [],
+  "logs": [],
+  "gas_burnt_tgas": 1.728,
+  "tokens_burnt_near": "0.000151",
+  "tokens_burnt_yocto": "150578905969200000000",
+  "balances_before": {
+    "tp-wallet.hlpok1lad.tg": "999999999999996000000",
+    "gateway.hlpok1lad.tg": "3000000"
+  },
+  "balances_after": {
+    "tp-wallet.hlpok1lad.tg": "999999999999996000000",
+    "gateway.hlpok1lad.tg": "3000000"
+  },
+  "note": null,
+  "balance_change": {
+    "tp-wallet.hlpok1lad.tg": "0",
+    "gateway.hlpok1lad.tg": "0"
+  }
+}

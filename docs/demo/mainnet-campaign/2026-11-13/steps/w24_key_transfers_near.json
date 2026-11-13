@@ -1,0 +1,23 @@
+{
+  "id": "w24_key_transfers_near",
+  "phase": "wallet",
+  "test": "pay-only key sends 0.001 NEAR to tp-mallory",
+  "signer": "tp-agent2.hlpok1lad.tg",
+  "receiver": "tp-mallory.hlpok1lad.tg",
+  "method": "Transfer",
+  "args": null,
+  "expected": "rejected before chain",
+  "actual": "rejected before chain: AccessKeyRequiresFullAccessActionError",
+  "pass": true,
+  "at": "2026-11-13T02:55:24.194Z",
+  "tx_hash": null,
+  "outcome": "rejected_before_chain",
+  "error_code": null,
+  "error_type": "AccessKeyRequiresFullAccessActionError",
+  "error_message": "Access key requires full access",
+  "maybe_hash": null,
+  "tokens_burnt_near": "0",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

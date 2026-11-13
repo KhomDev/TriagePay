@@ -1,0 +1,69 @@
+{
+  "id": "w43_pay_added_payee",
+  "phase": "wallet",
+  "test": "agent pays the newly allowlisted tp-mallory 1,000,000",
+  "signer": "tp-agent2.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "pay",
+  "args": {
+    "token": "wrap.near",
+    "receiver_id": "tp-mallory.hlpok1lad.tg",
+    "amount": "1000000",
+    "memo": "added-payee"
+  },
+  "expected": "success",
+  "actual": "success",
+  "pass": true,
+  "at": "2026-11-13T02:56:09.743Z",
+  "tx_hash": "5WvNeYedLfVhd6krBH2RSZC9speGmN4CrG2LBbgirLiR",
+  "explorer": "https://nearblocks.io/txns/5WvNeYedLfVhd6krBH2RSZC9speGmN4CrG2LBbgirLiR",
+  "outcome": "success",
+  "error_code": null,
+  "error_message": null,
+  "return_value": "true",
+  "events": [
+    {
+      "standard": "aps_policy_wallet",
+      "event": "pay_requested",
+      "data": {
+        "payment_id": "2",
+        "agent_id": "tp-agent2.hlpok1lad.tg",
+        "token": "wrap.near",
+        "receiver_id": "tp-mallory.hlpok1lad.tg",
+        "amount": "1000000",
+        "window_index": "20770"
+      }
+    },
+    {
+      "standard": "aps_policy_wallet",
+      "event": "pay_settled",
+      "data": {
+        "payment_id": "2",
+        "agent_id": "tp-agent2.hlpok1lad.tg",
+        "token": "wrap.near",
+        "receiver_id": "tp-mallory.hlpok1lad.tg",
+        "amount": "1000000"
+      }
+    }
+  ],
+  "logs": [
+    "Transfer 1000000 from tp-wallet.hlpok1lad.tg to tp-mallory.hlpok1lad.tg",
+    "Memo: added-payee"
+  ],
+  "gas_burnt_tgas": 6.583,
+  "tokens_burnt_near": "0.000591",
+  "tokens_burnt_yocto": "591419832954400000000",
+  "balances_before": {
+    "tp-wallet.hlpok1lad.tg": "999999999999998000000",
+    "tp-mallory.hlpok1lad.tg": "0"
+  },
+  "balances_after": {
+    "tp-wallet.hlpok1lad.tg": "999999999999997000000",
+    "tp-mallory.hlpok1lad.tg": "1000000"
+  },
+  "note": null,
+  "balance_change": {
+    "tp-wallet.hlpok1lad.tg": "-1000000",
+    "tp-mallory.hlpok1lad.tg": "1000000"
+  }
+}

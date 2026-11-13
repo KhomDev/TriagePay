@@ -1,0 +1,29 @@
+{
+  "id": "w13_amount_as_number",
+  "phase": "wallet",
+  "test": "agent sends amount as a JSON number (1000000), not a string",
+  "signer": "tp-agent2.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "pay",
+  "args": {
+    "amount": 1000000
+  },
+  "expected": "failure: argument deserialization",
+  "actual": "failure: Smart contract panicked: Failed to deserialize input from JSON. Error: `invalid type: integer `1000000`, expected a stri",
+  "pass": true,
+  "at": "2026-11-13T02:54:37.121Z",
+  "tx_hash": "H6Tc2gWPnj62pFofpmEbHw5CSvyPADZqqxgfFbuAiUbb",
+  "explorer": "https://nearblocks.io/txns/H6Tc2gWPnj62pFofpmEbHw5CSvyPADZqqxgfFbuAiUbb",
+  "outcome": "failure",
+  "error_code": null,
+  "error_message": "Smart contract panicked: Failed to deserialize input from JSON. Error: `invalid type: integer `1000000`, expected a string at line 1 column 74`",
+  "return_value": null,
+  "events": [],
+  "logs": [],
+  "gas_burnt_tgas": 1.682,
+  "tokens_burnt_near": "0.000146",
+  "tokens_burnt_yocto": "145932750354600000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

@@ -1,0 +1,23 @@
+{
+  "id": "w25_key_calls_wrap",
+  "phase": "wallet",
+  "test": "pay-only key calls ft_transfer on wrap.near directly",
+  "signer": "tp-agent2.hlpok1lad.tg",
+  "receiver": "wrap.near",
+  "method": "ft_transfer",
+  "args": null,
+  "expected": "rejected before chain",
+  "actual": "rejected before chain: AccessKeyReceiverMismatchActionError",
+  "pass": true,
+  "at": "2026-11-13T02:55:25.633Z",
+  "tx_hash": null,
+  "outcome": "rejected_before_chain",
+  "error_code": null,
+  "error_type": "AccessKeyReceiverMismatchActionError",
+  "error_message": "Access key receiver tp-wallet.hlpok1lad.tg does not match transaction receiver wrap.near",
+  "maybe_hash": null,
+  "tokens_burnt_near": "0",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

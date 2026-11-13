@@ -1,0 +1,27 @@
+{
+  "id": "w34_mallory_set_tokens",
+  "phase": "wallet",
+  "test": "mallory replaces the token list",
+  "signer": "tp-mallory.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "set_tokens",
+  "args": {
+    "tokens": [
+      "usdt.tether-token.near"
+    ]
+  },
+  "expected": "ERR_NOT_OWNER",
+  "actual": "rejected before chain: NotEnoughBalanceError",
+  "pass": false,
+  "at": "2026-11-13T02:55:42.187Z",
+  "tx_hash": null,
+  "outcome": "rejected_before_chain",
+  "error_code": null,
+  "error_type": "NotEnoughBalanceError",
+  "error_message": "Not enough balance for tp-mallory.hlpok1lad.tg (balance: 30000000000000000000000, cost: 30919194652358500000001)",
+  "maybe_hash": null,
+  "tokens_burnt_near": "0",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

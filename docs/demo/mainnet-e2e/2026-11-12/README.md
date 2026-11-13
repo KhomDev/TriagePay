@@ -1,7 +1,12 @@
 # TriagePay on NEAR mainnet (2026-11-12)
 
 A small, real run of the policy wallet on mainnet. I paid with wNEAR in
-tiny amounts. The wallet stays live; nothing here is a test fixture.
+tiny amounts. Nothing here is a test fixture.
+
+**Superseded on 2026-11-13.** I closed this wallet during the mainnet campaign. I captured its final state first. Then I re-created
+`tp-wallet.hlpok1lad.tg` with the review-queue build. The transactions below
+still resolve on the explorer, but the code they ran is no longer deployed. The current state and 170 further mainnet tests are in
+[`docs/demo/mainnet-campaign/2026-11-13/`](../../mainnet-campaign/2026-11-13/README.md).
 
 - Script: `scripts/mainnet/mainnet-proof.mjs` (`setup`, `paid`, `refuse`, `revoke`, `status`, `close`)
 - Evidence: `mainnet-EVIDENCE.json` (every step, tx hash, outcome, events, gas); readable log: `transcript.md`
@@ -50,7 +55,7 @@ Policy: 1,000,000 yocto-wNEAR per call, 4,000,000 per UTC day, payees `[gateway.
 ## What went wrong, and what it cost
 
 - The first deploy ran short: code plus initial state needs more than the code's 1 NEAR per 100 KB. A 0.045 NEAR top-up fixed it.
-- The first agent's key could not pay at all. A function-call key's allowance is charged the full prepaid gas at the pessimistic price (about 0.001 NEAR per TGas on mainnet), and refunds go to the account balance, not back to the allowance. 50 TGas cost 0.0509 NEAR against a 0.04 allowance and a 0.05 balance. With no full-access key the key cannot be changed, so I retired `tp-agent` and created `tp-agent2`.
+- The first agent's key could not pay at all. A transaction needs the full prepaid gas at the pessimistic price (about 0.001 NEAR per TGas on mainnet) available up front. 50 TGas cost 0.0509 NEAR against a 0.04 allowance and a 0.05 balance. (Correction, 2026-11-13: I wrote here that refunds do not go back to the allowance. Over the campaign, `tp-agent2`'s allowance fell by exactly its gas burnt, 0.036838 NEAR. Only the up-front check is pessimistic.) With no full-access key the key cannot be changed, so I retired `tp-agent` and created `tp-agent2`.
 - The owner went from 2.627341 to 0.669622 NEAR (down 1.957719): 1.810 NEAR sits in the wallet account, 0.12 in the two agent accounts, 0.002 wrapped, 0.0025 of wNEAR storage, about 0.023 burnt as gas.
 - No x402 receipt check on mainnet: the API verifies a payment from the token contract's own NEP-141 `ft_transfer` event, and `wrap.near` emits none (its `ft_transfer_call` logged no NEP-297 event). The x402 round trip is proven on testnet; on mainnet it needs an event-emitting token such as native USDC.
 

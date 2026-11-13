@@ -1,0 +1,23 @@
+{
+  "id": "w23_key_attaches_deposit",
+  "phase": "wallet",
+  "test": "pay-only key calls pay with 1 yoctoNEAR attached",
+  "signer": "tp-agent2.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "pay",
+  "args": null,
+  "expected": "rejected before chain",
+  "actual": "rejected before chain: AccessKeyDepositWithFunctionCallActionError",
+  "pass": true,
+  "at": "2026-11-13T02:55:22.764Z",
+  "tx_hash": null,
+  "outcome": "rejected_before_chain",
+  "error_code": null,
+  "error_type": "AccessKeyDepositWithFunctionCallActionError",
+  "error_message": "Deposit is not allowed with function call",
+  "maybe_hash": null,
+  "tokens_burnt_near": "0",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

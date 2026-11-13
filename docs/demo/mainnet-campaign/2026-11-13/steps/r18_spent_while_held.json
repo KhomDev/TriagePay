@@ -1,0 +1,21 @@
+{
+  "id": "r18_spent_while_held",
+  "phase": "info",
+  "test": "agent window while payment 2 is held (the hold reserves its amount)",
+  "expected": "-",
+  "actual": "recorded",
+  "pass": null,
+  "at": "2026-11-13T03:23:33.066Z",
+  "data": {
+    "per_call_max": "1000000",
+    "daily_max": "4000000",
+    "payees": [
+      "gateway.hlpok1lad.tg"
+    ],
+    "active": true,
+    "spent_in_window": "2100000",
+    "remaining": "1900000",
+    "window_index": "20770",
+    "resets_at_ns": "1794614400000000000"
+  }
+}

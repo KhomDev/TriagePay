@@ -1,0 +1,31 @@
+{
+  "id": "w30_mallory_raise_limits",
+  "phase": "wallet",
+  "test": "mallory raises the real agent's limits and adds herself as payee",
+  "signer": "tp-mallory.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "set_agent",
+  "args": {
+    "agent_id": "tp-agent2.hlpok1lad.tg",
+    "per_call_max": "1000000000000000000000",
+    "daily_max": "1000000000000000000000",
+    "payees": [
+      "gateway.hlpok1lad.tg",
+      "tp-mallory.hlpok1lad.tg"
+    ]
+  },
+  "expected": "ERR_NOT_OWNER",
+  "actual": "rejected before chain: NotEnoughBalanceError",
+  "pass": false,
+  "at": "2026-11-13T02:55:36.317Z",
+  "tx_hash": null,
+  "outcome": "rejected_before_chain",
+  "error_code": null,
+  "error_type": "NotEnoughBalanceError",
+  "error_message": "Not enough balance for tp-mallory.hlpok1lad.tg (balance: 30000000000000000000000, cost: 30920147237906500000001)",
+  "maybe_hash": null,
+  "tokens_burnt_near": "0",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

@@ -1,0 +1,49 @@
+{
+  "id": "w46_add_ghost",
+  "phase": "wallet",
+  "test": "owner allowlists tp-ghost, an account that does not exist and is not registered on wrap.near",
+  "signer": "hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "set_agent",
+  "args": {
+    "agent_id": "tp-agent2.hlpok1lad.tg",
+    "per_call_max": "1000000",
+    "daily_max": "4000000",
+    "payees": [
+      "gateway.hlpok1lad.tg",
+      "tp-ghost.hlpok1lad.tg"
+    ]
+  },
+  "expected": "success",
+  "actual": "success",
+  "pass": true,
+  "at": "2026-11-13T02:56:26.200Z",
+  "tx_hash": "kva4GvKzuLvMeEGX1ibK6MtbJZQtDhpzWBugUfCRL6W",
+  "explorer": "https://nearblocks.io/txns/kva4GvKzuLvMeEGX1ibK6MtbJZQtDhpzWBugUfCRL6W",
+  "outcome": "success",
+  "error_code": null,
+  "error_message": null,
+  "return_value": null,
+  "events": [
+    {
+      "standard": "aps_policy_wallet",
+      "event": "agent_set",
+      "data": {
+        "agent_id": "tp-agent2.hlpok1lad.tg",
+        "per_call_max": "1000000",
+        "daily_max": "4000000",
+        "payees": [
+          "gateway.hlpok1lad.tg",
+          "tp-ghost.hlpok1lad.tg"
+        ]
+      }
+    }
+  ],
+  "logs": [],
+  "gas_burnt_tgas": 2.159,
+  "tokens_burnt_near": "0.000194",
+  "tokens_burnt_yocto": "193608741316000000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

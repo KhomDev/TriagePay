@@ -1,0 +1,27 @@
+{
+  "id": "w39_mallory_fake_deposit",
+  "phase": "wallet",
+  "test": "mallory calls ft_on_transfer directly to fake a deposit",
+  "signer": "tp-mallory.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "ft_on_transfer",
+  "args": {
+    "sender_id": "tp-mallory.hlpok1lad.tg",
+    "amount": "1000000000000000000000000",
+    "msg": ""
+  },
+  "expected": "ERR_TOKEN_NOT_ALLOWED",
+  "actual": "rejected before chain: NotEnoughBalanceError",
+  "pass": false,
+  "at": "2026-11-13T02:55:50.633Z",
+  "tx_hash": null,
+  "outcome": "rejected_before_chain",
+  "error_code": null,
+  "error_type": "NotEnoughBalanceError",
+  "error_message": "Not enough balance for tp-mallory.hlpok1lad.tg (balance: 30000000000000000000000, cost: 30919558876244500000000)",
+  "maybe_hash": null,
+  "tokens_burnt_near": "0",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

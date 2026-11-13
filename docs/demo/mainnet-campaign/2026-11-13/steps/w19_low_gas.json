@@ -1,0 +1,42 @@
+{
+  "id": "w19_low_gas",
+  "phase": "wallet",
+  "test": "agent attaches 20 TGas (minimum is 35)",
+  "signer": "tp-agent2.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "pay",
+  "args": {
+    "token": "wrap.near",
+    "receiver_id": "gateway.hlpok1lad.tg",
+    "amount": "1",
+    "memo": null
+  },
+  "expected": "ERR_INSUFFICIENT_GAS",
+  "actual": "ERR_INSUFFICIENT_GAS",
+  "pass": true,
+  "at": "2026-11-13T02:55:08.985Z",
+  "tx_hash": "BrfyWy4KziSTo5qubzhXd7MznXk53U8azueTDHKPzfTY",
+  "explorer": "https://nearblocks.io/txns/BrfyWy4KziSTo5qubzhXd7MznXk53U8azueTDHKPzfTY",
+  "outcome": "failure",
+  "error_code": "ERR_INSUFFICIENT_GAS",
+  "error_message": "Smart contract panicked: ERR_INSUFFICIENT_GAS: attach at least 35 TGas",
+  "return_value": null,
+  "events": [],
+  "logs": [],
+  "gas_burnt_tgas": 1.733,
+  "tokens_burnt_near": "0.000151",
+  "tokens_burnt_yocto": "151071264253200000000",
+  "balances_before": {
+    "tp-wallet.hlpok1lad.tg": "999999999999998000000",
+    "gateway.hlpok1lad.tg": "2000000"
+  },
+  "balances_after": {
+    "tp-wallet.hlpok1lad.tg": "999999999999998000000",
+    "gateway.hlpok1lad.tg": "2000000"
+  },
+  "note": null,
+  "balance_change": {
+    "tp-wallet.hlpok1lad.tg": "0",
+    "gateway.hlpok1lad.tg": "0"
+  }
+}

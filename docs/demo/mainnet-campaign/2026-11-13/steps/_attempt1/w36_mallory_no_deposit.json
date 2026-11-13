@@ -1,0 +1,30 @@
+{
+  "id": "w36_mallory_no_deposit",
+  "phase": "wallet",
+  "test": "mallory calls set_agent with no deposit",
+  "signer": "tp-mallory.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "set_agent",
+  "args": {
+    "agent_id": "tp-mallory.hlpok1lad.tg",
+    "per_call_max": "1",
+    "daily_max": "1",
+    "payees": [
+      "tp-mallory.hlpok1lad.tg"
+    ]
+  },
+  "expected": "Requires attached deposit of exactly 1 yoctoNEAR",
+  "actual": "rejected before chain: NotEnoughBalanceError",
+  "pass": false,
+  "at": "2026-11-13T02:55:45.070Z",
+  "tx_hash": null,
+  "outcome": "rejected_before_chain",
+  "error_code": null,
+  "error_type": "NotEnoughBalanceError",
+  "error_message": "Not enough balance for tp-mallory.hlpok1lad.tg (balance: 30000000000000000000000, cost: 30919698962354500000000)",
+  "maybe_hash": null,
+  "tokens_burnt_near": "0",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

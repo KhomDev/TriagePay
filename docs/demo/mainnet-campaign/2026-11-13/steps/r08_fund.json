@@ -1,0 +1,43 @@
+{
+  "id": "r08_fund",
+  "phase": "review",
+  "test": "owner funds the new wallet with 1000000000000000000000 yocto-wNEAR (ft_transfer_call)",
+  "signer": "hlpok1lad.tg",
+  "receiver": "wrap.near",
+  "method": "ft_transfer_call",
+  "args": {
+    "receiver_id": "tp-wallet.hlpok1lad.tg",
+    "amount": "1000000000000000000000",
+    "msg": ""
+  },
+  "expected": "success",
+  "actual": "success",
+  "pass": true,
+  "at": "2026-11-13T03:22:47.210Z",
+  "tx_hash": "6eQLmF9nUVxPb4poinGZZ5UxhRNQ3sESmW6PQSKWZSFJ",
+  "explorer": "https://nearblocks.io/txns/6eQLmF9nUVxPb4poinGZZ5UxhRNQ3sESmW6PQSKWZSFJ",
+  "outcome": "success",
+  "error_code": null,
+  "error_message": null,
+  "return_value": "\"1000000000000000000000\"",
+  "events": [
+    {
+      "standard": "aps_policy_wallet",
+      "event": "funded",
+      "data": {
+        "token": "wrap.near",
+        "sender_id": "hlpok1lad.tg",
+        "amount": "1000000000000000000000"
+      }
+    }
+  ],
+  "logs": [
+    "Transfer 1000000000000000000000 from hlpok1lad.tg to tp-wallet.hlpok1lad.tg"
+  ],
+  "gas_burnt_tgas": 6.297,
+  "tokens_burnt_near": "0.000563",
+  "tokens_burnt_yocto": "562792675997600000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

@@ -1,0 +1,21 @@
+{
+  "id": "r13_pending",
+  "phase": "info",
+  "test": "the owner's queue",
+  "expected": "-",
+  "actual": "recorded",
+  "pass": null,
+  "at": "2026-11-13T03:23:11.285Z",
+  "data": [
+    {
+      "payment_id": "1",
+      "agent_id": "tp-agent2.hlpok1lad.tg",
+      "token": "wrap.near",
+      "receiver_id": "gateway.hlpok1lad.tg",
+      "amount": "900000",
+      "memo": null,
+      "reason": "above_threshold",
+      "window_index": "20770"
+    }
+  ]
+}

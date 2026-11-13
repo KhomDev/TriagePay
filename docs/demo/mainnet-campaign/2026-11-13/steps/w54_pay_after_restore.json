@@ -1,0 +1,69 @@
+{
+  "id": "w54_pay_after_restore",
+  "phase": "wallet",
+  "test": "agent pays 1,000,000 after the restore",
+  "signer": "tp-agent2.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "pay",
+  "args": {
+    "token": "wrap.near",
+    "receiver_id": "gateway.hlpok1lad.tg",
+    "amount": "1000000",
+    "memo": "after-restore"
+  },
+  "expected": "success",
+  "actual": "success",
+  "pass": true,
+  "at": "2026-11-13T02:57:01.862Z",
+  "tx_hash": "4mDwhKHhqBBavM52k6RSQVD4aTvz5SzvPrGYbB7CE7Do",
+  "explorer": "https://nearblocks.io/txns/4mDwhKHhqBBavM52k6RSQVD4aTvz5SzvPrGYbB7CE7Do",
+  "outcome": "success",
+  "error_code": null,
+  "error_message": null,
+  "return_value": "true",
+  "events": [
+    {
+      "standard": "aps_policy_wallet",
+      "event": "pay_requested",
+      "data": {
+        "payment_id": "4",
+        "agent_id": "tp-agent2.hlpok1lad.tg",
+        "token": "wrap.near",
+        "receiver_id": "gateway.hlpok1lad.tg",
+        "amount": "1000000",
+        "window_index": "20770"
+      }
+    },
+    {
+      "standard": "aps_policy_wallet",
+      "event": "pay_settled",
+      "data": {
+        "payment_id": "4",
+        "agent_id": "tp-agent2.hlpok1lad.tg",
+        "token": "wrap.near",
+        "receiver_id": "gateway.hlpok1lad.tg",
+        "amount": "1000000"
+      }
+    }
+  ],
+  "logs": [
+    "Transfer 1000000 from tp-wallet.hlpok1lad.tg to gateway.hlpok1lad.tg",
+    "Memo: after-restore"
+  ],
+  "gas_burnt_tgas": 6.582,
+  "tokens_burnt_near": "0.000591",
+  "tokens_burnt_yocto": "591315385594600000000",
+  "balances_before": {
+    "tp-wallet.hlpok1lad.tg": "999999999999997000000",
+    "gateway.hlpok1lad.tg": "2000000"
+  },
+  "balances_after": {
+    "tp-wallet.hlpok1lad.tg": "999999999999996000000",
+    "gateway.hlpok1lad.tg": "3000000"
+  },
+  "note": null,
+  "balance_change": {
+    "tp-wallet.hlpok1lad.tg": "-1000000",
+    "gateway.hlpok1lad.tg": "1000000"
+  }
+}

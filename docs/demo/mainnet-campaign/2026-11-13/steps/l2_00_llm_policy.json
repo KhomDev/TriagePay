@@ -1,0 +1,47 @@
+{
+  "id": "l2_00_llm_policy",
+  "phase": "llm",
+  "test": "owner raises daily_max to 80,000,000 for the hijacked-agent round (same per-call cap and payee list)",
+  "signer": "hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "set_agent",
+  "args": {
+    "agent_id": "tp-agent2.hlpok1lad.tg",
+    "per_call_max": "1000000",
+    "daily_max": "80000000",
+    "payees": [
+      "gateway.hlpok1lad.tg"
+    ]
+  },
+  "expected": "success",
+  "actual": "success",
+  "pass": true,
+  "at": "2026-11-13T03:10:10.959Z",
+  "tx_hash": "EeS2t3LnZ7QvKen6CUXsbPLLsHPrXB9tPM7HpmaWwWic",
+  "explorer": "https://nearblocks.io/txns/EeS2t3LnZ7QvKen6CUXsbPLLsHPrXB9tPM7HpmaWwWic",
+  "outcome": "success",
+  "error_code": null,
+  "error_message": null,
+  "return_value": null,
+  "events": [
+    {
+      "standard": "aps_policy_wallet",
+      "event": "agent_set",
+      "data": {
+        "agent_id": "tp-agent2.hlpok1lad.tg",
+        "per_call_max": "1000000",
+        "daily_max": "80000000",
+        "payees": [
+          "gateway.hlpok1lad.tg"
+        ]
+      }
+    }
+  ],
+  "logs": [],
+  "gas_burnt_tgas": 2.143,
+  "tokens_burnt_near": "0.000192",
+  "tokens_burnt_yocto": "192064696923400000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

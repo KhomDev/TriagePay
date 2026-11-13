@@ -1,0 +1,28 @@
+{
+  "id": "w40_mallory_reinit",
+  "phase": "wallet",
+  "test": "mallory calls new() to re-initialize with herself as owner",
+  "signer": "tp-mallory.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "new",
+  "args": {
+    "owner": "tp-mallory.hlpok1lad.tg",
+    "tokens": [
+      "wrap.near"
+    ]
+  },
+  "expected": "already initialized",
+  "actual": "rejected before chain: NotEnoughBalanceError",
+  "pass": false,
+  "at": "2026-11-13T02:55:52.291Z",
+  "tx_hash": null,
+  "outcome": "rejected_before_chain",
+  "error_code": null,
+  "error_type": "NotEnoughBalanceError",
+  "error_message": "Not enough balance for tp-mallory.hlpok1lad.tg (balance: 30000000000000000000000, cost: 30919292712635500000000)",
+  "maybe_hash": null,
+  "tokens_burnt_near": "0",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

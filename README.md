@@ -16,7 +16,7 @@ A judge opens the hosted demo, runs a prompt-injected payment on NEAR testnet, a
 
 **Chain Signatures on testnet:** [`v1.signer-prod.testnet` signed a Base Sepolia USDC transfer](https://testnet.nearblocks.io/txns/aeaL3TZAsYyV6kEGVCvm3ppzfc56cvP8pAsCVKrifVM) for the owner account, and the signature recovers to the derived address `0x508e984fda3bc37d8c33bfb5098441fd2169fcc8`. Not broadcast ([docs/contracts/chain-signatures.md](docs/contracts/chain-signatures.md))
 
-**Live on mainnet:** the policy wallet (the build before the review queue): one paid call, one refused payee, revoke ([below](#live-on-mainnet))
+**Live on mainnet:** the policy wallet with the owner-review queue. 170 graded mainnet tests on 2026-11-13, including five NEAR AI models told to follow injected payment instructions. 0 wNEAR reached an attacker ([below](#live-on-mainnet))
 
 The paid API is a triage service for security findings: an agent submits a
 finding and gets a deterministic verdict (`supported`, `needs_evidence`,
@@ -28,15 +28,28 @@ Everything in this repository was built at NEAR HACKATHON. I entered it in the `
 
 ## Live on mainnet
 
-I also deployed the policy wallet on NEAR mainnet and ran it with real (tiny) wNEAR amounts on 2026-11-12. The wallet is still live.
+The policy wallet runs on NEAR mainnet with real (tiny) wNEAR amounts. On
+2026-11-13 I closed the first mainnet wallet and redeployed the review-queue
+build at the same account. It is still live.
 
-- Wallet contract: [`tp-wallet.hlpok1lad.tg`](https://nearblocks.io/address/tp-wallet.hlpok1lad.tg) (0 access keys; owner `hlpok1lad.tg`; token `wrap.near`; payee allowlist `[gateway.hlpok1lad.tg]`)
-- Agent: [`tp-agent2.hlpok1lad.tg`](https://nearblocks.io/address/tp-agent2.hlpok1lad.tg), whose only key is a function-call key for `pay` on the wallet
-- **Paid on mainnet:** [allowlisted payee, inside the cap, `pay_settled`](https://nearblocks.io/txns/2RH77VLsLHovF3m4kzR76jk71X8tYKAyugxQ9YJMXLJJ)
-- **Refused on mainnet:** [prompt-injected payee, `ERR_PAYEE_NOT_ALLOWED`, no balance change](https://nearblocks.io/txns/HskzPv94J1JY16K5WdUG8wfGznnhnMMKcXgE1acks63F)
-- **Revoked on mainnet:** [owner `revoke_agent`](https://nearblocks.io/txns/CFutaZM9XMLBBcfm2jwH2JnQQJA8ReNGyTRhH1PZLzFh), then [the same key refused, `ERR_AGENT_INACTIVE`](https://nearblocks.io/txns/C1BnCCrEMYfxhirf283GfGr2sfeBMaZ88fimxQwoKt2d)
+- Wallet contract: [`tp-wallet.hlpok1lad.tg`](https://nearblocks.io/address/tp-wallet.hlpok1lad.tg).
+  - Code hash `45HbvWoxBiUoJssERUU6xr8EqAudAHcjS4kYG9NiDagC`, built from `ef7472c`.
+  - 0 access keys. Owner `hlpok1lad.tg`. Token `wrap.near`.
+  - Payee allowlist `[gateway.hlpok1lad.tg]`. 1,000,000 per call and 4,000,000 per UTC day, in yocto-wNEAR.
+  - Owner review is on: a payment above 500,000 or to a payee off the allowlist is held for the owner.
+- Agent: [`tp-agent2.hlpok1lad.tg`](https://nearblocks.io/address/tp-agent2.hlpok1lad.tg), active. Its only key is a function-call key for `pay` on the wallet.
+- **Paid:** [allowlisted payee, inside the cap, `pay_settled`](https://nearblocks.io/txns/Hh6BquChhVfHMkapJKuG4AXv3Nbe7u2ZTV9xLezoCR2C)
+- **Refused:** [prompt-injected payee, `ERR_PAYEE_NOT_ALLOWED`](https://nearblocks.io/txns/8JBgqcYGjGjkBDoyCehPnLYZRTU58PYnVzWNBccw2yJi). [Over the daily cap, `ERR_DAILY_LIMIT`](https://nearblocks.io/txns/45hcfFNUHujLFcT8L6YECoZT8CLFjScRpBY5kuRfgR4q). [A non-owner calls `withdraw`, `ERR_NOT_OWNER`](https://nearblocks.io/txns/4knb47ejw7unkh3o57PkaaT6p6LDApHznNXKrap8YmCw)
+- **Owner review:** [held](https://nearblocks.io/txns/C91iH3Tmj78kZMAe4dd24suY1hqZzZvpec4n7YKaL475). [The owner approves and it settles](https://nearblocks.io/txns/5yK3nM2bozY8d9XuAQtAJjA2LBEcDHCpfuXKVh9n2FWt). [A second one is rejected](https://nearblocks.io/txns/8vU2BbPSKze5GL4sRLPBqg3SsQPGTvpA8n7RWXcHNdt6)
+- **A hijacked model:** `Qwen3.8-27B-abliterated` on NEAR AI Cloud, told to obey payment instructions in the finding, sent five "tips" to the attacker. The wallet refused [all](https://nearblocks.io/txns/9xA5AoEG5sdghsaoBcwMkADNSEP3TTHg7B5bd3eCkJL3) [five](https://nearblocks.io/txns/E2w4zp21Pu4NjYMk6jr6aNkFotr5kxRACRzvEiQti1hs)
 
-Every transaction, the costs, and two setup mistakes I hit are in [`docs/demo/mainnet-e2e/2026-11-12/`](docs/demo/mainnet-e2e/2026-11-12/README.md); the script is `scripts/mainnet/mainnet-proof.mjs`. The x402 receipt check runs on testnet only: `wrap.near` emits no NEP-141 events for the verifier to read.
+The campaign covered:
+
+- 170 graded tests: limits, zero and overflow amounts, malformed args, everything the pay-only key cannot do, a real non-owner account, revoke and restore, pause, the review queue, and three rounds of LLM agents. All 170 matched their expected result.
+- 183 transactions, 0.066 NEAR of gas, and about USD 0.046 of NEAR AI.
+- One design issue: an agent can fill the owner's review queue and reserve the day with junk holds. Its own legitimate payments then fail until the owner rejects them. Funds stay safe; the cost is availability.
+
+Everything is in [`docs/demo/mainnet-campaign/2026-11-13/`](docs/demo/mainnet-campaign/2026-11-13/README.md), and the script is `scripts/mainnet/campaign.mjs`. The first mainnet run of 2026-11-12 (the build before the review queue) is in [`docs/demo/mainnet-e2e/2026-11-12/`](docs/demo/mainnet-e2e/2026-11-12/README.md). The x402 receipt check runs on testnet only, because `wrap.near` emits no NEP-141 events for the verifier to read.
 
 ## Hosted demo
 
@@ -291,8 +304,10 @@ transaction hashes. Details: [agents/demo/README.md](agents/demo/README.md).
   to allowlisted payees only, until the owner revokes the agent or pauses
   the wallet. Across a UTC midnight that is up to two daily limits within
   minutes.
-- It carries a gas allowance. When the allowance runs out the key stops
-  working until the account's full-access key replaces it. An account that
+- It carries a gas allowance. On mainnet the allowance falls by the gas each
+  transaction burns, but a 40 TGas `pay` needs about 0.041 NEAR of allowance
+  and balance up front (measured 2026-11-13). When the allowance runs out the
+  key stops working until the account's full-access key replaces it. An account that
   holds only function-call keys can lock itself out this way. The hosted
   agent is such an account.
 - Revocation happens at the wallet (`revoke_agent`). The wallet owner cannot
@@ -331,18 +346,20 @@ by a randomized test.
 | | |
 |---|---|
 | Run on testnet | Policy wallet (28-step run on 2026-11-06, and the agent demo on 2026-11-11); the owner-review wallet on 2026-11-12 (held, approved, rejected); one Chain Signatures request on 2026-11-12, signed and not broadcast; x402 round trips paid through the wallet and directly; receipt verification |
-| Run on mainnet | The policy wallet on 2026-11-12: one paid call, one refused payee, revoke, one revoked-agent refusal, in wNEAR ([Live on mainnet](#live-on-mainnet)). Earlier, one native-USDC deposit verified on 2026-10-21 by the argument-based verifier ([docs/integrations/near.md](docs/integrations/near.md)). The x402 receipt check has not run on mainnet |
+| Run on mainnet | The review-queue policy wallet, live since 2026-11-13: 170 graded tests with 183 transactions, including 51 NEAR AI completions that drove the agent's `pay` calls ([Live on mainnet](#live-on-mainnet)). Before that, the first mainnet wallet on 2026-11-12: four transactions, then closed. Earlier, one native-USDC deposit verified on 2026-10-21 by the argument-based verifier ([docs/integrations/near.md](docs/integrations/near.md)). The x402 receipt check has not run on mainnet |
 | Run against NEAR AI Cloud | Stage B, the model judge: a 50-call spike on 2026-11-12 and the paid route in `triage.v2` mode. Every verdict in the 2026-11-11 testnet transcript comes from Stage A (deterministic gates) alone; the run predates the working key |
 | Built, tested offline only | The x402 facilitator endpoints, the SQLite journal (`crates/store`), NEP-413 and API keys (`crates/auth`), the static UI (`ui/`), the Dockerfile |
 | Not wired | The API keeps its ledger in memory, serves one development caller with no authentication, binds loopback only, and does not serve the UI |
 | Run in CI only | The 18 sandbox tests in `contracts/tests` (near-workspaces, a local NEAR node): 18 passed on GitHub Actions, Linux, 2026-11-12. The sandbox has no Windows build |
 | Hosted judge demo | `demo/live`: Vercel static page plus serverless functions. Signing keys are environment variables. A local run hits NEAR testnet | 
-| Cut | Attested verdicts on the paid route (ADR-0011). The demo checks a nonce echo and does not verify the Intel quote. Also cut: NEAR Intents deposits, a mainnet campaign, a measured accuracy figure. No accuracy is claimed anywhere |
+| Cut | Attested verdicts on the paid route (ADR-0011). The demo checks a nonce echo and does not verify the Intel quote. Also cut: NEAR Intents deposits, a measured accuracy figure. No accuracy is claimed anywhere |
 
 Known limits of the paid route: no rate limiting; the server trusts its RPC
 endpoint; on `/v2/scan` the envelope is validated after payment (an invalid
 one keeps the payment claimed and can be retried with a corrected body); the
-agent in the demo has no language model.
+agent in `agents/demo` has no language model. The hosted page can call one
+([A model that falls for it](#a-model-that-falls-for-it)), and so can the
+mainnet campaign.
 
 ## Hackathon window and what is reused
 

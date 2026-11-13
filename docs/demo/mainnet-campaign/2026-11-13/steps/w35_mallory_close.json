@@ -1,0 +1,29 @@
+{
+  "id": "w35_mallory_close",
+  "phase": "wallet",
+  "test": "mallory closes the wallet with herself as beneficiary",
+  "signer": "tp-mallory.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "close",
+  "args": {
+    "beneficiary": "tp-mallory.hlpok1lad.tg"
+  },
+  "expected": "ERR_NOT_OWNER",
+  "actual": "ERR_NOT_OWNER",
+  "pass": true,
+  "at": "2026-11-13T02:59:37.995Z",
+  "tx_hash": "EhuSW4P5fZyQBqLAJuH5uWkD8m2t9B1a5RFQ3V2viPyC",
+  "explorer": "https://nearblocks.io/txns/EhuSW4P5fZyQBqLAJuH5uWkD8m2t9B1a5RFQ3V2viPyC",
+  "outcome": "failure",
+  "error_code": "ERR_NOT_OWNER",
+  "error_message": "Smart contract panicked: ERR_NOT_OWNER: only the owner can call this method",
+  "return_value": null,
+  "events": [],
+  "logs": [],
+  "gas_burnt_tgas": 1.961,
+  "tokens_burnt_near": "0.000152",
+  "tokens_burnt_yocto": "151546727466900000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

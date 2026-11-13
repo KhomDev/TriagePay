@@ -1,0 +1,20 @@
+{
+  "id": "r01_budget",
+  "phase": "info",
+  "test": "budget check before closing",
+  "expected": "-",
+  "actual": "recorded",
+  "pass": null,
+  "at": "2026-11-13T03:22:10.041Z",
+  "data": {
+    "wasm": {
+      "bytes": 196190,
+      "sha256": "2dac27f5461568f6170cea33e9a91521ca3a792767c80ad980005b47ac139295",
+      "source": "ef7472c"
+    },
+    "owner_near": "0.527367",
+    "wallet_near": "1.807076",
+    "need_near": "2.0419",
+    "owner_after_redeploy_near": "0.292544"
+  }
+}

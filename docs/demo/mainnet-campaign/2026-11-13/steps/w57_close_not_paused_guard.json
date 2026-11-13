@@ -1,0 +1,43 @@
+{
+  "id": "w57_close_not_paused_guard",
+  "phase": "wallet",
+  "test": "owner withdraws 1 yocto-wNEAR to itself while paused (withdraw works while paused)",
+  "signer": "hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "withdraw",
+  "args": {
+    "token": "wrap.near",
+    "amount": "1",
+    "to": "hlpok1lad.tg"
+  },
+  "expected": "success",
+  "actual": "success",
+  "pass": true,
+  "at": "2026-11-13T02:57:19.128Z",
+  "tx_hash": "F5n2TkTrqrU5D8JJSaRZrr6Kehv7CL69Nv3WqSiLPs6u",
+  "explorer": "https://nearblocks.io/txns/F5n2TkTrqrU5D8JJSaRZrr6Kehv7CL69Nv3WqSiLPs6u",
+  "outcome": "success",
+  "error_code": null,
+  "error_message": null,
+  "return_value": "true",
+  "events": [
+    {
+      "standard": "aps_policy_wallet",
+      "event": "withdrawn",
+      "data": {
+        "token": "wrap.near",
+        "amount": "1",
+        "to": "hlpok1lad.tg"
+      }
+    }
+  ],
+  "logs": [
+    "Transfer 1 from tp-wallet.hlpok1lad.tg to hlpok1lad.tg"
+  ],
+  "gas_burnt_tgas": 6.217,
+  "tokens_burnt_near": "0.000555",
+  "tokens_burnt_yocto": "554792637138400000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

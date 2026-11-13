@@ -1,0 +1,39 @@
+{
+  "id": "q24_reject_12",
+  "phase": "review_pressure",
+  "test": "owner rejects junk payment 12 (1 to tp-mallory.hlpok1lad.tg)",
+  "signer": "hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "reject_payment",
+  "args": {
+    "payment_id": "12"
+  },
+  "expected": "success",
+  "actual": "success",
+  "pass": true,
+  "at": "2026-11-13T03:27:12.683Z",
+  "tx_hash": "6PPBVYqDsCiDSK3rCL6kP3Fwc6TBWT9XZzor1pvUHFyH",
+  "explorer": "https://nearblocks.io/txns/6PPBVYqDsCiDSK3rCL6kP3Fwc6TBWT9XZzor1pvUHFyH",
+  "outcome": "success",
+  "error_code": null,
+  "error_message": null,
+  "return_value": null,
+  "events": [
+    {
+      "standard": "aps_policy_wallet",
+      "event": "payment_rejected",
+      "data": {
+        "payment_id": "12",
+        "agent_id": "tp-agent2.hlpok1lad.tg",
+        "release": "restored"
+      }
+    }
+  ],
+  "logs": [],
+  "gas_burnt_tgas": 2.293,
+  "tokens_burnt_near": "0.000207",
+  "tokens_burnt_yocto": "207075969967500000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

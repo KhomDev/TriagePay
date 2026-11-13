@@ -1,0 +1,30 @@
+{
+  "id": "w38_mallory_private_callback",
+  "phase": "wallet",
+  "test": "mallory calls the private callback on_pay_complete",
+  "signer": "tp-mallory.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "on_pay_complete",
+  "args": {
+    "agent_id": "tp-agent2.hlpok1lad.tg",
+    "token": "wrap.near",
+    "receiver_id": "tp-mallory.hlpok1lad.tg",
+    "amount": "1",
+    "payment_id": "0",
+    "window_index": "0"
+  },
+  "expected": "Method on_pay_complete is private",
+  "actual": "rejected before chain: NotEnoughBalanceError",
+  "pass": false,
+  "at": "2026-11-13T02:55:49.083Z",
+  "tx_hash": null,
+  "outcome": "rejected_before_chain",
+  "error_code": null,
+  "error_type": "NotEnoughBalanceError",
+  "error_message": "Not enough balance for tp-mallory.hlpok1lad.tg (balance: 30000000000000000000000, cost: 30919993143185500000000)",
+  "maybe_hash": null,
+  "tokens_burnt_near": "0",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

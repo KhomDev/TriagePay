@@ -1,0 +1,43 @@
+{
+  "id": "r03_withdraw_all",
+  "phase": "review",
+  "test": "owner withdraws the old wallet's 999999999999963999999 yocto-wNEAR",
+  "signer": "hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "withdraw",
+  "args": {
+    "token": "wrap.near",
+    "amount": "999999999999963999999",
+    "to": "hlpok1lad.tg"
+  },
+  "expected": "success",
+  "actual": "success",
+  "pass": true,
+  "at": "2026-11-13T03:22:19.830Z",
+  "tx_hash": "3MWDMNVWC6s5W5ZQu7ijurBTKgiYxDoL3BBbMRBakNuz",
+  "explorer": "https://nearblocks.io/txns/3MWDMNVWC6s5W5ZQu7ijurBTKgiYxDoL3BBbMRBakNuz",
+  "outcome": "success",
+  "error_code": null,
+  "error_message": null,
+  "return_value": "true",
+  "events": [
+    {
+      "standard": "aps_policy_wallet",
+      "event": "withdrawn",
+      "data": {
+        "token": "wrap.near",
+        "amount": "999999999999963999999",
+        "to": "hlpok1lad.tg"
+      }
+    }
+  ],
+  "logs": [
+    "Transfer 999999999999963999999 from tp-wallet.hlpok1lad.tg to hlpok1lad.tg"
+  ],
+  "gas_burnt_tgas": 6.207,
+  "tokens_burnt_near": "0.000554",
+  "tokens_burnt_yocto": "553824797619200000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

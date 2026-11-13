@@ -1,0 +1,47 @@
+{
+  "id": "z00_reset_policy",
+  "phase": "finish",
+  "test": "owner puts the live policy back: 1,000,000 per call, 4,000,000 per day, [gateway]; review stays on (threshold 500,000, unknown payees held)",
+  "signer": "hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "set_agent",
+  "args": {
+    "agent_id": "tp-agent2.hlpok1lad.tg",
+    "per_call_max": "1000000",
+    "daily_max": "4000000",
+    "payees": [
+      "gateway.hlpok1lad.tg"
+    ]
+  },
+  "expected": "success",
+  "actual": "success",
+  "pass": true,
+  "at": "2026-11-13T03:32:47.270Z",
+  "tx_hash": "CekVgyqVJdf4JvfCHQYreLwCFKS5GtsviAVwnmBNyxVC",
+  "explorer": "https://nearblocks.io/txns/CekVgyqVJdf4JvfCHQYreLwCFKS5GtsviAVwnmBNyxVC",
+  "outcome": "success",
+  "error_code": null,
+  "error_message": null,
+  "return_value": null,
+  "events": [
+    {
+      "standard": "aps_policy_wallet",
+      "event": "agent_set",
+      "data": {
+        "agent_id": "tp-agent2.hlpok1lad.tg",
+        "per_call_max": "1000000",
+        "daily_max": "4000000",
+        "payees": [
+          "gateway.hlpok1lad.tg"
+        ]
+      }
+    }
+  ],
+  "logs": [],
+  "gas_burnt_tgas": 2.167,
+  "tokens_burnt_near": "0.000194",
+  "tokens_burnt_yocto": "194421321495500000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

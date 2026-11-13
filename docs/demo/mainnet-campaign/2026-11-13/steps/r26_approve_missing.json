@@ -1,0 +1,29 @@
+{
+  "id": "r26_approve_missing",
+  "phase": "review",
+  "test": "owner approves a payment id that does not exist",
+  "signer": "hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "approve_payment",
+  "args": {
+    "payment_id": "999"
+  },
+  "expected": "ERR_NOT_PENDING",
+  "actual": "ERR_NOT_PENDING",
+  "pass": true,
+  "at": "2026-11-13T03:24:07.328Z",
+  "tx_hash": "A9tN6UP11b1isBqkcMWxPWcDFTUEnjU4KtfMexzoTf55",
+  "explorer": "https://nearblocks.io/txns/A9tN6UP11b1isBqkcMWxPWcDFTUEnjU4KtfMexzoTf55",
+  "outcome": "failure",
+  "error_code": "ERR_NOT_PENDING",
+  "error_message": "Smart contract panicked: ERR_NOT_PENDING: no payment is waiting with that id",
+  "return_value": null,
+  "events": [],
+  "logs": [],
+  "gas_burnt_tgas": 2.049,
+  "tokens_burnt_near": "0.00016",
+  "tokens_burnt_yocto": "160286672758800000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}
