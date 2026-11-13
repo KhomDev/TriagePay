@@ -32,8 +32,8 @@
   --bg: #07080c;
   --bg-2: #10131a;
   --ink: #f6f3ea;
-  --muted: #a7a294;
-  --faint: #746f66;
+  --muted: #c2bdae;
+  --faint: #b1ab9e;
   --line: rgba(246, 243, 234, 0.1);
   --accent: #e2ff54;
   --accent-ink: #14160a;
@@ -126,14 +126,14 @@ main { padding-bottom: 64px; }
 }
 h1 {
   margin: 0;
-  max-width: 14ch;
+  max-width: 22ch;
   font-family: var(--display);
   font-weight: 740;
-  font-size: clamp(3.2rem, 6.4vw, 5.5rem);
-  line-height: 0.92;
-  letter-spacing: -0.05em;
+  font-size: clamp(2.35rem, 4.6vw, 3.8rem);
+  line-height: 0.98;
+  letter-spacing: -0.045em;
 }
-h1 span { color: var(--accent); }
+h1 span { display: block; color: var(--accent); }
 h2 {
   margin: 0 0 8px;
   font-family: var(--display);
@@ -144,6 +144,7 @@ h2 {
 h3 { margin: 18px 0 8px; font-size: 0.95rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
 .lead { max-width: 62ch; color: var(--muted); font-size: 1rem; margin: 8px 0; }
 .hint, .stat-sub, .diagram-note, .status { color: var(--muted); }
+.status { min-height: 1.4em; max-height: 4.2em; overflow: hidden; }
 .hint { font-size: 0.95rem; }
 .status { min-height: 1.4em; }
 
@@ -189,7 +190,34 @@ button[disabled] { opacity: 0.45; cursor: not-allowed; transform: none; }
   text-transform: uppercase;
 }
 
-.stage { margin-top: 28px; }
+.stage { margin-top: 8px; }
+#verdict { min-height: 4.5rem; }
+.judge, .diff { margin: 22px 0 8px; }
+.judge h2, .diff h2 { margin-bottom: 12px; }
+.judge ol, .diff ol {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+}
+.judge li, .diff li {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px 14px 16px;
+  background: rgba(16, 18, 24, 0.72);
+  min-height: 148px;
+}
+.judge .num {
+  margin: 0 0 6px;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 0.85rem;
+}
+.judge li p, .diff li p { margin: 0 0 10px; color: var(--muted); }
+.diff h3 { margin: 0 0 8px; color: var(--ink); text-transform: none; letter-spacing: -0.03em; font-size: 1.05rem; }
+.judge a, .diff a { margin-right: 10px; }
 .stage-label {
   margin: 0 0 10px;
   font-family: var(--mono);
@@ -378,12 +406,12 @@ details.panel[open] > summary { margin-bottom: 12px; }
 main { padding-bottom: 24px; }
 
 @media (max-width: 900px) {
-  .pipeline, .stats, .challenge-head, .split { grid-template-columns: 1fr; }
+  .pipeline, .stats, .challenge-head, .split, .judge ol, .diff ol { grid-template-columns: 1fr; }
   .rail { height: 18px; }
   .packet { top: 0; left: 50%; }
   .stats article { border-right: 0; border-bottom: 1px solid var(--line); }
   .nav-wallet { margin-left: 0; }
-  h1 { max-width: none; }
+  h1 { max-width: none; font-size: 2.05rem; }
   .actions button, .cta-row button, .cta-row .text-btn { width: 100%; }
 }
 

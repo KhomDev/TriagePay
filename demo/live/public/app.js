@@ -110,8 +110,8 @@
       $("nav-wallet").setAttribute("href", data.explorerAccount + data.wallet);
     }
     $("agent-mode").textContent = data.agentMode === "live"
-      ? "Agent: live · " + (data.model || "NEAR AI")
-      : "Agent: scripted";
+      ? "Agent: model"
+      : "Agent: follows the text";
   }
 
   function paintRisks(risks) {
@@ -156,7 +156,7 @@
     $("btn-queue").disabled = !state.queueScenario || state.busy;
     var rows = review.pending || [];
     if (!rows.length) {
-      root.appendChild(el("p", { class: "hint" }, "Nothing is waiting."));
+      root.appendChild(el("p", { class: "hint" }, "Nothing is waiting. Queue a payment above the threshold, then approve or reject it here."));
       return;
     }
     rows.forEach(function (row) {
@@ -184,7 +184,7 @@
   function paintRecent(rows) {
     var body = clear($("recent"));
     if (!rows || !rows.length) {
-      body.appendChild(el("tr", null, el("td", { colspan: "5" }, "No attempts yet.")));
+      body.appendChild(el("tr", null, el("td", { colspan: "5" }, "No signed attempts yet. Launch the attack and the transaction shows up here.")));
       return;
     }
     rows.forEach(function (row) {
@@ -271,8 +271,11 @@
     if (payload.risk) root.appendChild(el("p", null, "Payee risk ", pill(payload.risk.verdict, payload.risk.verdict)));
     if (payload.amountCheck) root.appendChild(el("p", null, "Amount check ", pill(payload.amountCheck.verdict, payload.amountCheck.verdict)));
     var chain = payload.chain;
+    if (chain && chain.errorCode) {
+      root.appendChild(el("p", null, "Contract ", el("span", { class: "mono" }, chain.errorCode)));
+    }
     if (chain && chain.explorerUrl) {
-      root.appendChild(el("p", null, el("a", { href: chain.explorerUrl, rel: "noopener", target: "_blank" }, "Transaction on the testnet explorer")));
+      root.appendChild(el("p", null, el("a", { href: chain.explorerUrl, rel: "noopener", target: "_blank" }, "Open the transaction")));
     }
     if (payload.telegram && payload.telegram.reason && !payload.telegram.sent) {
       root.appendChild(el("p", { class: "hint" }, payload.telegram.reason));
@@ -313,7 +316,10 @@
 
   function errorText(result) {
     if (result.json && result.json.error && result.json.error.message) return result.json.error.message;
-    return result.text || ("request failed (" + result.status + ")");
+    var text = String(result.text || "");
+    if (/<!doctype|<html/i.test(text)) return "The server sent a page instead of data (" + (result.status || "error") + "). Refresh and try again.";
+    if (text.length > 220) return text.slice(0, 220);
+    return text || ("request failed (" + result.status + ")");
   }
 
   async function readSse(path, body, onEvent) {
@@ -367,7 +373,7 @@
     var feed = clear($("drain-feed"));
     var rows = data.feed || [];
     if (!rows.length) {
-      feed.appendChild(el("li", null, "No Drain Me attempts on this instance yet."));
+      feed.appendChild(el("li", null, "No one has tried yet. Write a prompt above and press Try to drain it."));
       return;
     }
     rows.forEach(function (row) {
@@ -407,7 +413,7 @@
     if (!data.configured) {
       status.appendChild(document.createTextNode(data.message || "Demo wallet is not configured."));
     } else if (!data.signing) {
-      status.appendChild(document.createTextNode("Chain reads are live. Signing keys are not set on this server, so Launch stays off."));
+      status.appendChild(document.createTextNode("I can read the chain. Signing keys are not set, so Launch the attack stays off."));
     } else {
       status.appendChild(document.createTextNode(
         "Live on NEAR testnet. Cooldown " + data.cooldownSeconds + "s. " +
@@ -459,7 +465,7 @@
     clear(root);
     var shown = (rows || []).filter(function (row) { return row.txHash && (row.payee || row.amount || row.errorCode || row.title); }).slice(0, 2);
     if (!shown.length) {
-      root.appendChild(el("p", { class: "hint" }, "Receipts appear after a signed attempt. A replay link is added when this server stored the agent's text."));
+      root.appendChild(el("p", { class: "hint" }, "No receipt yet. Launch the attack. The error code and the transaction link show up here."));
       return;
     }
     shown.forEach(function (row) {
@@ -491,7 +497,7 @@
     var list = clear($("honeypot-list"));
     var rows = data.feed || [];
     if (!rows.length) {
-      list.appendChild(el("li", null, "No trap payment is stored on this instance yet."));
+      list.appendChild(el("li", null, "No refusal to this trap is on the chain index yet. Launch the attack to add one."));
       return;
     }
     rows.forEach(function (row) {
@@ -548,19 +554,27 @@
     slam("REFUSED");
   }
 
+  function setStatus(text) {
+    var status = $("status");
+    clear(status);
+    status.appendChild(document.createTextNode(text));
+  }
+
   async function onLaunch() {
     if (state.busy) return;
     state.busy = true;
     $("btn-launch").disabled = true;
     clear($("verdict"));
     $("flow").classList.add("is-live");
-    $("agent-trace").textContent = "";
+    $("agent-trace").textContent = "Reading the finding.";
+    $("sign-line").textContent = "Waiting to sign.";
+    setStatus("Reading the finding…");
     setSteps(["step-agent"], false);
     var trace = "";
     try {
       var result = await readSse("/api/agent", { scenario: "injected-payee" }, function (event) {
         if (event.type === "mode") {
-          $("agent-mode").textContent = event.mode === "live" ? "Agent: live" : "Agent: scripted";
+          $("agent-mode").textContent = event.mode === "live" ? "Agent: model" : "Agent: follows the text";
         }
         if (event.type === "delta") {
           trace += event.text || "";
@@ -569,19 +583,32 @@
         }
         if (event.type === "tool") {
           setSteps(["step-agent", "step-instruction"], false);
-          if (event.tool && event.tool.receiver_id) $("inject-line").textContent = "pay " + event.tool.receiver_id;
+          if (event.tool && event.tool.receiver_id) $("inject-line").textContent = "Pay " + event.tool.receiver_id;
+          setStatus("Injection found. Signing pay…");
         }
-        if (event.type === "status") setSteps(["step-agent", "step-instruction", "step-wallet"], false);
+        if (event.type === "status") {
+          setSteps(["step-agent", "step-instruction", "step-wallet"], false);
+          $("sign-line").textContent = "Signing pay on testnet.";
+          setStatus(event.text || "Signing pay on NEAR testnet.");
+        }
       });
       var word = result.ok ? wordFor(result.json) : null;
+      var code = result.ok && result.json && result.json.chain ? result.json.chain.errorCode : "";
       setSteps(["step-agent", "step-instruction", "step-wallet", "step-verdict"], !word || word.kind === "bad");
-      slam(word ? word.text : "—");
-      if (!result.ok) paintResult($("verdict"), result.text || errorText(result), true);
-      else paintResult($("verdict"), result.json, false);
+      slam(word ? word.text : "STOPPED");
+      if (!result.ok) {
+        setStatus("This attempt did not finish. The note under the path says why.");
+        paintResult($("verdict"), result.text || errorText(result), true);
+      } else {
+        setStatus((word ? word.text : "Done") + (code ? " · " + code : "") + ". The transaction link is under the path.");
+        paintResult($("verdict"), result.json, false);
+      }
     } finally {
       state.busy = false;
+      var keep = $("status").textContent;
       await refresh();
       await refreshDrain();
+      if (keep) setStatus(keep);
     }
   }
 

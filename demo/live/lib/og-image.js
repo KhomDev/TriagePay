@@ -123,9 +123,9 @@ export async function renderSitePng() {
       },
       [
         box({ fontSize: 22, letterSpacing: 6, color: "#e2ff54" }, "TRIAGEPAY"),
-        box({ fontSize: 68, marginTop: 28, fontWeight: 700 }, "It will pay the attacker."),
-        box({ fontSize: 68, marginTop: 8, color: "#e2ff54", fontWeight: 700 }, "The wallet will not."),
-        box({ fontSize: 24, marginTop: 36, color: "#b7b3a8" }, "A policy wallet for AI agents on NEAR. built at NEAR HACKATHON @NEARProtocol #NEARHackathon"),
+        box({ fontSize: 64, marginTop: 28, fontWeight: 700 }, "The agent signs."),
+        box({ fontSize: 64, marginTop: 8, color: "#e2ff54", fontWeight: 700 }, "The contract decides."),
+        box({ fontSize: 24, marginTop: 36, color: "#b7b3a8" }, "A policy wallet on NEAR testnet and mainnet. built at NEAR HACKATHON @NEARProtocol #NEARHackathon"),
       ],
     ),
     { width: 1200, height: 630, fonts: [{ name: "Geist", data: font, weight: 400, style: "normal" }] },

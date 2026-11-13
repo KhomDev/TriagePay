@@ -143,7 +143,7 @@ export async function runTrackedPayment(request, { attack, agent, onEvent, drain
   }
 
   return withSigningLock(async ({ note }) => {
-    if (onEvent) onEvent({ type: "status", text: "Signing the pay call on testnet." });
+    if (onEvent) onEvent({ type: "status", text: "Signing pay on NEAR testnet." });
     const decision = await gate(config, request);
     note(decision);
     const { agent: chainAgent, restored } = await ensureAgentActive(config, keys);
@@ -272,6 +272,8 @@ export async function runLaunch(request, options = {}) {
     preferFallback: true,
     apiKey: process.env.NEARAI_API_KEY || "",
     model: modelFromEnv(),
+    models: [modelFromEnv()],
+    budgetMs: 2_000,
     fetchImpl: options.fetchImpl || fetch,
     onEvent: options.onEvent,
   });

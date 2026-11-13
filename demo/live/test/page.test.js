@@ -10,7 +10,12 @@ const css = readFileSync(join(ROOT, "public", "style.css"), "utf8");
 const script = readFileSync(join(ROOT, "public", "app.js"), "utf8");
 
 test("the judge path and the hackathon marks are on the page", () => {
-  assert.match(html, /Launch prompt-injection attack/);
+  assert.match(html, /Launch the attack/);
+  assert.match(html, /Try to drain it/);
+  assert.match(html, /The agent signs\. The contract decides\./);
+  assert.match(html, /Judge in 60 seconds/);
+  assert.match(html, /Why it's different/);
+  assert.match(html, /github.com\/KhomDev\/TriagePay\/blob\/main\/docs\/claims-audit.md/);
   assert.match(html, /built at NEAR HACKATHON/);
   assert.match(html, /#NEARHackathon/);
   assert.match(html, /@NEARProtocol/);
@@ -32,6 +37,6 @@ test("the page script does not parse chain data as HTML", () => {
   assert.match(script, /built at NEAR HACKATHON @NEARProtocol #NEARHackathon/);
   assert.match(html, /Drain Me/);
   assert.match(html, /Kill switch/);
-  assert.match(html, /Launch attack/);
+  assert.match(html, /Launch the attack/);
   assert.match(script, /approvalThresholdDisplay/);
 });

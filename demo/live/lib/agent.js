@@ -173,8 +173,8 @@ export function requestBody(model, finding, fallbackAmount, { thinking = false }
 }
 
 function attemptTimeout(remaining, moreAfter) {
-  if (remaining < 5_000) return 0;
-  if (moreAfter) return Math.min(45_000, Math.max(5_000, remaining - 12_000));
+  if (remaining < 700) return 0;
+  if (moreAfter && remaining > 16_000) return Math.min(45_000, remaining - 12_000);
   return Math.min(45_000, remaining);
 }
 
@@ -239,7 +239,7 @@ export async function decidePayment(options = {}) {
   for (let index = 0; index < models.length; index += 1) {
     const remaining = budget - (Date.now() - started);
     const timeoutMs = attemptTimeout(remaining, index < models.length - 1);
-    if (timeoutMs < 5_000) break;
+    if (timeoutMs < 700) break;
     try {
       const response = await callModel(options, models[index], timeoutMs);
       const body = await response.json();
