@@ -27,7 +27,10 @@ test("the judge path and the hackathon marks are on the page", () => {
   assert.match(css, /word-break: break-word/);
   assert.match(html, /The contract has not decided yet/);
   assert.equal(/The three proofs/.test(html), false);
-  assert.match(html, /1000-yocto mainnet pair/);
+  assert.match(html, /1000-yocto pair/);
+  assert.match(html, /EYnoWhUdJsxMLQN5aj1GBuwMeRGuGMPMjMBfhNARwioP/);
+  assert.match(html, /9YCqzVgVNvaED7twQgtJvhUeCHMrnDiDAwKdbRHxnQWp/);
+  assert.match(html, /FfmGZyE4j8LK3uPzQCAcXbLwuzTgPNy76LasjoHVamHH/);
   assert.match(html, /6F3jNamjerT69EMnxaQVy7WRdZuscj7t53V1oceTU4Yj/);
   assert.match(html, /5BCGjxC4CkPSy8iv876cP65xxs2LRWwcWKFqmcVJEyEw/);
   assert.match(html, /Earlier proof, paid call/);

@@ -70,8 +70,8 @@ function replaceParagraph(html, id, inner) {
 }
 
 export const FALLBACK_TAPE = [
-  { hash: "5BCGjxC4CkPSy8iv876cP65xxs2LRWwcWKFqmcVJEyEw", network: "mainnet", paid: false, atMs: 2 },
-  { hash: "6F3jNamjerT69EMnxaQVy7WRdZuscj7t53V1oceTU4Yj", network: "mainnet", paid: true, atMs: 3 },
+  { hash: "FfmGZyE4j8LK3uPzQCAcXbLwuzTgPNy76LasjoHVamHH", network: "mainnet", paid: false, atMs: 2 },
+  { hash: "9YCqzVgVNvaED7twQgtJvhUeCHMrnDiDAwKdbRHxnQWp", network: "mainnet", paid: true, atMs: 3 },
   { hash: "8y6sEwL8i5sP2aMKo5HS3WGZtZ8NMDP9MUdywYAmVnN4", network: "testnet", paid: false, atMs: 1 },
   { hash: "4oxycWdvo9M4YWoq9mg2y4FXL7AZYQY6McvcPJQYJejq", network: "testnet", paid: true, atMs: 1 },
 ];

@@ -27,8 +27,8 @@ export const MAINNET = {
   explorerAccountBase: "https://nearblocks.io/address/",
   accounts: {
     owner: "hlpok1lad.tg",
-    agent: "tp-agent2.hlpok1lad.tg",
-    wallet: "tp-wallet.hlpok1lad.tg",
+    agent: "tp-e2e-agent.hlpok1lad.tg",
+    wallet: "e2e044e80.triagepay.hlpok1lad.tg",
     token: "wrap.near",
     payee: "gateway.hlpok1lad.tg",
     injected: "tp-mallory.hlpok1lad.tg",
@@ -326,7 +326,7 @@ export { scoreboard } from "./scoreboard.js";
 export const MAINNET_CONTRACTS = {
   network: "mainnet",
   factory: "triagepay.hlpok1lad.tg",
-  wallet: "tp-wallet.hlpok1lad.tg",
-  agent: "tp-agent2.hlpok1lad.tg",
+  wallet: "e2e044e80.triagepay.hlpok1lad.tg",
+  agent: "tp-e2e-agent.hlpok1lad.tg",
   feeRecipient: "hlpok1lad.tg",
 };

@@ -140,7 +140,7 @@ test("the committed snapshot is one complete board", () => {
   assert.equal(typeof board.attemptsRemaining, "number");
   assert.match(board.asOf, /^\d{4}-\d{2}-\d{2}T/);
   assert.equal(board.networks.testnet.agent, "tpd-e947e7-agent.testnet");
-  assert.equal(board.networks.mainnet.agent, "tp-agent2.hlpok1lad.tg");
+  assert.equal(board.networks.mainnet.agent, "tp-e2e-agent.hlpok1lad.tg");
   assert.equal(existsSync(join(root, "..", "..", ".github", "workflows", "scoreboard.yml")), false);
 });
 

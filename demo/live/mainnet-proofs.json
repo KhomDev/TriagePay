@@ -1,14 +1,29 @@
 {
   "proofs": [
     {
+      "label": "Factory wallet created",
+      "href": "https://nearblocks.io/txns/EYnoWhUdJsxMLQN5aj1GBuwMeRGuGMPMjMBfhNARwioP",
+      "kind": "create"
+    },
+    {
       "label": "Paid call",
+      "href": "https://nearblocks.io/txns/9YCqzVgVNvaED7twQgtJvhUeCHMrnDiDAwKdbRHxnQWp",
+      "kind": "paid"
+    },
+    {
+      "label": "Refused over cap",
+      "href": "https://nearblocks.io/txns/FfmGZyE4j8LK3uPzQCAcXbLwuzTgPNy76LasjoHVamHH",
+      "kind": "refused"
+    },
+    {
+      "label": "Earlier proof, paid call, 1000 yocto",
       "href": "https://nearblocks.io/txns/6F3jNamjerT69EMnxaQVy7WRdZuscj7t53V1oceTU4Yj",
       "memo": "demo:mainnet-paid",
       "amount": "1000",
       "kind": "paid"
     },
     {
-      "label": "Refused payee",
+      "label": "Earlier proof, refused payee, 1000 yocto",
       "href": "https://nearblocks.io/txns/5BCGjxC4CkPSy8iv876cP65xxs2LRWwcWKFqmcVJEyEw",
       "memo": "demo:mainnet-injected",
       "amount": "1000",

@@ -91,7 +91,7 @@ Sample transactions. I copy a hash only when it is already in a committed eviden
 
 | What | Hash | Where I read it |
 |---|---|---|
-| Factory deploy | launching; tx pending | The factory transaction is not on chain yet. I will record the hash when the owner's machine pushes it |
+| Factory deploy | [`Fh7252ctZhBJYErMk7FhB9yGHGVnqPfJNFwy84fLGWyp`](https://nearblocks.io/txns/Fh7252ctZhBJYErMk7FhB9yGHGVnqPfJNFwy84fLGWyp) | Deployed from `main` at `1b1a578`. On-chain code hash `9d1be4SWuAXqDvJZ2RpazjPEhjMZGHwd5omS7b2hBAhs` |
 | Allowlisted pay on the demo wallet | [`2RH77VLsLHovF3m4kzR76jk71X8tYKAyugxQ9YJMXLJJ`](https://nearblocks.io/txns/2RH77VLsLHovF3m4kzR76jk71X8tYKAyugxQ9YJMXLJJ) | `docs/demo/mainnet-e2e/2026-11-12/mainnet-EVIDENCE.json` |
 | Refused payee | [`HskzPv94J1JY16K5WdUG8wfGznnhnMMKcXgE1acks63F`](https://nearblocks.io/txns/HskzPv94J1JY16K5WdUG8wfGznnhnMMKcXgE1acks63F) | same file |
 | Owner revokes the agent | [`CFutaZM9XMLBBcfm2jwH2JnQQJA8ReNGyTRhH1PZLzFh`](https://nearblocks.io/txns/CFutaZM9XMLBBcfm2jwH2JnQQJA8ReNGyTRhH1PZLzFh) | same file |
@@ -99,13 +99,13 @@ Sample transactions. I copy a hash only when it is already in a committed eviden
 
 ## Wallet factory
 
-The factory is `triagepay.hlpok1lad.tg`. I have not deployed this build yet. Each wallet gets its own copy of the policy-wallet wasm. I do not use a global contract; that path is behind the `global-contracts` cargo feature and it is off.
+The factory is `triagepay.hlpok1lad.tg`. I deployed this build from `main` at `1b1a578` ([deploy transaction](https://nearblocks.io/txns/Fh7252ctZhBJYErMk7FhB9yGHGVnqPfJNFwy84fLGWyp)). Its on-chain code hash is `9d1be4SWuAXqDvJZ2RpazjPEhjMZGHwd5omS7b2hBAhs`. Each wallet gets its own copy of the policy-wallet wasm. I do not use a global contract; that path is behind the `global-contracts` cargo feature and it is off.
 
 `create_wallet` takes a 1 NEAR fee plus 2.52884 NEAR of refundable storage. The storage is the wasm (221,884 bytes after `wasm-opt -Oz`, 2.21884 NEAR), 0.01000 NEAR of state, and 0.30000 NEAR left liquid so a few holds can be stored. Excess comes back immediately. The fee moves to `hlpok1lad.tg` only after `new` succeeds. A failed create refunds the fee and the storage. The factory stores the wasm compressed and inflates it in `create_wallet`, so the factory account does not lock a second full copy. The bytes that land on the wallet are the `wasm-opt` output from this host, sha256 `17acbefc65151683d5a37771b785ec0e5a9fa6debfbdc566084370a714e25b7e`. `new` accepts only the new account or its parent, so a two-step deploy cannot be front-run. The build remaps the `index.crates.io-<hash>` registry folder last. GitHub's rebuild is the same 221,884 bytes and a different hash (`48562c554fe8ec0d29a4aa10222eceec53d36954d10f9c7cea0f124a5992f41e`); CI rejects a host path, not that difference.
 
 I get the storage back from the wallet, not from the factory. I pause it, withdraw every token, and call `close` with a beneficiary that already exists. Account deletion returns the code stake, the state, and the working balance. The factory's own code stake stays until I delete the factory account.
 
-This build's factory wasm is 245,174 bytes after `wasm-opt`, sha256 `3602dae37d0bf04e6b8c7a40b383024b406931327f075ef01df35329b9360c88`. The dry-run peak for that file is 6.41058 NEAR: 2.50174 to fund the factory, 0.08000 of deploy burn, the 3.52884 create deposit, and 0.30000 of prepaid gas. A rebuild can move the factory size by a few bytes; the script prints the figure for the wasm it finds.
+This build's factory wasm is 245,448 bytes after `wasm-opt`, sha256 `8017146f1715e167e2e3b3e2da1d9f6f8e3cb66d03912f415f406dbf7b5be1b6`. The dry-run peak for that file is 6.41058 NEAR: 2.50174 to fund the factory, 0.08000 of deploy burn, the 3.52884 create deposit, and 0.30000 of prepaid gas. A rebuild can move the factory size by a few bytes; the script prints the figure for the wasm it finds.
 
 The mainnet script is `scripts/mainnet/mainnet-e2e.mjs`. `--dry-run` prints the budget and does not read a key. A real run reads `NEAR_ACCOUNT_ID` and `NEAR_PRIVATE_KEY` from the file in `APS_MAINNET_ENV` and never prints the key. It deploys the factory, creates one wallet as the owner (the fee comes back), moves 0.01 USDC and a millionth of a wNEAR, checks holds and a revoked key, then closes the wallet. It does not create a second wallet. The projected peak, factory fund plus one create plus gas the signer has to be holding, is under 6.5 NEAR. The dry-run prints the exact figure from the wasm it would deploy.
 

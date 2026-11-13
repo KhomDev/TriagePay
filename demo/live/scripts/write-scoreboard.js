@@ -143,7 +143,7 @@ if (!amountsOk) {
 
 const fresh = {
   version: 1,
-  definition: "Pay calls by tpd-e947e7-agent.testnet and tp-agent2.hlpok1lad.tg, deduped by transaction hash. Paid means the transaction succeeded. Refused means it did not. Value protected sums refused amounts up to 1000 wNEAR each.",
+  definition: "Pay calls by tpd-e947e7-agent.testnet and tp-e2e-agent.hlpok1lad.tg, deduped by transaction hash. Paid means the transaction succeeded. Refused means it did not. Value protected sums refused amounts up to 1000 wNEAR each.",
   day,
   asOf: new Date(nowMs).toISOString(),
   paid: testnet.paid + mainnet.paid,

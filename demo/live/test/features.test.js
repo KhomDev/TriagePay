@@ -551,11 +551,12 @@ test("a dust yocto total renders as a short wNEAR amount", () => {
   assert.equal(formatAmountShort("1300000000000004000001", 24, "wNEAR"), "0.0013 wNEAR");
 });
 
-test("the mainnet proof file pins the 1000-yocto demo transactions", () => {
+test("the mainnet proof file pins the factory-wallet transactions", () => {
   const status = mainnetStatus({});
   const hrefs = status.proofs.map((item) => item.href).join(" ");
-  assert.match(hrefs, /5BCGjxC4CkPSy8iv876cP65xxs2LRWwcWKFqmcVJEyEw/);
-  assert.match(hrefs, /6F3jNamjerT69EMnxaQVy7WRdZuscj7t53V1oceTU4Yj/);
+  assert.match(hrefs, /EYnoWhUdJsxMLQN5aj1GBuwMeRGuGMPMjMBfhNARwioP/);
+  assert.match(hrefs, /9YCqzVgVNvaED7twQgtJvhUeCHMrnDiDAwKdbRHxnQWp/);
+  assert.match(hrefs, /FfmGZyE4j8LK3uPzQCAcXbLwuzTgPNy76LasjoHVamHH/);
   assert.equal(/CFutaZM9/.test(hrefs), false);
   assert.equal(status.proofs.some((item) => item.memo === "demo:mainnet-injected"), true);
   assert.equal(status.proofs.some((item) => item.memo === "demo:mainnet-paid"), true);

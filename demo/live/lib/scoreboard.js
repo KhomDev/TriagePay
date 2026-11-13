@@ -51,7 +51,7 @@ export const SIDES = [
   },
   {
     network: "mainnet",
-    agent: "tp-agent2.hlpok1lad.tg",
+    agent: "tp-e2e-agent.hlpok1lad.tg",
     indexerAccountsBase: "https://api.nearblocks.io/v3/accounts/",
     txBase: "https://api.nearblocks.io/v3/txns/",
     rpcUrl: "https://rpc.mainnet.fastnear.com",

@@ -15,8 +15,8 @@ test("health keeps the sandbox network and names the mainnet contracts", async (
   assert.deepEqual(health.mainnet, {
     network: "mainnet",
     factory: "triagepay.hlpok1lad.tg",
-    wallet: "tp-wallet.hlpok1lad.tg",
-    agent: "tp-agent2.hlpok1lad.tg",
+    wallet: "e2e044e80.triagepay.hlpok1lad.tg",
+    agent: "tp-e2e-agent.hlpok1lad.tg",
     feeRecipient: "hlpok1lad.tg",
   });
   assert.deepEqual(health.mainnet, MAINNET_CONTRACTS);
