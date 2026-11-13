@@ -1,0 +1,55 @@
+{
+  "id": "r15_approve",
+  "phase": "review",
+  "test": "owner approves payment 1: it settles",
+  "signer": "hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "approve_payment",
+  "args": {
+    "payment_id": "1"
+  },
+  "expected": "success",
+  "actual": "success",
+  "pass": true,
+  "at": "2026-11-13T03:23:21.504Z",
+  "tx_hash": "5yK3nM2bozY8d9XuAQtAJjA2LBEcDHCpfuXKVh9n2FWt",
+  "explorer": "https://nearblocks.io/txns/5yK3nM2bozY8d9XuAQtAJjA2LBEcDHCpfuXKVh9n2FWt",
+  "outcome": "success",
+  "error_code": null,
+  "error_message": null,
+  "return_value": "true",
+  "events": [
+    {
+      "standard": "aps_policy_wallet",
+      "event": "pay_requested",
+      "data": {
+        "payment_id": "1",
+        "agent_id": "tp-agent2.hlpok1lad.tg",
+        "token": "wrap.near",
+        "receiver_id": "gateway.hlpok1lad.tg",
+        "amount": "900000",
+        "window_index": "20770"
+      }
+    },
+    {
+      "standard": "aps_policy_wallet",
+      "event": "pay_settled",
+      "data": {
+        "payment_id": "1",
+        "agent_id": "tp-agent2.hlpok1lad.tg",
+        "token": "wrap.near",
+        "receiver_id": "gateway.hlpok1lad.tg",
+        "amount": "900000"
+      }
+    }
+  ],
+  "logs": [
+    "Transfer 900000 from tp-wallet.hlpok1lad.tg to gateway.hlpok1lad.tg"
+  ],
+  "gas_burnt_tgas": 6.704,
+  "tokens_burnt_near": "0.000603",
+  "tokens_burnt_yocto": "603491410410500000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

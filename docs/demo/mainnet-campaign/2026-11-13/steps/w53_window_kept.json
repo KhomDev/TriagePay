@@ -1,0 +1,21 @@
+{
+  "id": "w53_window_kept",
+  "phase": "info",
+  "test": "the restore kept the day's spend (2,000,000), so restore cannot reset the daily cap",
+  "expected": "-",
+  "actual": "recorded",
+  "pass": null,
+  "at": "2026-11-13T02:56:56.004Z",
+  "data": {
+    "per_call_max": "1000000",
+    "daily_max": "4000000",
+    "payees": [
+      "gateway.hlpok1lad.tg"
+    ],
+    "active": true,
+    "spent_in_window": "2000000",
+    "remaining": "2000000",
+    "window_index": "20770",
+    "resets_at_ns": "1794614400000000000"
+  }
+}

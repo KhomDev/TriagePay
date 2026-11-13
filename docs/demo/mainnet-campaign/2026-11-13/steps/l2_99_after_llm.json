@@ -1,0 +1,92 @@
+{
+  "id": "l2_99_after_llm",
+  "phase": "info",
+  "test": "state after the LLM rounds; NEAR AI spend estimated from usage x catalogue price",
+  "expected": "-",
+  "actual": "recorded",
+  "pass": null,
+  "at": "2026-11-13T03:20:12.786Z",
+  "data": {
+    "usd_estimate_total": 0.04083981999999999,
+    "snapshot": {
+      "at": "2026-11-13T03:20:09.553Z",
+      "owner": {
+        "account": "hlpok1lad.tg",
+        "near": "0.527367",
+        "yocto": "527367496521229767887875",
+        "storage_bytes": 182,
+        "code_hash": "11111111111111111111111111111111",
+        "wnear": "1000000000000000000001"
+      },
+      "wallet": {
+        "account": "tp-wallet.hlpok1lad.tg",
+        "near": "1.807076",
+        "yocto": "1807076359291028399999981",
+        "storage_bytes": 175298,
+        "code_hash": "3cJtSPH157zQKQyoDUMukq2sN9NNDERfJ3kYTUNYLKYz",
+        "wnear": "999999999999963999999",
+        "keys": 0,
+        "config": {
+          "owner": "hlpok1lad.tg",
+          "paused": false,
+          "tokens": [
+            "wrap.near"
+          ],
+          "next_payment_id": "37",
+          "event_standard": "aps_policy_wallet",
+          "event_version": "1.0.0"
+        },
+        "agent": {
+          "per_call_max": "1000000",
+          "daily_max": "80000000",
+          "payees": [
+            "gateway.hlpok1lad.tg"
+          ],
+          "active": true,
+          "spent_in_window": "35000000",
+          "remaining": "45000000",
+          "window_index": "20770",
+          "resets_at_ns": "1794614400000000000"
+        }
+      },
+      "agent": {
+        "account": "tp-agent2.hlpok1lad.tg",
+        "near": "0.090838",
+        "yocto": "90838150105815300000000",
+        "storage_bytes": 236,
+        "code_hash": "11111111111111111111111111111111",
+        "wnear": "0",
+        "keys": [
+          {
+            "public_key": "ed25519:69i3HGAR51MzFSvGLjQqnZhk6Dpo39VGnaNU9LJscCdn",
+            "permission": {
+              "FunctionCall": {
+                "allowance": "120838150105815300000000",
+                "method_names": [
+                  "pay"
+                ],
+                "receiver_id": "tp-wallet.hlpok1lad.tg"
+              }
+            }
+          }
+        ]
+      },
+      "payee": {
+        "account": "gateway.hlpok1lad.tg",
+        "near": "0.01",
+        "yocto": "10000000000000000000000",
+        "storage_bytes": 182,
+        "code_hash": "11111111111111111111111111111111",
+        "wnear": "35000000"
+      },
+      "mallory": {
+        "account": "tp-mallory.hlpok1lad.tg",
+        "near": "0.078187",
+        "yocto": "78186561477256500000000",
+        "storage_bytes": 182,
+        "code_hash": "11111111111111111111111111111111",
+        "wnear": "1000000"
+      }
+    }
+  }
+}

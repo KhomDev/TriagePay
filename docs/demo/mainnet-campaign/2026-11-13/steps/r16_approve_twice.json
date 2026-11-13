@@ -1,0 +1,29 @@
+{
+  "id": "r16_approve_twice",
+  "phase": "review",
+  "test": "owner approves payment 1 again",
+  "signer": "hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "approve_payment",
+  "args": {
+    "payment_id": "1"
+  },
+  "expected": "ERR_NOT_PENDING",
+  "actual": "ERR_NOT_PENDING",
+  "pass": true,
+  "at": "2026-11-13T03:23:26.390Z",
+  "tx_hash": "BXSwymBkGiAomLDRd3ERU2ibWFqaqUSpopaRfTzrjP4k",
+  "explorer": "https://nearblocks.io/txns/BXSwymBkGiAomLDRd3ERU2ibWFqaqUSpopaRfTzrjP4k",
+  "outcome": "failure",
+  "error_code": "ERR_NOT_PENDING",
+  "error_message": "Smart contract panicked: ERR_NOT_PENDING: no payment is waiting with that id",
+  "return_value": null,
+  "events": [],
+  "logs": [],
+  "gas_burnt_tgas": 2.049,
+  "tokens_burnt_near": "0.00016",
+  "tokens_burnt_yocto": "160264029849000000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

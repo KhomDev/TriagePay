@@ -1,0 +1,31 @@
+{
+  "id": "w39_mallory_fake_deposit",
+  "phase": "wallet",
+  "test": "mallory calls ft_on_transfer directly to fake a deposit",
+  "signer": "tp-mallory.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "ft_on_transfer",
+  "args": {
+    "sender_id": "tp-mallory.hlpok1lad.tg",
+    "amount": "1000000000000000000000000",
+    "msg": ""
+  },
+  "expected": "ERR_TOKEN_NOT_ALLOWED",
+  "actual": "ERR_TOKEN_NOT_ALLOWED",
+  "pass": true,
+  "at": "2026-11-13T03:00:00.195Z",
+  "tx_hash": "75MaEpoyTbx79AKWx9Qe9Bu8paTX8YC9gs1LF1CX8RAQ",
+  "explorer": "https://nearblocks.io/txns/75MaEpoyTbx79AKWx9Qe9Bu8paTX8YC9gs1LF1CX8RAQ",
+  "outcome": "failure",
+  "error_code": "ERR_TOKEN_NOT_ALLOWED",
+  "error_message": "Smart contract panicked: ERR_TOKEN_NOT_ALLOWED: token is not on the token allowlist",
+  "return_value": null,
+  "events": [],
+  "logs": [],
+  "gas_burnt_tgas": 1.749,
+  "tokens_burnt_near": "0.000153",
+  "tokens_burnt_yocto": "152674953160200000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

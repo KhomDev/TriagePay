@@ -1,0 +1,35 @@
+{
+  "id": "r02_pause_old",
+  "phase": "review",
+  "test": "owner pauses the old wallet",
+  "signer": "hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "pause",
+  "args": {},
+  "expected": "success",
+  "actual": "success",
+  "pass": true,
+  "at": "2026-11-13T03:22:13.868Z",
+  "tx_hash": "9mANPeryTpvt5tg9gEgs7iNAFVYC6KfJcpi8sdxfjCEG",
+  "explorer": "https://nearblocks.io/txns/9mANPeryTpvt5tg9gEgs7iNAFVYC6KfJcpi8sdxfjCEG",
+  "outcome": "success",
+  "error_code": null,
+  "error_message": null,
+  "return_value": null,
+  "events": [
+    {
+      "standard": "aps_policy_wallet",
+      "event": "paused",
+      "data": {
+        "by": "hlpok1lad.tg"
+      }
+    }
+  ],
+  "logs": [],
+  "gas_burnt_tgas": 1.858,
+  "tokens_burnt_near": "0.000164",
+  "tokens_burnt_yocto": "163506443646900000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

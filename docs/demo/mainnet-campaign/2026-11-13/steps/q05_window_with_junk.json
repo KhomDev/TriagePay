@@ -1,0 +1,21 @@
+{
+  "id": "q05_window_with_junk",
+  "phase": "info",
+  "test": "agent window with two junk payments held",
+  "expected": "-",
+  "actual": "recorded",
+  "pass": null,
+  "at": "2026-11-13T03:25:39.656Z",
+  "data": {
+    "per_call_max": "1000000",
+    "daily_max": "4000000",
+    "payees": [
+      "gateway.hlpok1lad.tg"
+    ],
+    "active": true,
+    "spent_in_window": "3300000",
+    "remaining": "700000",
+    "window_index": "20770",
+    "resets_at_ns": "1794614400000000000"
+  }
+}

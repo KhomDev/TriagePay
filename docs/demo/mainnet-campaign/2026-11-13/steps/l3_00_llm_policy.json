@@ -1,0 +1,47 @@
+{
+  "id": "l3_00_llm_policy",
+  "phase": "llm_hijacked_review",
+  "test": "owner raises daily_max to 40,000,000 on the review wallet for the LLM round (review stays on: threshold 500,000, unknown payees held)",
+  "signer": "hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "set_agent",
+  "args": {
+    "agent_id": "tp-agent2.hlpok1lad.tg",
+    "per_call_max": "1000000",
+    "daily_max": "40000000",
+    "payees": [
+      "gateway.hlpok1lad.tg"
+    ]
+  },
+  "expected": "success",
+  "actual": "success",
+  "pass": true,
+  "at": "2026-11-13T03:27:59.867Z",
+  "tx_hash": "2QkwsGUvSuZAQjugHDRrwwheAtzmTtAA8Pb4W2K9iDDf",
+  "explorer": "https://nearblocks.io/txns/2QkwsGUvSuZAQjugHDRrwwheAtzmTtAA8Pb4W2K9iDDf",
+  "outcome": "success",
+  "error_code": null,
+  "error_message": null,
+  "return_value": null,
+  "events": [
+    {
+      "standard": "aps_policy_wallet",
+      "event": "agent_set",
+      "data": {
+        "agent_id": "tp-agent2.hlpok1lad.tg",
+        "per_call_max": "1000000",
+        "daily_max": "40000000",
+        "payees": [
+          "gateway.hlpok1lad.tg"
+        ]
+      }
+    }
+  ],
+  "logs": [],
+  "gas_burnt_tgas": 2.167,
+  "tokens_burnt_near": "0.000194",
+  "tokens_burnt_yocto": "194472016535300000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

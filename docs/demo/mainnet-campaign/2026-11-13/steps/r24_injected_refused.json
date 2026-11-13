@@ -1,0 +1,42 @@
+{
+  "id": "r24_injected_refused",
+  "phase": "review",
+  "test": "prompt-injected payee tp-mallory: refused outright",
+  "signer": "tp-agent2.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "pay",
+  "args": {
+    "token": "wrap.near",
+    "receiver_id": "tp-mallory.hlpok1lad.tg",
+    "amount": "1",
+    "memo": null
+  },
+  "expected": "ERR_PAYEE_NOT_ALLOWED",
+  "actual": "ERR_PAYEE_NOT_ALLOWED",
+  "pass": true,
+  "at": "2026-11-13T03:23:56.956Z",
+  "tx_hash": "7EDiEa5r8ayhwLQbHmWbmGoemztQR3eizn23cwj2pNEt",
+  "explorer": "https://nearblocks.io/txns/7EDiEa5r8ayhwLQbHmWbmGoemztQR3eizn23cwj2pNEt",
+  "outcome": "failure",
+  "error_code": "ERR_PAYEE_NOT_ALLOWED",
+  "error_message": "Smart contract panicked: ERR_PAYEE_NOT_ALLOWED: receiver is not on the payee allowlist",
+  "return_value": null,
+  "events": [],
+  "logs": [],
+  "gas_burnt_tgas": 1.86,
+  "tokens_burnt_near": "0.000164",
+  "tokens_burnt_yocto": "163683854671400000000",
+  "balances_before": {
+    "tp-wallet.hlpok1lad.tg": "999999999999998700000",
+    "tp-mallory.hlpok1lad.tg": "1000000"
+  },
+  "balances_after": {
+    "tp-wallet.hlpok1lad.tg": "999999999999998700000",
+    "tp-mallory.hlpok1lad.tg": "1000000"
+  },
+  "note": null,
+  "balance_change": {
+    "tp-wallet.hlpok1lad.tg": "0",
+    "tp-mallory.hlpok1lad.tg": "0"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "w48_spent_after_ghost",
+  "phase": "info",
+  "test": "agent window after the failed transfer (should still be 2,000,000)",
+  "expected": "-",
+  "actual": "recorded",
+  "pass": null,
+  "at": "2026-11-13T02:56:34.110Z",
+  "data": {
+    "per_call_max": "1000000",
+    "daily_max": "4000000",
+    "payees": [
+      "gateway.hlpok1lad.tg",
+      "tp-ghost.hlpok1lad.tg"
+    ],
+    "active": true,
+    "spent_in_window": "2000000",
+    "remaining": "2000000",
+    "window_index": "20770",
+    "resets_at_ns": "1794614400000000000"
+  }
+}

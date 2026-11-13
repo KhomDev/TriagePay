@@ -1,0 +1,28 @@
+{
+  "id": "w37_mallory_pays",
+  "phase": "wallet",
+  "test": "mallory calls pay herself (she is not an agent)",
+  "signer": "tp-mallory.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "pay",
+  "args": {
+    "token": "wrap.near",
+    "receiver_id": "tp-mallory.hlpok1lad.tg",
+    "amount": "1",
+    "memo": null
+  },
+  "expected": "ERR_AGENT_INACTIVE",
+  "actual": "rejected before chain: NotEnoughBalanceError",
+  "pass": false,
+  "at": "2026-11-13T02:55:46.510Z",
+  "tx_hash": null,
+  "outcome": "rejected_before_chain",
+  "error_code": null,
+  "error_type": "NotEnoughBalanceError",
+  "error_message": "Not enough balance for tp-mallory.hlpok1lad.tg (balance: 30000000000000000000000, cost: 40919488833189500000000)",
+  "maybe_hash": null,
+  "tokens_burnt_near": "0",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

@@ -1,0 +1,37 @@
+{
+  "id": "r04_close_old",
+  "phase": "review",
+  "test": "owner closes the old wallet: the account is deleted, its NEAR returns to the owner",
+  "signer": "hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "close",
+  "args": {
+    "beneficiary": "hlpok1lad.tg"
+  },
+  "expected": "success",
+  "actual": "success",
+  "pass": true,
+  "at": "2026-11-13T03:22:25.939Z",
+  "tx_hash": "CX2Xd4QknfcZyLxonZaq3tBQYh8gj92JiJyCtcizzVBi",
+  "explorer": "https://nearblocks.io/txns/CX2Xd4QknfcZyLxonZaq3tBQYh8gj92JiJyCtcizzVBi",
+  "outcome": "success",
+  "error_code": null,
+  "error_message": null,
+  "return_value": null,
+  "events": [
+    {
+      "standard": "aps_policy_wallet",
+      "event": "closed",
+      "data": {
+        "beneficiary": "hlpok1lad.tg"
+      }
+    }
+  ],
+  "logs": [],
+  "gas_burnt_tgas": 6.648,
+  "tokens_burnt_near": "0.000553",
+  "tokens_burnt_yocto": "553287877669500000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

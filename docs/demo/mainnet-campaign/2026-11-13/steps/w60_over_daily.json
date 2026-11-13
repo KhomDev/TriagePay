@@ -1,0 +1,42 @@
+{
+  "id": "w60_over_daily",
+  "phase": "wallet",
+  "test": "agent pays 1 more yocto-wNEAR over the daily cap",
+  "signer": "tp-agent2.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "pay",
+  "args": {
+    "token": "wrap.near",
+    "receiver_id": "gateway.hlpok1lad.tg",
+    "amount": "1",
+    "memo": null
+  },
+  "expected": "ERR_DAILY_LIMIT",
+  "actual": "ERR_DAILY_LIMIT",
+  "pass": true,
+  "at": "2026-11-13T02:57:37.011Z",
+  "tx_hash": "45hcfFNUHujLFcT8L6YECoZT8CLFjScRpBY5kuRfgR4q",
+  "explorer": "https://nearblocks.io/txns/45hcfFNUHujLFcT8L6YECoZT8CLFjScRpBY5kuRfgR4q",
+  "outcome": "failure",
+  "error_code": "ERR_DAILY_LIMIT",
+  "error_message": "Smart contract panicked: ERR_DAILY_LIMIT: payment would exceed the daily limit",
+  "return_value": null,
+  "events": [],
+  "logs": [],
+  "gas_burnt_tgas": 1.828,
+  "tokens_burnt_near": "0.000161",
+  "tokens_burnt_yocto": "160576093411600000000",
+  "balances_before": {
+    "tp-wallet.hlpok1lad.tg": "999999999999994999999",
+    "gateway.hlpok1lad.tg": "4000000"
+  },
+  "balances_after": {
+    "tp-wallet.hlpok1lad.tg": "999999999999994999999",
+    "gateway.hlpok1lad.tg": "4000000"
+  },
+  "note": null,
+  "balance_change": {
+    "tp-wallet.hlpok1lad.tg": "0",
+    "gateway.hlpok1lad.tg": "0"
+  }
+}

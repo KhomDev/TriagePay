@@ -1,0 +1,40 @@
+{
+  "id": "z01_final_views",
+  "phase": "info",
+  "test": "final live views of the review-queue wallet",
+  "expected": "-",
+  "actual": "recorded",
+  "pass": null,
+  "at": "2026-11-13T03:32:48.766Z",
+  "data": {
+    "agent": {
+      "per_call_max": "1000000",
+      "daily_max": "4000000",
+      "payees": [
+        "gateway.hlpok1lad.tg"
+      ],
+      "active": true,
+      "spent_in_window": "2300000",
+      "remaining": "1700000",
+      "window_index": "20770",
+      "resets_at_ns": "1794614400000000000"
+    },
+    "review": {
+      "approval_threshold": "500000",
+      "review_unknown_payees": true,
+      "pending_count": 0,
+      "max_pending": 8
+    },
+    "pending": [],
+    "config": {
+      "owner": "hlpok1lad.tg",
+      "paused": false,
+      "tokens": [
+        "wrap.near"
+      ],
+      "next_payment_id": "23",
+      "event_standard": "aps_policy_wallet",
+      "event_version": "1.0.0"
+    }
+  }
+}

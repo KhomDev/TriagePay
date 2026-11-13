@@ -1,0 +1,27 @@
+{
+  "id": "w32_mallory_withdraw",
+  "phase": "wallet",
+  "test": "mallory withdraws the wallet's wNEAR to herself",
+  "signer": "tp-mallory.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "withdraw",
+  "args": {
+    "token": "wrap.near",
+    "amount": "999999999999999000000",
+    "to": "tp-mallory.hlpok1lad.tg"
+  },
+  "expected": "ERR_NOT_OWNER",
+  "actual": "rejected before chain: NotEnoughBalanceError",
+  "pass": false,
+  "at": "2026-11-13T02:55:39.199Z",
+  "tx_hash": null,
+  "outcome": "rejected_before_chain",
+  "error_code": null,
+  "error_type": "NotEnoughBalanceError",
+  "error_message": "Not enough balance for tp-mallory.hlpok1lad.tg (balance: 30000000000000000000000, cost: 60919516850411500000001)",
+  "maybe_hash": null,
+  "tokens_burnt_near": "0",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

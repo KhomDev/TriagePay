@@ -1,0 +1,30 @@
+{
+  "id": "r23_review_unknown_off",
+  "phase": "review",
+  "test": "owner keeps the amount rule but turns off holding unknown payees",
+  "signer": "hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "set_review_policy",
+  "args": {
+    "approval_threshold": "500000",
+    "review_unknown_payees": false
+  },
+  "expected": "success",
+  "actual": "success",
+  "pass": true,
+  "at": "2026-11-13T03:23:51.618Z",
+  "tx_hash": "AwLWosz6DJPo9VeUNXGc1sA1nGYEAPeCUJx8FpZpEJFc",
+  "explorer": "https://nearblocks.io/txns/AwLWosz6DJPo9VeUNXGc1sA1nGYEAPeCUJx8FpZpEJFc",
+  "outcome": "success",
+  "error_code": null,
+  "error_message": null,
+  "return_value": null,
+  "events": [],
+  "logs": [],
+  "gas_burnt_tgas": 1.85,
+  "tokens_burnt_near": "0.000163",
+  "tokens_burnt_yocto": "162777838070800000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

@@ -1,0 +1,29 @@
+{
+  "id": "w41_register_mallory_on_wrap",
+  "phase": "wallet",
+  "test": "owner registers tp-mallory on wrap.near (storage_deposit 0.00125 NEAR)",
+  "signer": "hlpok1lad.tg",
+  "receiver": "wrap.near",
+  "method": "storage_deposit",
+  "args": {
+    "account_id": "tp-mallory.hlpok1lad.tg"
+  },
+  "expected": "success",
+  "actual": "success",
+  "pass": true,
+  "at": "2026-11-13T02:55:57.518Z",
+  "tx_hash": "B6oYjtyt59USpMwV3gH8AtTqp573PoDxYU1dfN9CETeT",
+  "explorer": "https://nearblocks.io/txns/B6oYjtyt59USpMwV3gH8AtTqp573PoDxYU1dfN9CETeT",
+  "outcome": "success",
+  "error_code": null,
+  "error_message": null,
+  "return_value": "{\"total\":\"1250000000000000000000\",\"available\":\"0\"}",
+  "events": [],
+  "logs": [],
+  "gas_burnt_tgas": 2.104,
+  "tokens_burnt_near": "0.000188",
+  "tokens_burnt_yocto": "188082734495800000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

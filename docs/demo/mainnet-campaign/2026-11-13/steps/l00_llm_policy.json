@@ -1,0 +1,47 @@
+{
+  "id": "l00_llm_policy",
+  "phase": "llm",
+  "test": "owner sets the LLM round's policy: 1,000,000 per call, 40,000,000 per day, [gateway] (the day already holds 4,000,000)",
+  "signer": "hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "set_agent",
+  "args": {
+    "agent_id": "tp-agent2.hlpok1lad.tg",
+    "per_call_max": "1000000",
+    "daily_max": "40000000",
+    "payees": [
+      "gateway.hlpok1lad.tg"
+    ]
+  },
+  "expected": "success",
+  "actual": "success",
+  "pass": true,
+  "at": "2026-11-13T03:01:01.668Z",
+  "tx_hash": "8cJL8PcJbDVDwo1rk1S6HhXj1EYYTdshguRRNGUqc7g2",
+  "explorer": "https://nearblocks.io/txns/8cJL8PcJbDVDwo1rk1S6HhXj1EYYTdshguRRNGUqc7g2",
+  "outcome": "success",
+  "error_code": null,
+  "error_message": null,
+  "return_value": null,
+  "events": [
+    {
+      "standard": "aps_policy_wallet",
+      "event": "agent_set",
+      "data": {
+        "agent_id": "tp-agent2.hlpok1lad.tg",
+        "per_call_max": "1000000",
+        "daily_max": "40000000",
+        "payees": [
+          "gateway.hlpok1lad.tg"
+        ]
+      }
+    }
+  ],
+  "logs": [],
+  "gas_burnt_tgas": 2.143,
+  "tokens_burnt_near": "0.000192",
+  "tokens_burnt_yocto": "192064696923400000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}
