@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="Create a TriagePay policy wallet on NEAR mainnet. The fee is 1 NEAR. The storage is refundable.">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://1click.chaindefuser.com; base-uri 'none'; form-action 'none'">
+<title>TriagePay — create a wallet on mainnet</title>
+<link rel="icon" href="/mark.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="nav">
+  <a class="brand" href="/">
+    <img src="/mark.svg" width="28" height="28" alt="">
+    <span>TriagePay</span>
+  </a>
+  <p class="tag">Mainnet · beta · unaudited</p>
+  <a class="live-badge" href="https://nearblocks.io/address/triagepay.hlpok1lad.tg" rel="noopener" target="_blank">Live on NEAR Mainnet</a>
+  <a class="text-btn" href="/">Sandbox</a>
+</header>
+<main id="main">
+  <section class="hero" aria-labelledby="h-app">
+    <div class="hero-copy">
+      <p class="eyebrow">Your account, your key</p>
+      <h1 id="h-app">Create a wallet on mainnet.</h1>
+      <p class="lead">Beta, unaudited, use small amounts. I have not had this contract audited. A raw <code>ft_transfer</code> can move tokens without the deposit cap the wallet enforces on <code>ft_transfer_call</code>.</p>
+      <p class="lead">The create cost is a <strong>1 NEAR fee</strong> plus <strong>2.52884 NEAR of refundable storage</strong>. The storage is the wallet code (221,884 bytes, 2.21884 NEAR), 0.01000 NEAR of state, and a 0.30000 NEAR working balance so a few holds do not fail with <code>LackBalanceForState</code>. You sign <code>create_wallet</code> on <code>triagepay.hlpok1lad.tg</code>. Anything above that total comes back at once. The fee goes to <code>hlpok1lad.tg</code> only after <code>new</code> succeeds. A failed create refunds the fee and the storage.</p>
+      <p class="lead">The storage comes back when you pause the wallet, withdraw every token, and call <code>close</code> with a beneficiary account that already exists. That deletes the wallet and returns the code stake, the state, and the working balance.</p>
+      <p class="hint">Circle native USDC on NEAR is <code>17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1</code> (6 decimals). Wrapped NEAR is <code>wrap.near</code>. The beta deposit ceiling is 100 USDC and 10 wNEAR. You can set a lower ceiling. You cannot raise it past that.</p>
+      <p class="hint">Each wallet gets its own copy of the code. There is no global contract on this deploy. The factory account itself locks about 2.5 NEAR for its code, and that stays until the factory account is deleted.</p>
+      <p><a class="primary" href="/">Back to the sandbox</a></p>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-topup">
+    <p class="eyebrow">Top up</p>
+    <h2 id="h-topup">Deposit any listed token. The wallet receives USDC.</h2>
+    <p class="lead">This asks the NEAR Intents 1Click API for a quote that settles as Circle USDC on the policy wallet. The token list, the quote, the deposit notice, and the status check are the published <code>/v0</code> routes on <code>1click.chaindefuser.com</code>. A preview uses <code>dry: true</code> and does not create a deposit address. A live quote does.</p>
+    <p class="hint">You sign the deposit in your own wallet. This page has no wallet connection, so it cannot open MyNearWallet, Meteor, HERE, Intear, or HOT for you, and it never asks for a key. For a NEAR token it prints the <code>ft_transfer</code> to sign, with 1 yoctoNEAR attached. For any other chain it prints the deposit address and stops there: I do not invent that chain's transfer. Quotes from this page are unauthenticated, so 1Click adds its public fee. I do not send a JWT.</p>
+    <form id="topup" class="field">
+      <label for="wallet">Policy wallet that should receive the USDC</label>
+      <input id="wallet" type="text" autocomplete="off" spellcheck="false" placeholder="name.triagepay.hlpok1lad.tg">
+      <label for="refund">Your account, for the refund if the swap fails</label>
+      <input id="refund" type="text" autocomplete="off" spellcheck="false" placeholder="you.near">
+      <label for="origin">Token you will send</label>
+      <select id="origin"></select>
+      <label for="amount">Amount, in that token's whole units</label>
+      <input id="amount" type="text" inputmode="decimal" autocomplete="off" value="0.1">
+      <p>
+        <button id="load-tokens" type="button">Reload tokens</button>
+        <button id="preview" type="button">Preview quote</button>
+        <button id="deposit" type="button">Create deposit address</button>
+      </p>
+      <label for="tx">Transaction hash, after you sign</label>
+      <input id="tx" type="text" autocomplete="off" spellcheck="false" placeholder="paste the hash">
+      <p>
+        <button id="submit-tx" type="button">Tell 1Click about the deposit</button>
+        <button id="status" type="button">Check status</button>
+      </p>
+    </form>
+    <pre id="topup-out" class="trace" role="status" aria-live="polite">The token list loads from 1Click.</pre>
+  </section>
+</main>
+<script src="/intents-page.js" type="module"></script>
+</body>
+</html>

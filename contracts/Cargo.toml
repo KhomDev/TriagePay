@@ -4,7 +4,7 @@
 # workspace through the dependency-free `crates/policy-core`.
 [workspace]
 resolver = "2"
-members = ["policy-wallet", "test-token", "tests"]
+members = ["policy-wallet", "wallet-factory", "test-token", "tests"]
 
 [workspace.package]
 version = "0.1.0"
@@ -24,3 +24,4 @@ lto = true
 debug = false
 panic = "abort"
 overflow-checks = true
+strip = true

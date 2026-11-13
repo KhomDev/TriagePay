@@ -17,8 +17,23 @@
 //! token balances are all zero; that deletes the wallet account and returns
 //! its NEAR, including the storage stake, to a beneficiary.
 
+#![warn(clippy::pedantic)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::doc_markdown,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::module_name_repetitions,
+    clippy::must_use_candidate,
+    clippy::needless_pass_by_value,
+    clippy::similar_names,
+    clippy::too_many_lines
+)]
+
 pub mod events;
 
+#[cfg(test)]
+mod properties;
 #[cfg(test)]
 mod tests;
 
@@ -30,8 +45,8 @@ use near_sdk::{
     PanicOnDefault, Promise, PromiseError, PromiseOrValue,
 };
 use policy_core::{
-    next_window_start, window_index, AgentPolicy, PolicyError, ReleaseOutcome, Reservation,
-    WalletGate,
+    next_window_start, window_index, AgentPolicy, HoldQuota, PolicyError, ReleaseOutcome,
+    Reservation, WalletGate, MAX_DAILY_HOLDS_PER_AGENT, MAX_OPEN_HOLDS_PER_AGENT,
 };
 
 /// The caller is not the wallet owner.
@@ -46,6 +61,8 @@ pub const ERR_MEMO_TOO_LONG: &str = "ERR_MEMO_TOO_LONG";
 pub const ERR_TOO_MANY_TOKENS: &str = "ERR_TOO_MANY_TOKENS";
 /// The wallet's own account was used as an agent, payee or destination.
 pub const ERR_SELF_ACCOUNT: &str = "ERR_SELF_ACCOUNT";
+/// `new` was called by someone other than this account or its parent.
+pub const ERR_INIT_NOT_ALLOWED: &str = "ERR_INIT_NOT_ALLOWED";
 /// `close` was called while the wallet is not paused.
 pub const ERR_NOT_PAUSED: &str = "ERR_NOT_PAUSED";
 /// The owner-approval queue already holds [`MAX_PENDING`] payments.
@@ -62,16 +79,39 @@ pub const REASON_ABOVE_THRESHOLD: &str = "above_threshold";
 
 /// Largest accepted memo, in bytes.
 pub const MAX_MEMO_LEN: usize = 256;
-/// Largest token allowlist: one token per wallet.
+/// Largest token allowlist.
 ///
-/// An agent's `per_call_max`, `daily_max` and running total are plain
-/// integers in the token's atomic units, and they are not kept per token.
-/// With two tokens of different decimals allowlisted, a limit sized for
-/// one would let the agent move the other up to the same number: 0.003
-/// of a 24-decimal token is 3 x 10^21 atomic units, which is 3 x 10^15
-/// whole units of a 6-decimal one. One wallet therefore holds one
-/// denomination; a second token needs a second wallet.
-pub const MAX_TOKENS: usize = 1;
+/// Limits and the running total are kept per token. A cap sized for
+/// wNEAR (24 decimals) is not a cap on USDC (6 decimals): each token has
+/// its own `per_call_max`, `daily_max` and window. With one token,
+/// `set_agent` writes that token's limits. With two or more, `set_agent`
+/// only edits the payee list and `set_token_limits` sets each token.
+pub const MAX_TOKENS: usize = 8;
+
+/// Circle native USDC on NEAR mainnet (NEP-141, 6 decimals).
+///
+/// This is the contract Circle publishes as native USDC, not bridged
+/// USDC.e (`a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.factory.bridge.near`).
+/// Source: https://www.circle.com/blog/usdc-is-now-available-on-near
+/// (token address `17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1`)
+/// and https://developers.circle.com/stablecoins/usdc-contract-addresses .
+pub const USDC_MAINNET: &str = "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1";
+/// `wrap.near`, the NEP-141 wrapper for native NEAR (24 decimals).
+pub const WRAP_NEAR: &str = "wrap.near";
+/// Beta ceiling for native USDC: 100 USDC, in 6-decimal atomic units.
+pub const BETA_USDC_CAP: u128 = 100_000_000;
+/// Beta ceiling for wNEAR: 10 wNEAR, in 24-decimal atomic units.
+pub const BETA_WNEAR_CAP: u128 = 10_000_000_000_000_000_000_000_000;
+/// A queued payment is dropped after this long. It never reserved spend.
+pub const HOLD_TTL_NS: u64 = 24 * 60 * 60 * 1_000_000_000;
+
+/// `set_agent` was asked for one pair of limits while several tokens are
+/// allowlisted. Those numbers are not a unit, so they are refused.
+pub const ERR_AMBIGUOUS_LIMITS: &str = "ERR_AMBIGUOUS_LIMITS";
+/// The deposit would put the wallet over its beta cap for that token.
+pub const ERR_BETA_CAP: &str = "ERR_BETA_CAP";
+/// The token is allowlisted, but this agent has no limit for it yet.
+pub const ERR_TOKEN_LIMITS_UNSET: &str = "ERR_TOKEN_LIMITS_UNSET";
 
 /// Gas attached to each `ft_transfer`.
 pub const GAS_FT_TRANSFER: Gas = Gas::from_tgas(15);
@@ -110,8 +150,21 @@ enum StorageKey {
     Pending,
 }
 
-/// An agent's stored policy. Mirrors [`policy_core::AgentPolicy`] with
-/// account ids instead of strings; every change goes through the core.
+/// Limits and spend for one token. Atomic units are that token's own.
+#[near(serializers = [borsh, json])]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TokenBudget {
+    /// The NEP-141 contract these numbers are denominated in.
+    pub token: AccountId,
+    per_call_max: u128,
+    daily_max: u128,
+    spent_in_window: u128,
+    window_index: u64,
+}
+
+/// An agent's stored policy. The legacy fields are the budget of the
+/// wallet's single token. `budgets` holds per-token limits when the
+/// allowlist has more than one token. Hold counters never move spend.
 #[near(serializers = [borsh])]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoredAgent {
@@ -121,6 +174,25 @@ pub struct StoredAgent {
     active: bool,
     spent_in_window: u128,
     window_index: u64,
+    /// Open holds. Mirrors [`HoldQuota::open`].
+    holds_open: u32,
+    /// Holds opened in `holds_window`. Rejecting one does not decrease it.
+    holds_created: u32,
+    /// UTC day `holds_created` belongs to.
+    holds_window: u64,
+    /// Per-token budgets. Empty when the legacy fields are the only budget.
+    budgets: Vec<TokenBudget>,
+}
+
+/// Beta custody of one token: the cap, and how much `ft_on_transfer` has
+/// accepted minus successful withdrawals. A direct `ft_transfer` does not
+/// pass through this counter.
+#[near(serializers = [borsh])]
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TokenCap {
+    token: AccountId,
+    max_balance: u128,
+    custody: u128,
 }
 
 impl StoredAgent {
@@ -128,7 +200,7 @@ impl StoredAgent {
         AgentPolicy::from_parts(
             self.per_call_max,
             self.daily_max,
-            self.payees.iter().map(|p| p.to_string()).collect(),
+            self.payees.iter().map(ToString::to_string).collect(),
             self.active,
             self.spent_in_window,
             self.window_index,
@@ -136,10 +208,18 @@ impl StoredAgent {
         .unwrap_or_else(|e| fail(e))
     }
 
-    fn store_spend(&mut self, policy: &AgentPolicy) {
-        self.active = policy.active();
-        self.spent_in_window = policy.spent_in_window();
-        self.window_index = policy.window_index();
+    fn hold_quota(&self) -> HoldQuota {
+        HoldQuota::from_parts(self.holds_open, self.holds_created, self.holds_window)
+    }
+
+    fn store_quota(&mut self, quota: HoldQuota) {
+        self.holds_open = quota.open();
+        self.holds_created = quota.created_in_window();
+        self.holds_window = quota.window_index();
+    }
+
+    fn allows_payee(&self, payee: &str) -> bool {
+        self.payees.iter().any(|p| p.as_str() == payee)
     }
 }
 
@@ -163,6 +243,30 @@ pub struct AgentView {
     pub window_index: U64,
     /// Block timestamp (ns) at which the window next resets.
     pub resets_at_ns: U64,
+    /// Per-token limits. One entry when the wallet has a single token.
+    pub budgets: Vec<TokenBudgetView>,
+    /// Holds this agent currently has waiting.
+    pub open_holds: u32,
+    /// Holds this agent has opened in the current UTC day.
+    pub holds_today: u32,
+}
+
+/// One token's limits and spend, as of the current block.
+#[near(serializers = [json])]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TokenBudgetView {
+    /// The NEP-141 token contract.
+    pub token: AccountId,
+    /// Largest single payment, in this token's atomic units.
+    pub per_call_max: U128,
+    /// Largest total per UTC day, in this token's atomic units.
+    pub daily_max: U128,
+    /// Spent in the current UTC day.
+    pub spent_in_window: U128,
+    /// Remaining budget in the current UTC day.
+    pub remaining: U128,
+    /// Current UTC day number.
+    pub window_index: U64,
 }
 
 /// A payment reserved against the daily limit and not yet transferred.
@@ -181,8 +285,10 @@ pub struct PendingPayment {
     pub memo: Option<String>,
     /// `new_payee` or `above_threshold`.
     pub reason: String,
-    /// UTC day the amount was reserved in.
+    /// UTC day the hold was checked against. Spend is reserved only on approve.
     pub window_index: u64,
+    /// Block timestamp (ns) when the hold was queued.
+    pub created_at_ns: u64,
 }
 
 /// One queued payment, as returned by `get_pending`.
@@ -203,8 +309,24 @@ pub struct PendingView {
     pub memo: Option<String>,
     /// `new_payee` or `above_threshold`.
     pub reason: String,
-    /// UTC day the amount was reserved in.
+    /// UTC day the hold was checked against. Spend is reserved only on approve.
     pub window_index: U64,
+    /// Block timestamp (ns) when the hold was queued.
+    pub created_at_ns: U64,
+    /// Block timestamp (ns) when the hold expires if still waiting.
+    pub expires_at_ns: U64,
+}
+
+/// A beta deposit cap and how much of it `ft_on_transfer` has used.
+#[near(serializers = [json])]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DepositCapView {
+    /// The NEP-141 token contract.
+    pub token: AccountId,
+    /// Maximum custody, in atomic units. The owner cannot raise a built-in cap.
+    pub max_balance: U128,
+    /// Amount accepted through `ft_on_transfer` and not yet withdrawn.
+    pub custody: U128,
 }
 
 /// Owner-approval settings.
@@ -219,6 +341,12 @@ pub struct ReviewView {
     pub pending_count: u64,
     /// Queue capacity.
     pub max_pending: u64,
+    /// Open holds one agent may have at once.
+    pub max_open_holds_per_agent: u32,
+    /// Holds one agent may open per UTC day.
+    pub max_daily_holds_per_agent: u32,
+    /// Nanoseconds after which a hold is dropped.
+    pub hold_ttl_ns: U64,
 }
 
 /// View of the wallet configuration.
@@ -237,6 +365,8 @@ pub struct ConfigView {
     pub event_standard: String,
     /// NEP-297 event version.
     pub event_version: String,
+    /// Beta deposit caps. Empty when no allowlisted token has a cap.
+    pub deposit_caps: Vec<DepositCapView>,
 }
 
 /// The spend-policy wallet.
@@ -256,6 +386,8 @@ pub struct PolicyWallet {
     approval_threshold: u128,
     /// When true, `pay` to a payee outside the allowlist queues the payment.
     review_unknown_payees: bool,
+    /// Beta caps and custody. Tokens without an entry are uncapped.
+    caps: Vec<TokenCap>,
 }
 
 fn fail(err: PolicyError) -> ! {
@@ -266,13 +398,33 @@ fn fail_with(code: &str, description: &str) -> ! {
     env::panic_str(&format!("{code}: {description}"))
 }
 
+/// `new` is allowed from this account, or from its parent. The parent is the
+/// factory when the wallet was created as `<name>.<factory>`.
+fn assert_initializer() {
+    let me = env::current_account_id();
+    let predecessor = env::predecessor_account_id();
+    if predecessor == me {
+        return;
+    }
+    let parent_ok = me
+        .as_str()
+        .split_once('.')
+        .is_some_and(|(_, parent)| predecessor.as_str() == parent);
+    if !parent_ok {
+        fail_with(
+            ERR_INIT_NOT_ALLOWED,
+            "new may only be called by this account or its parent",
+        );
+    }
+}
+
 fn normalize_tokens(mut tokens: Vec<AccountId>) -> Vec<AccountId> {
     tokens.sort();
     tokens.dedup();
     if tokens.len() > MAX_TOKENS {
         fail_with(
             ERR_TOO_MANY_TOKENS,
-            "one token per wallet: limits are in that token's atomic units",
+            "at most 8 tokens; each token has its own limits",
         );
     }
     if tokens.contains(&env::current_account_id()) {
@@ -283,25 +435,36 @@ fn normalize_tokens(mut tokens: Vec<AccountId>) -> Vec<AccountId> {
 
 #[near]
 impl PolicyWallet {
-    /// Initialize the wallet. Callable once, and only by the wallet account
-    /// itself (deploy and `new` go in one batch transaction). `tokens`
-    /// holds at most one token (see [`MAX_TOKENS`]).
+    /// Initialize the wallet. Callable once.
+    ///
+    /// A direct deploy puts `new` in the same transaction as the deploy, signed
+    /// by this account. The factory puts `new` in the same receipt as
+    /// `create_account` and `deploy_contract`. In that receipt the predecessor
+    /// is the factory, which is this account's parent. Anyone else is refused,
+    /// so a two-step deploy cannot be front-run. `#[init]` still rejects a
+    /// second call.
+    /// `tokens` holds at most [`MAX_TOKENS`] contracts. Native USDC and
+    /// `wrap.near` start with the beta deposit cap; any other token is
+    /// uncapped until `set_deposit_cap`.
     #[init]
-    #[private]
     pub fn new(owner: AccountId, tokens: Vec<AccountId>) -> Self {
+        assert_initializer();
         if owner == env::current_account_id() {
             fail_with(ERR_SELF_ACCOUNT, "the wallet cannot own itself");
         }
+        let tokens = normalize_tokens(tokens);
+        let caps = initial_caps(&tokens);
         Self {
             owner,
             paused: false,
-            tokens: normalize_tokens(tokens),
+            tokens,
             agents: LookupMap::new(StorageKey::Agents),
             next_payment_id: 0,
             pending: LookupMap::new(StorageKey::Pending),
             pending_order: Vec::new(),
             approval_threshold: 0,
             review_unknown_payees: false,
+            caps,
         }
     }
 
@@ -313,13 +476,16 @@ impl PolicyWallet {
     /// Refusals panic with a stable code and change no state: `ERR_PAUSED`,
     /// `ERR_AGENT_INACTIVE`, `ERR_TOKEN_NOT_ALLOWED`, `ERR_PAYEE_NOT_ALLOWED`,
     /// `ERR_ZERO_AMOUNT`, `ERR_PER_CALL_LIMIT`, `ERR_DAILY_LIMIT`,
-    /// `ERR_OVERFLOW`, `ERR_REVIEW_QUEUE_FULL`, plus `ERR_DEPOSIT_NOT_ZERO`,
-    /// `ERR_MEMO_TOO_LONG` and `ERR_INSUFFICIENT_GAS`.
+    /// `ERR_OVERFLOW`, `ERR_REVIEW_QUEUE_FULL`, `ERR_AGENT_OPEN_HOLDS`,
+    /// `ERR_AGENT_DAILY_HOLDS`, `ERR_TOKEN_LIMITS_UNSET`, plus
+    /// `ERR_DEPOSIT_NOT_ZERO`, `ERR_MEMO_TOO_LONG` and `ERR_INSUFFICIENT_GAS`.
     ///
     /// When the owner has turned review on, a new payee or an amount above
-    /// the threshold is reserved and queued instead of transferred. The
-    /// return is then the payment id. Otherwise the return is the transfer
-    /// promise. Review is off until `set_review_policy`.
+    /// the threshold is queued instead of transferred. The hold is checked
+    /// against the caps but does not consume the daily cap. The return is
+    /// then the payment id. Otherwise the return is the transfer promise.
+    /// Review is off until `set_review_policy`. Expired holds are dropped
+    /// before the queue cap is applied.
     pub fn pay(
         &mut self,
         token: AccountId,
@@ -336,6 +502,7 @@ impl PolicyWallet {
         if self.paused {
             fail(PolicyError::Paused);
         }
+        self.sweep_expired();
         let agent_id = env::predecessor_account_id();
         let gate = WalletGate {
             paused: self.paused,
@@ -346,8 +513,10 @@ impl PolicyWallet {
             .agents
             .get(&agent_id)
             .unwrap_or_else(|| fail(PolicyError::AgentInactive))
-            .policy()
-            .is_payee_allowed(receiver_id.as_str());
+            .allows_payee(receiver_id.as_str());
+        if !gate.token_allowed {
+            fail(PolicyError::TokenNotAllowed);
+        }
         let hold_new = self.review_unknown_payees && !allowlisted;
         let hold_amount =
             allowlisted && self.approval_threshold > 0 && amount.0 > self.approval_threshold;
@@ -361,21 +530,40 @@ impl PolicyWallet {
                     "the owner still has payments waiting",
                 );
             }
+            let tokens = self.tokens.clone();
+            let open_now = self.open_holds(&agent_id);
+            let (policy, mut quota) = {
+                let stored = self
+                    .agents
+                    .get(&agent_id)
+                    .unwrap_or_else(|| fail(PolicyError::AgentInactive));
+                let policy = load_policy(&tokens, stored, &token).unwrap_or_else(|| {
+                    fail_with(
+                        ERR_TOKEN_LIMITS_UNSET,
+                        "set a per-token limit before paying this token",
+                    )
+                });
+                (policy, stored.hold_quota())
+            };
+            // Checked, not reserved. A later approve consumes the cap.
+            if hold_new {
+                policy
+                    .check_unlisted(gate, amount.0, now)
+                    .unwrap_or_else(|e| fail(e));
+            } else {
+                policy
+                    .check(gate, receiver_id.as_str(), amount.0, now)
+                    .unwrap_or_else(|e| fail(e));
+            }
+            if open_now >= MAX_OPEN_HOLDS_PER_AGENT as usize {
+                fail(PolicyError::AgentOpenHolds);
+            }
+            quota.try_open(now).unwrap_or_else(|e| fail(e));
             let stored = self
                 .agents
                 .get_mut(&agent_id)
                 .unwrap_or_else(|| fail(PolicyError::AgentInactive));
-            let mut policy = stored.policy();
-            let reservation = if hold_new {
-                policy
-                    .check_and_reserve_unlisted(gate, amount.0, now)
-                    .unwrap_or_else(|e| fail(e))
-            } else {
-                policy
-                    .check_and_reserve(gate, receiver_id.as_str(), amount.0, now)
-                    .unwrap_or_else(|e| fail(e))
-            };
-            stored.store_spend(&policy);
+            stored.store_quota(quota);
             let payment_id = self.alloc_payment_id();
             let reason = if hold_new {
                 REASON_NEW_PAYEE
@@ -391,7 +579,8 @@ impl PolicyWallet {
                     amount: amount.0,
                     memo: memo.clone(),
                     reason: reason.to_string(),
-                    window_index: reservation.window_index,
+                    window_index: window_index(now),
+                    created_at_ns: now,
                 },
             );
             self.pending_order.push(payment_id);
@@ -410,17 +599,23 @@ impl PolicyWallet {
         if env::prepaid_gas() < GAS_MIN_PREPAID {
             fail_with(ERR_INSUFFICIENT_GAS, "attach at least 35 TGas");
         }
+        let tokens = self.tokens.clone();
         let stored = self
             .agents
             .get_mut(&agent_id)
             .unwrap_or_else(|| fail(PolicyError::AgentInactive));
-        let mut policy = stored.policy();
+        let mut policy = load_policy(&tokens, stored, &token).unwrap_or_else(|| {
+            fail_with(
+                ERR_TOKEN_LIMITS_UNSET,
+                "set a per-token limit before paying this token",
+            )
+        });
         let reservation = policy
             .check_and_reserve(gate, receiver_id.as_str(), amount.0, now)
             .unwrap_or_else(|e| fail(e));
-        stored.store_spend(&policy);
+        write_spend(stored, &token, &policy);
         let payment_id = self.alloc_payment_id();
-        PromiseOrValue::Promise(self.schedule_transfer(ScheduledTransfer {
+        PromiseOrValue::Promise(Self::schedule_transfer(ScheduledTransfer {
             agent_id,
             token,
             receiver_id,
@@ -456,22 +651,25 @@ impl PolicyWallet {
             .emit();
             return true;
         }
+        let tokens = self.tokens.clone();
         let release = match self.agents.get_mut(&agent_id) {
-            Some(stored) => {
-                let mut policy = stored.policy();
-                let reservation = Reservation {
-                    amount: amount.0,
-                    window_index: window_index.0,
-                };
-                match policy.release(reservation) {
-                    Ok(ReleaseOutcome::Restored) => {
-                        stored.store_spend(&policy);
-                        ReleaseStatus::Restored
+            Some(stored) => match load_policy(&tokens, stored, &token) {
+                Some(mut policy) => {
+                    let reservation = Reservation {
+                        amount: amount.0,
+                        window_index: window_index.0,
+                    };
+                    match policy.release(reservation) {
+                        Ok(ReleaseOutcome::Restored) => {
+                            write_spend(stored, &token, &policy);
+                            ReleaseStatus::Restored
+                        }
+                        Ok(ReleaseOutcome::WindowExpired) => ReleaseStatus::WindowExpired,
+                        Err(_) => ReleaseStatus::Mismatch,
                     }
-                    Ok(ReleaseOutcome::WindowExpired) => ReleaseStatus::WindowExpired,
-                    Err(_) => ReleaseStatus::Mismatch,
                 }
-            }
+                None => ReleaseStatus::Mismatch,
+            },
             None => ReleaseStatus::Mismatch,
         };
         WalletEvent::PayFailed {
@@ -507,17 +705,38 @@ impl PolicyWallet {
         let mut payees = payees;
         payees.sort();
         payees.dedup();
-        let names: Vec<String> = payees.iter().map(|p| p.to_string()).collect();
-        let policy = match self.agents.get(&agent_id) {
-            Some(existing) => {
+        let names = payee_names(&payees);
+        let previous = self.agents.get(&agent_id).cloned();
+        if self.tokens.len() > 1 {
+            if per_call_max.0 != 0 || daily_max.0 != 0 {
+                fail_with(ERR_AMBIGUOUS_LIMITS, "call set_token_limits once per token");
+            }
+            let mut stored = previous.unwrap_or_else(empty_agent);
+            stored.payees.clone_from(&payees);
+            stored.active = true;
+            self.agents.insert(agent_id.clone(), stored);
+            WalletEvent::AgentSet {
+                agent_id,
+                per_call_max: U128(0),
+                daily_max: U128(0),
+                payees,
+            }
+            .emit();
+            return;
+        }
+        let policy = match &previous {
+            Some(existing) if existing.per_call_max > 0 => {
                 let mut policy = existing.policy();
                 policy
                     .reconfigure(per_call_max.0, daily_max.0, names)
                     .map(|()| policy)
             }
-            None => AgentPolicy::new(per_call_max.0, daily_max.0, names),
+            _ => AgentPolicy::new(per_call_max.0, daily_max.0, names),
         }
         .unwrap_or_else(|e| fail(e));
+        let (holds_open, holds_created, holds_window) = previous.as_ref().map_or((0, 0, 0), |p| {
+            (p.holds_open, p.holds_created, p.holds_window)
+        });
         let stored = StoredAgent {
             per_call_max: policy.per_call_max(),
             daily_max: policy.daily_max(),
@@ -525,6 +744,10 @@ impl PolicyWallet {
             active: policy.active(),
             spent_in_window: policy.spent_in_window(),
             window_index: policy.window_index(),
+            holds_open,
+            holds_created,
+            holds_window,
+            budgets: Vec::new(),
         };
         self.agents.insert(agent_id.clone(), stored);
         WalletEvent::AgentSet {
@@ -544,26 +767,156 @@ impl PolicyWallet {
             .agents
             .get_mut(&agent_id)
             .unwrap_or_else(|| fail(PolicyError::AgentInactive));
-        let mut policy = stored.policy();
-        policy.deactivate();
-        stored.store_spend(&policy);
+        stored.active = false;
         WalletEvent::AgentRevoked { agent_id }.emit();
     }
 
-    /// Replace the token allowlist (at most one token, see [`MAX_TOKENS`]).
+    /// Set one token's per-call and daily limits for an agent that already
+    /// exists. Spend in the current window is kept. The token must be on
+    /// the wallet allowlist. With a single allowlisted token this writes
+    /// the same fields `set_agent` writes.
+    #[payable]
+    pub fn set_token_limits(
+        &mut self,
+        agent_id: AccountId,
+        token: AccountId,
+        per_call_max: U128,
+        daily_max: U128,
+    ) {
+        self.assert_owner();
+        if !self.tokens.contains(&token) {
+            fail(PolicyError::TokenNotAllowed);
+        }
+        let stored = self
+            .agents
+            .get_mut(&agent_id)
+            .unwrap_or_else(|| fail(PolicyError::AgentInactive));
+        let names = payee_names(&stored.payees);
+        if self.tokens.len() == 1 {
+            let policy = if stored.per_call_max > 0 {
+                let mut policy = stored.policy();
+                policy
+                    .reconfigure(per_call_max.0, daily_max.0, names)
+                    .map(|()| policy)
+            } else {
+                AgentPolicy::new(per_call_max.0, daily_max.0, names)
+            }
+            .unwrap_or_else(|e| fail(e));
+            stored.per_call_max = policy.per_call_max();
+            stored.daily_max = policy.daily_max();
+            stored.active = true;
+            stored.spent_in_window = policy.spent_in_window();
+            stored.window_index = policy.window_index();
+            stored.budgets.clear();
+            return;
+        }
+        let names = payee_names(&stored.payees);
+        let previous = stored.budgets.iter().find(|b| b.token == token).map(|b| {
+            (
+                b.per_call_max,
+                b.daily_max,
+                b.spent_in_window,
+                b.window_index,
+            )
+        });
+        let policy = match previous {
+            Some((per_call, daily, spent, window)) => {
+                let mut policy = AgentPolicy::from_parts(
+                    per_call,
+                    daily,
+                    names.clone(),
+                    stored.active,
+                    spent,
+                    window,
+                )
+                .unwrap_or_else(|e| fail(e));
+                policy
+                    .reconfigure(per_call_max.0, daily_max.0, names)
+                    .unwrap_or_else(|e| fail(e));
+                policy
+            }
+            None => {
+                AgentPolicy::new(per_call_max.0, daily_max.0, names).unwrap_or_else(|e| fail(e))
+            }
+        };
+        stored.active = true;
+        if let Some(budget) = stored.budgets.iter_mut().find(|b| b.token == token) {
+            budget.per_call_max = policy.per_call_max();
+            budget.daily_max = policy.daily_max();
+            budget.spent_in_window = policy.spent_in_window();
+            budget.window_index = policy.window_index();
+        } else {
+            stored.budgets.push(TokenBudget {
+                token,
+                per_call_max: policy.per_call_max(),
+                daily_max: policy.daily_max(),
+                spent_in_window: policy.spent_in_window(),
+                window_index: policy.window_index(),
+            });
+        }
+    }
+
+    /// Replace the token allowlist (at most [`MAX_TOKENS`]).
     ///
-    /// Changing to a different token changes the unit every agent's limits
-    /// and current-day total are read in; the numbers themselves stay.
-    /// Pause first, then call `set_agent` for every agent with limits in
-    /// the new token's atomic units before unpausing.
+    /// Each token keeps its own limits. A token with no `set_token_limits`
+    /// (and, when it is the only token, no `set_agent` limits) cannot be
+    /// spent. Custody of a removed token is kept so a withdrawal still
+    /// lowers the beta counter.
     #[payable]
     pub fn set_tokens(&mut self, tokens: Vec<AccountId>) {
         self.assert_owner();
-        self.tokens = normalize_tokens(tokens);
+        let tokens = normalize_tokens(tokens);
+        let mut caps = Vec::new();
+        for token in &tokens {
+            if let Some(existing) = self.caps.iter().find(|c| &c.token == token) {
+                caps.push(existing.clone());
+            } else if let Some(max_balance) = builtin_cap(token) {
+                caps.push(TokenCap {
+                    token: token.clone(),
+                    max_balance,
+                    custody: 0,
+                });
+            }
+        }
+        for old in &self.caps {
+            if !tokens.contains(&old.token) && old.custody > 0 {
+                caps.push(old.clone());
+            }
+        }
+        self.tokens = tokens;
+        self.caps = caps;
         WalletEvent::TokensSet {
             tokens: self.tokens.clone(),
         }
         .emit();
+    }
+
+    /// Lower, or set, the beta deposit cap for an allowlisted token.
+    ///
+    /// Native USDC and `wrap.near` have a built-in ceiling. The owner can
+    /// set a lower cap and can raise it back up to that ceiling, not past
+    /// it. Any other token starts uncapped; the owner may set a cap of
+    /// their own.
+    #[payable]
+    pub fn set_deposit_cap(&mut self, token: AccountId, max_balance: U128) {
+        self.assert_owner();
+        if !self.tokens.contains(&token) {
+            fail(PolicyError::TokenNotAllowed);
+        }
+        if let Some(hard) = builtin_cap(&token) {
+            if max_balance.0 > hard {
+                fail_with(ERR_BETA_CAP, "cannot raise the beta cap");
+            }
+        }
+        if let Some(cap) = self.caps.iter_mut().find(|c| c.token == token) {
+            cap.max_balance = max_balance.0;
+        } else {
+            self.caps.push(TokenCap {
+                token,
+                max_balance: max_balance.0,
+                custody: 0,
+            });
+        }
     }
 
     /// Pause every agent payment.
@@ -595,7 +948,9 @@ impl PolicyWallet {
     /// greater. `review_unknown_payees` queues a payee that is not on the
     /// allowlist; while it is false, that payee is still `ERR_PAYEE_NOT_ALLOWED`.
     /// Either way the per-call limit, the daily limit, the token allowlist,
-    /// pause, and revocation still apply, and the queued amount is reserved.
+    /// pause, and revocation still apply. A hold is checked against those
+    /// caps and does not consume the daily cap; `approve_payment` checks
+    /// them again and reserves the amount then.
     #[payable]
     pub fn set_review_policy(&mut self, approval_threshold: U128, review_unknown_payees: bool) {
         self.assert_owner();
@@ -603,10 +958,11 @@ impl PolicyWallet {
         self.review_unknown_payees = review_unknown_payees;
     }
 
-    /// Pay a queued payment. Owner only. The reservation from `pay` is kept;
-    /// a failed transfer releases it in `on_pay_complete`. Refuses while the
-    /// wallet is paused or the agent is inactive, and leaves the queue entry
-    /// in place so the owner can `reject_payment` instead.
+    /// Pay a queued payment. Owner only. The caps are checked again and the
+    /// amount is reserved now; a failed transfer releases it in
+    /// `on_pay_complete`. Refuses while the wallet is paused, the agent is
+    /// inactive, or the caps no longer allow the amount, and leaves the
+    /// queue entry in place so the owner can `reject_payment` instead.
     #[payable]
     pub fn approve_payment(&mut self, payment_id: U64) -> Promise {
         self.assert_owner();
@@ -616,60 +972,105 @@ impl PolicyWallet {
         if self.paused {
             fail(PolicyError::Paused);
         }
+        self.sweep_expired();
         let pending =
             self.pending.get(&payment_id.0).cloned().unwrap_or_else(|| {
                 fail_with(ERR_NOT_PENDING, "no payment is waiting with that id")
             });
+        let tokens = self.tokens.clone();
+        let now = env::block_timestamp();
+        let gate = WalletGate {
+            paused: self.paused,
+            token_allowed: self.tokens.contains(&pending.token),
+        };
+        let reservation = {
+            let stored = self
+                .agents
+                .get(&pending.agent_id)
+                .unwrap_or_else(|| fail(PolicyError::AgentInactive));
+            if !stored.active {
+                fail(PolicyError::AgentInactive);
+            }
+            let mut policy = load_policy(&tokens, stored, &pending.token).unwrap_or_else(|| {
+                fail_with(
+                    ERR_TOKEN_LIMITS_UNSET,
+                    "set a per-token limit before approving this token",
+                )
+            });
+            // The owner is authorizing the payee. Caps still apply.
+            let reservation = policy
+                .check_and_reserve_unlisted(gate, pending.amount, now)
+                .unwrap_or_else(|e| fail(e));
+            (policy, reservation)
+        };
+        let (policy, reservation) = reservation;
         let stored = self
             .agents
-            .get(&pending.agent_id)
+            .get_mut(&pending.agent_id)
             .unwrap_or_else(|| fail(PolicyError::AgentInactive));
-        if !stored.policy().active() {
-            fail(PolicyError::AgentInactive);
-        }
+        write_spend(stored, &pending.token, &policy);
+        let mut quota = stored.hold_quota();
+        quota.close_one();
+        stored.store_quota(quota);
         self.take_pending(payment_id.0);
-        self.schedule_transfer(ScheduledTransfer {
+        Self::schedule_transfer(ScheduledTransfer {
             agent_id: pending.agent_id,
             token: pending.token,
             receiver_id: pending.receiver_id,
             amount: U128(pending.amount),
             memo: pending.memo,
             payment_id: payment_id.0,
-            window_index: pending.window_index,
+            window_index: reservation.window_index,
         })
     }
 
-    /// Drop a queued payment and return its reservation to the agent's
-    /// window when that window is still current. Works while paused, so a
-    /// paused wallet can release a hold.
+    /// Drop a queued payment. A hold never reserved daily budget, so the
+    /// agent's spend does not change. Works while paused.
     #[payable]
     pub fn reject_payment(&mut self, payment_id: U64) {
         self.assert_owner();
-        let pending = self.take_pending(payment_id.0);
-        let release = match self.agents.get_mut(&pending.agent_id) {
-            Some(stored) => {
-                let mut policy = stored.policy();
-                let reservation = Reservation {
-                    amount: pending.amount,
-                    window_index: pending.window_index,
-                };
-                match policy.release(reservation) {
-                    Ok(ReleaseOutcome::Restored) => {
-                        stored.store_spend(&policy);
-                        ReleaseStatus::Restored
-                    }
-                    Ok(ReleaseOutcome::WindowExpired) => ReleaseStatus::WindowExpired,
-                    Err(_) => ReleaseStatus::Mismatch,
-                }
-            }
-            None => ReleaseStatus::Mismatch,
-        };
-        WalletEvent::PaymentRejected {
-            payment_id,
-            agent_id: pending.agent_id,
-            release,
+        self.sweep_expired();
+        self.drop_hold(payment_id.0);
+    }
+
+    /// Drop each listed hold. Unknown ids fail the call. At most
+    /// [`MAX_PENDING`] ids. Duplicates are ignored after the first.
+    #[payable]
+    pub fn reject_payments(&mut self, payment_ids: Vec<U64>) {
+        self.assert_owner();
+        if payment_ids.len() > MAX_PENDING {
+            fail_with(ERR_REVIEW_QUEUE_FULL, "too many payment ids");
         }
-        .emit();
+        self.sweep_expired();
+        let mut seen = Vec::new();
+        for id in payment_ids {
+            if seen.contains(&id.0) {
+                continue;
+            }
+            seen.push(id.0);
+            self.drop_hold(id.0);
+        }
+    }
+
+    /// Drop every hold. Returns how many were dropped.
+    #[payable]
+    pub fn reject_all(&mut self) -> U64 {
+        self.assert_owner();
+        self.sweep_expired();
+        let ids = self.pending_order.clone();
+        let n = ids.len() as u64;
+        for id in ids {
+            self.drop_hold(id);
+        }
+        U64(n)
+    }
+
+    /// Drop holds older than [`HOLD_TTL_NS`]. Anyone may call this: it moves
+    /// no tokens and frees queue slots. Returns how many were dropped.
+    pub fn expire_holds(&mut self) -> U64 {
+        let before = self.pending_order.len();
+        self.sweep_expired();
+        U64((before - self.pending_order.len()) as u64)
     }
 
     /// Transfer `amount` of any token the wallet holds to `to`. Works while
@@ -702,6 +1103,9 @@ impl PolicyWallet {
     #[private]
     pub fn on_withdraw_complete(&mut self, token: AccountId, amount: U128, to: AccountId) -> bool {
         if transfer_succeeded() {
+            if let Some(cap) = self.caps.iter_mut().find(|c| c.token == token) {
+                cap.custody = cap.custody.saturating_sub(amount.0);
+            }
             WalletEvent::Withdrawn { token, amount, to }.emit();
             true
         } else {
@@ -818,6 +1222,16 @@ impl PolicyWallet {
         if !self.tokens.contains(&token) {
             fail(PolicyError::TokenNotAllowed);
         }
+        if let Some(cap) = self.caps.iter_mut().find(|c| c.token == token) {
+            let next = cap
+                .custody
+                .checked_add(amount.0)
+                .unwrap_or_else(|| fail_with(ERR_BETA_CAP, "beta deposit cap exceeded"));
+            if next > cap.max_balance {
+                fail_with(ERR_BETA_CAP, "beta deposit cap exceeded");
+            }
+            cap.custody = next;
+        }
         WalletEvent::Funded {
             token,
             sender_id,
@@ -833,29 +1247,54 @@ impl PolicyWallet {
     pub fn get_agent(&self, agent_id: AccountId) -> Option<AgentView> {
         let now = env::block_timestamp();
         self.agents.get(&agent_id).map(|stored| {
-            let policy = stored.policy();
+            let budgets = self.budget_views(stored, now);
+            let (spent, remaining, window) = if stored.per_call_max == 0 {
+                (0, 0, stored.window_index)
+            } else {
+                let policy = stored.policy();
+                (
+                    policy.spent_at(now),
+                    policy.remaining_at(now),
+                    window_index(now).max(stored.window_index),
+                )
+            };
+            let holds_today = holds_today(stored, now);
             AgentView {
                 per_call_max: U128(stored.per_call_max),
                 daily_max: U128(stored.daily_max),
                 payees: stored.payees.clone(),
                 active: stored.active,
-                spent_in_window: U128(policy.spent_at(now)),
-                remaining: U128(policy.remaining_at(now)),
-                window_index: U64(window_index(now).max(stored.window_index)),
+                spent_in_window: U128(spent),
+                remaining: U128(remaining),
+                window_index: U64(window),
                 resets_at_ns: U64(next_window_start(now)),
+                budgets,
+                open_holds: stored.holds_open,
+                holds_today,
             }
         })
     }
 
-    /// Spent in the current UTC day by `agent_id`; zero when unknown.
+    /// Spent in the current UTC day by `agent_id` on the single-token budget;
+    /// zero when unknown or when limits are per token. Use [`get_token_spent`]
+    /// for one token.
     pub fn get_spent(&self, agent_id: AccountId) -> U128 {
         let now = env::block_timestamp();
         U128(
             self.agents
                 .get(&agent_id)
-                .map(|stored| stored.policy().spent_at(now))
-                .unwrap_or(0),
+                .filter(|stored| stored.per_call_max > 0)
+                .map_or(0, |stored| stored.policy().spent_at(now)),
         )
+    }
+
+    /// Spent in the current UTC day by `agent_id` on `token`.
+    pub fn get_token_spent(&self, agent_id: AccountId, token: AccountId) -> U128 {
+        let now = env::block_timestamp();
+        let Some(stored) = self.agents.get(&agent_id) else {
+            return U128(0);
+        };
+        U128(load_policy(&self.tokens, stored, &token).map_or(0, |policy| policy.spent_at(now)))
     }
 
     /// Payments waiting for the owner, oldest first.
@@ -872,6 +1311,8 @@ impl PolicyWallet {
                     memo: pending.memo.clone(),
                     reason: pending.reason.clone(),
                     window_index: U64(pending.window_index),
+                    created_at_ns: U64(pending.created_at_ns),
+                    expires_at_ns: U64(pending.created_at_ns.saturating_add(HOLD_TTL_NS)),
                 })
             })
             .collect()
@@ -884,6 +1325,9 @@ impl PolicyWallet {
             review_unknown_payees: self.review_unknown_payees,
             pending_count: self.pending_order.len() as u64,
             max_pending: MAX_PENDING as u64,
+            max_open_holds_per_agent: MAX_OPEN_HOLDS_PER_AGENT,
+            max_daily_holds_per_agent: MAX_DAILY_HOLDS_PER_AGENT,
+            hold_ttl_ns: U64(HOLD_TTL_NS),
         }
     }
 
@@ -896,6 +1340,15 @@ impl PolicyWallet {
             next_payment_id: U64(self.next_payment_id),
             event_standard: events::EVENT_STANDARD.to_string(),
             event_version: events::EVENT_VERSION.to_string(),
+            deposit_caps: self
+                .caps
+                .iter()
+                .map(|cap| DepositCapView {
+                    token: cap.token.clone(),
+                    max_balance: U128(cap.max_balance),
+                    custody: U128(cap.custody),
+                })
+                .collect(),
         }
     }
 }
@@ -928,7 +1381,85 @@ impl PolicyWallet {
         pending
     }
 
-    fn schedule_transfer(&self, transfer: ScheduledTransfer) -> Promise {
+    fn open_holds(&self, agent_id: &AccountId) -> usize {
+        self.pending_order
+            .iter()
+            .filter(|id| {
+                self.pending
+                    .get(*id)
+                    .is_some_and(|pending| &pending.agent_id == agent_id)
+            })
+            .count()
+    }
+
+    fn sweep_expired(&mut self) {
+        let now = env::block_timestamp();
+        let expired: Vec<u64> = self
+            .pending_order
+            .iter()
+            .copied()
+            .filter(|id| {
+                self.pending
+                    .get(id)
+                    .is_some_and(|pending| now.saturating_sub(pending.created_at_ns) >= HOLD_TTL_NS)
+            })
+            .collect();
+        for id in expired {
+            let pending = self.take_pending(id);
+            self.close_hold_slot(&pending.agent_id);
+            WalletEvent::PaymentExpired {
+                payment_id: U64(id),
+                agent_id: pending.agent_id,
+            }
+            .emit();
+        }
+    }
+
+    fn drop_hold(&mut self, payment_id: u64) {
+        let pending = self.take_pending(payment_id);
+        self.close_hold_slot(&pending.agent_id);
+        WalletEvent::PaymentRejected {
+            payment_id: U64(payment_id),
+            agent_id: pending.agent_id,
+            release: ReleaseStatus::Unreserved,
+        }
+        .emit();
+    }
+
+    fn close_hold_slot(&mut self, agent_id: &AccountId) {
+        if let Some(stored) = self.agents.get_mut(agent_id) {
+            let mut quota = stored.hold_quota();
+            quota.close_one();
+            stored.store_quota(quota);
+        }
+    }
+
+    fn budget_views(&self, stored: &StoredAgent, now: u64) -> Vec<TokenBudgetView> {
+        if !stored.budgets.is_empty() {
+            return stored
+                .budgets
+                .iter()
+                .map(|budget| budget_view(stored, budget, now))
+                .collect();
+        }
+        if stored.per_call_max == 0 {
+            return Vec::new();
+        }
+        let Some(token) = self.tokens.first() else {
+            return Vec::new();
+        };
+        let policy = stored.policy();
+        vec![TokenBudgetView {
+            token: token.clone(),
+            per_call_max: U128(stored.per_call_max),
+            daily_max: U128(stored.daily_max),
+            spent_in_window: U128(policy.spent_at(now)),
+            remaining: U128(policy.remaining_at(now)),
+            window_index: U64(window_index(now).max(stored.window_index)),
+        }]
+    }
+
+    fn schedule_transfer(transfer: ScheduledTransfer) -> Promise {
         let ScheduledTransfer {
             agent_id,
             token,
@@ -979,4 +1510,120 @@ impl PolicyWallet {
 /// non-empty success payload counts as success; it is not read.
 fn transfer_succeeded() -> bool {
     !matches!(env::promise_result_checked(0, 0), Err(PromiseError::Failed))
+}
+
+fn payee_names(payees: &[AccountId]) -> Vec<String> {
+    payees.iter().map(ToString::to_string).collect()
+}
+
+fn empty_agent() -> StoredAgent {
+    StoredAgent {
+        per_call_max: 0,
+        daily_max: 0,
+        payees: Vec::new(),
+        active: true,
+        spent_in_window: 0,
+        window_index: 0,
+        holds_open: 0,
+        holds_created: 0,
+        holds_window: 0,
+        budgets: Vec::new(),
+    }
+}
+
+/// Built-in beta ceiling for a known mainnet token, if this id is one.
+fn builtin_cap(token: &AccountId) -> Option<u128> {
+    match token.as_str() {
+        USDC_MAINNET => Some(BETA_USDC_CAP),
+        WRAP_NEAR => Some(BETA_WNEAR_CAP),
+        _ => None,
+    }
+}
+
+fn initial_caps(tokens: &[AccountId]) -> Vec<TokenCap> {
+    tokens
+        .iter()
+        .filter_map(|token| {
+            builtin_cap(token).map(|max_balance| TokenCap {
+                token: token.clone(),
+                max_balance,
+                custody: 0,
+            })
+        })
+        .collect()
+}
+
+/// The policy that applies to `token`, or `None` when that token has no limits.
+fn load_policy(
+    tokens: &[AccountId],
+    stored: &StoredAgent,
+    token: &AccountId,
+) -> Option<AgentPolicy> {
+    if let Some(budget) = stored.budgets.iter().find(|b| &b.token == token) {
+        return AgentPolicy::from_parts(
+            budget.per_call_max,
+            budget.daily_max,
+            payee_names(&stored.payees),
+            stored.active,
+            budget.spent_in_window,
+            budget.window_index,
+        )
+        .ok();
+    }
+    if tokens.len() == 1 && &tokens[0] == token && stored.per_call_max > 0 {
+        return AgentPolicy::from_parts(
+            stored.per_call_max,
+            stored.daily_max,
+            payee_names(&stored.payees),
+            stored.active,
+            stored.spent_in_window,
+            stored.window_index,
+        )
+        .ok();
+    }
+    None
+}
+
+fn write_spend(stored: &mut StoredAgent, token: &AccountId, policy: &AgentPolicy) {
+    stored.active = policy.active();
+    if let Some(budget) = stored.budgets.iter_mut().find(|b| &b.token == token) {
+        budget.per_call_max = policy.per_call_max();
+        budget.daily_max = policy.daily_max();
+        budget.spent_in_window = policy.spent_in_window();
+        budget.window_index = policy.window_index();
+        return;
+    }
+    stored.per_call_max = policy.per_call_max();
+    stored.daily_max = policy.daily_max();
+    stored.spent_in_window = policy.spent_in_window();
+    stored.window_index = policy.window_index();
+}
+
+fn holds_today(stored: &StoredAgent, now: u64) -> u32 {
+    let window = window_index(now).max(stored.holds_window);
+    if window > stored.holds_window {
+        0
+    } else {
+        stored.holds_created
+    }
+}
+
+fn budget_view(stored: &StoredAgent, budget: &TokenBudget, now: u64) -> TokenBudgetView {
+    let policy = AgentPolicy::from_parts(
+        budget.per_call_max,
+        budget.daily_max,
+        payee_names(&stored.payees),
+        stored.active,
+        budget.spent_in_window,
+        budget.window_index,
+    )
+    .unwrap_or_else(|e| fail(e));
+    TokenBudgetView {
+        token: budget.token.clone(),
+        per_call_max: U128(budget.per_call_max),
+        daily_max: U128(budget.daily_max),
+        spent_in_window: U128(policy.spent_at(now)),
+        remaining: U128(policy.remaining_at(now)),
+        window_index: U64(window_index(now).max(budget.window_index)),
+    }
 }
