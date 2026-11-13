@@ -103,7 +103,8 @@ The mainnet script is `scripts/mainnet/mainnet-e2e.mjs`. `--dry-run` prints the 
 ```text
 cd contracts
 rustup target add wasm32-unknown-unknown
-RUSTFLAGS="--cfg near --remap-path-prefix=${CARGO_HOME}=/cargo --remap-path-prefix=${RUSTUP_HOME}=/rustup --remap-path-prefix=/usr/local/cargo=/cargo --remap-path-prefix=/usr/local/rustup=/rustup --remap-path-prefix=$PWD=/src" \
+REG=$(echo "$CARGO_HOME"/registry/src/index.crates.io-*)
+RUSTFLAGS="--cfg near --remap-path-prefix=${CARGO_HOME}=/cargo --remap-path-prefix=${RUSTUP_HOME}=/rustup --remap-path-prefix=/usr/local/cargo=/cargo --remap-path-prefix=/usr/local/rustup=/rustup --remap-path-prefix=$PWD=/src --remap-path-prefix=${REG}=/cargo/registry/src" \
   cargo build -p policy-wallet -p wallet-factory --target wasm32-unknown-unknown --release
 wasm-opt -Oz --strip-debug --strip-producers --enable-bulk-memory \
   --enable-nontrapping-float-to-int --enable-sign-ext \

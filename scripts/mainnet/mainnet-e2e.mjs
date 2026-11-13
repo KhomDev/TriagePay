@@ -76,7 +76,8 @@ function printBudget(factoryBytes) {
   console.log("Deploy, from contracts/, with the key only in the environment:");
   console.log("  rustup target add wasm32-unknown-unknown");
   console.log("  sudo apt-get install -y binaryen   # wasm-opt 108");
-  console.log('  RUSTFLAGS="--cfg near --remap-path-prefix=${CARGO_HOME}=/cargo --remap-path-prefix=${RUSTUP_HOME}=/rustup --remap-path-prefix=/usr/local/cargo=/cargo --remap-path-prefix=/usr/local/rustup=/rustup --remap-path-prefix=$PWD=/src" \\');
+  console.log('  REG=$(echo "$CARGO_HOME"/registry/src/index.crates.io-*)');
+  console.log('  RUSTFLAGS="--cfg near --remap-path-prefix=${CARGO_HOME}=/cargo --remap-path-prefix=${RUSTUP_HOME}=/rustup --remap-path-prefix=/usr/local/cargo=/cargo --remap-path-prefix=/usr/local/rustup=/rustup --remap-path-prefix=$PWD=/src --remap-path-prefix=${REG}=/cargo/registry/src" \\');
   console.log("    cargo build -p policy-wallet -p wallet-factory --target wasm32-unknown-unknown --release");
   console.log("  wasm-opt -Oz --strip-debug --strip-producers --enable-bulk-memory --enable-nontrapping-float-to-int --enable-sign-ext \\");
   console.log("    target/wasm32-unknown-unknown/release/wallet_factory.wasm -o target/near/wallet_factory/wallet_factory.wasm");
