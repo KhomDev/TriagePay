@@ -284,7 +284,9 @@ export async function getDashboard() {
       allowlistSource: chainPayees ? "chain" : "config",
       resetsAt: agent ? nsToIso(agent.resets_at_ns) : null,
     },
-    scenarios: listScenarios(config).map(scenarioView),
+    scenarios: listScenarios(config)
+      .filter((scenario) => scenario.id !== "review-payee" || Boolean(review && review.reviewUnknownPayees))
+      .map(scenarioView),
     risks,
     review: review && review.supported
       ? {

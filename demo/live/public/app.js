@@ -62,8 +62,9 @@
       if (scenario.id === "review-payee" && !reviewOn) return;
       select.appendChild(el("option", { value: scenario.id }, scenario.title));
     });
-    if (current && scenarios.some(function (item) { return item.id === current; })) select.value = current;
-    else if (scenarios.some(function (item) { return item.id === "injected-payee"; })) select.value = "injected-payee";
+    var offered = Array.prototype.map.call(select.options, function (option) { return option.value; });
+    if (current && offered.indexOf(current) !== -1) select.value = current;
+    else if (offered.indexOf("injected-payee") !== -1) select.value = "injected-payee";
     paintScenario();
     var injected = scenarios.filter(function (item) { return item.id === "injected-payee"; })[0];
     if (injected && injected.injection) $("inject-line").textContent = injected.injection;
@@ -143,16 +144,13 @@
       $("btn-queue").disabled = true;
       return;
     }
+    var threshold = review.approvalThresholdDisplay || review.approvalThreshold || "0";
     copy.appendChild(document.createTextNode(
-      review.reviewUnknownPayees
-        ? "Unknown payees are queued on chain. "
-        : "Unknown payees are still refused. "
+      "An attacker payee is refused, not held. A payment above " + threshold + " is held. Queue one, then Approve it. " +
+      (review.pendingCount || 0) + " waiting."
     ));
-    copy.appendChild(document.createTextNode(
-      "Approval threshold " + (review.approvalThresholdDisplay || review.approvalThreshold || "0") + ". " + (review.pendingCount || 0) + " waiting."
-    ));
-    state.queueScenario = review.reviewUnknownPayees ? "review-payee" : (BigInt(review.approvalThreshold || "0") > 0n ? "above-threshold" : null);
-    $("btn-queue").textContent = state.queueScenario === "review-payee" ? "Queue a new payee" : "Queue a payment above the threshold";
+    state.queueScenario = BigInt(review.approvalThreshold || "0") > 0n ? "above-threshold" : null;
+    $("btn-queue").textContent = "Queue a payment above the threshold";
     $("btn-queue").disabled = !state.queueScenario || state.busy;
     var rows = review.pending || [];
     if (!rows.length) {
@@ -759,10 +757,10 @@
     var steps = $("review-flow").querySelectorAll(".step");
     steps.forEach(function (node) { node.classList.remove("is-on", "is-bad"); });
     for (var i = 0; i < steps.length; i++) {
-      steps[i].classList.add(i === steps.length - 1 ? "is-bad" : "is-on");
+      steps[i].classList.add("is-on");
       await sleep(220);
     }
-    paintResult($("review-result"), "Walkthrough only. No transaction was sent. On the wallet, a held payment waits until I approve or reject it.", false);
+    paintResult($("review-result"), "Walkthrough only. No transaction was sent. Queue a payment above the threshold, then Approve it. That hold is the owner-review path.", false);
   }
 
   async function onAttest() {
