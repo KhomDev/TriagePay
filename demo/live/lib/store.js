@@ -50,6 +50,19 @@ export function upstashStore(url, token, fetchImpl = fetch) {
     async del(key) {
       return Number(await command(["DEL", key]));
     },
+    async set(key, value) {
+      return command(["SET", key, String(value)]);
+    },
+    async lpush(key, value) {
+      return Number(await command(["LPUSH", key, String(value)]));
+    },
+    async ltrim(key, start, stop) {
+      return command(["LTRIM", key, String(start), String(stop)]);
+    },
+    async lrange(key, start, stop) {
+      const rows = await command(["LRANGE", key, String(start), String(stop)]);
+      return Array.isArray(rows) ? rows.map((row) => String(row)) : [];
+    },
   };
 }
 
@@ -104,6 +117,32 @@ export function memoryStore(now = () => Date.now()) {
       const had = data.delete(key);
       expiry.delete(key);
       return had ? 1 : 0;
+    },
+    async set(key, value) {
+      live(key);
+      data.set(key, String(value));
+      return "OK";
+    },
+    async lpush(key, value) {
+      live(key);
+      const cur = data.get(key);
+      const list = Array.isArray(cur) ? cur : [];
+      list.unshift(String(value));
+      data.set(key, list);
+      return list.length;
+    },
+    async ltrim(key, start, stop) {
+      live(key);
+      const cur = data.get(key);
+      if (!Array.isArray(cur)) return "OK";
+      data.set(key, cur.slice(start, stop + 1));
+      return "OK";
+    },
+    async lrange(key, start, stop) {
+      live(key);
+      const cur = data.get(key);
+      if (!Array.isArray(cur)) return [];
+      return cur.slice(start, stop + 1).map(String);
     },
   };
 }

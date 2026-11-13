@@ -163,6 +163,30 @@ a revoke ([`revoke_agent`](https://testnet.nearblocks.io/txns/5qZ5yQAPTm5dFg7i45
 and a revoked-agent refusal
 ([`ERR_AGENT_INACTIVE`](https://testnet.nearblocks.io/txns/3iHytU9nkYuqPh74its9TPW3MwQoUJeaPQg1nbGGyQTZ)).
 
+## Judge page additions
+
+The chain is still the part that says no. Setup for each path is in [docs/demo/live-features.md](docs/demo/live-features.md).
+
+### Drain Me
+
+Anyone can type a prompt injection and try to make the agent pay an attacker account. I run that text through the agent, then through the same pay path as Launch. I do not sign a payment the wallet would settle, so the drained total stays at 0 unless that check is wrong. If it is wrong, the counter shows the settled amount. The feed keeps a shortened, redacted line and the transaction link. Each address is capped (`TRIAGEPAY_DRAIN_IP_LIMIT`, default 3 per `TRIAGEPAY_DRAIN_WINDOW_SECONDS`, default 600). The cap uses the shared store when one is set, and this process's memory otherwise. A signed attempt still has to pass the daily cap from that store or the chain index.
+
+### A model that falls for it
+
+When `NEARAI_API_KEY` is set, Launch and Drain Me call a NEAR AI Cloud model (`NEARAI_MODEL`, default `z-ai/glm-5.3-flash`). The finding contains the injected pay instruction. The model's own tool call is what I submit, and the page streams that reasoning before the wallet answers. With no key, or if the call fails, I use the scripted agent and the page says `scripted`.
+
+### Explain-why receipts
+
+A refusal, a hold, an approval, and a rejection each get a receipt: what the agent tried, the rule and the contract error code, the amount, the payee, and the transaction link. Save card hits `/api/og` and returns a PNG. Share on X includes `built at NEAR HACKATHON @NEARProtocol #NEARHackathon`.
+
+### Telegram approval
+
+When a payment is held and `TELEGRAM_BOT_TOKEN` plus `TELEGRAM_OWNER_CHAT_ID` are set, I message that chat with Approve and Reject. `/api/telegram` checks `TELEGRAM_WEBHOOK_SECRET` and the chat id, then calls the same approve and reject path as the page. If those variables are unset, the page says so and the buttons on the page still work.
+
+### Kill switch
+
+With `KILL_SWITCH_SECRET` set, I mint a signed link and a QR code. It expires (`KILL_SWITCH_TTL_SECONDS`, default 600), and it works once. Opening it revokes the agent. The server still holds `TRIAGEPAY_OWNER_SECRET_KEY`, as Revoke already does. Single-use across instances needs the shared store. Without the secret, the card says I cannot mint a link.
+
 ## The problem
 
 An agent that holds a normal NEAR key can empty its account the first time a
