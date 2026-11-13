@@ -5,7 +5,7 @@
 import { describeAttack } from "./attacks.js";
 import { fetchIndexerPage } from "./facts.js";
 import { formatAtomic } from "./format.js";
-import { rpc } from "./near.js";
+import { historyRpc } from "./near.js";
 import { RULE_TEXT } from "./receipt.js";
 
 const resolved = new Map();
@@ -125,7 +125,7 @@ export function replayFromChain(config, hash, pay) {
 async function fetchOne(rpcUrl, hash, signers) {
   for (const signer of signers.filter(Boolean)) {
     try {
-      const status = await rpc(rpcUrl, "EXPERIMENTAL_tx_status", {
+      const status = await historyRpc(rpcUrl, "EXPERIMENTAL_tx_status", {
         tx_hash: hash,
         sender_account_id: signer,
         wait_until: "NONE",

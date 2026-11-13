@@ -200,14 +200,43 @@ export async function signCall({ rpcUrl, signerId, secretKey, receiverId, action
   }
 }
 
+// Regular RPC nodes keep about five epochs (two to three days). Older
+// transactions and blocks are served only by the archival nodes, so every
+// read of a recorded transaction falls back to them.
+const ARCHIVAL = {
+  "test.rpc.fastnear.com": "https://archival-rpc.testnet.fastnear.com",
+  "rpc.testnet.fastnear.com": "https://archival-rpc.testnet.fastnear.com",
+  "rpc.mainnet.fastnear.com": "https://archival-rpc.mainnet.fastnear.com",
+  "free.rpc.fastnear.com": "https://archival-rpc.mainnet.fastnear.com",
+};
+
+export function archivalFor(rpcUrl) {
+  try {
+    return ARCHIVAL[new URL(rpcUrl).host] || null;
+  } catch {
+    return null;
+  }
+}
+
+/** An RPC read that retries on the archival node when the regular one fails. */
+export async function historyRpc(rpcUrl, method, params) {
+  try {
+    return await rpc(rpcUrl, method, params);
+  } catch (error) {
+    const archival = archivalFor(rpcUrl);
+    if (!archival || archival === rpcUrl) throw error;
+    return rpc(archival, method, params);
+  }
+}
+
 export async function txTimeMs(rpcUrl, hash, signerId) {
-  const status = await rpc(rpcUrl, "EXPERIMENTAL_tx_status", {
+  const status = await historyRpc(rpcUrl, "EXPERIMENTAL_tx_status", {
     tx_hash: hash,
     sender_account_id: signerId,
     wait_until: "NONE",
   });
   const blockHash = status && status.transaction_outcome && status.transaction_outcome.block_hash;
   if (!blockHash) return null;
-  const block = await rpc(rpcUrl, "block", { block_id: blockHash });
+  const block = await historyRpc(rpcUrl, "block", { block_id: blockHash });
   return nsToMs(block && block.header && block.header.timestamp);
 }

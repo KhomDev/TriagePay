@@ -36,7 +36,7 @@
       },
       "review": {
         "approvalThreshold": "500000",
-        "reviewUnknownPayees": true,
+        "reviewUnknownPayees": false,
         "maxPending": 8
       }
     },

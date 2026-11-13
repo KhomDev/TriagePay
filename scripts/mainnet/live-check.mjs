@@ -157,12 +157,27 @@ function rpcUrl(spec, network) {
   return network === "testnet" ? spec.testnetRpc : spec.mainnetRpc;
 }
 
-async function rpc(url, method, params) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: "triagepay-live-check", method, params }),
-  });
+const RETRYABLE = new Set([408, 429, 500, 502, 503, 504]);
+
+export function archivalUrl(url) {
+  return /testnet/.test(url)
+    ? "https://archival-rpc.testnet.fastnear.com"
+    : "https://archival-rpc.mainnet.fastnear.com";
+}
+
+async function rpc(url, method, params, attempts = 3) {
+  let response;
+  for (let attempt = 1; ; attempt++) {
+    response = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: "triagepay-live-check", method, params }),
+    });
+    // A busy public node answers 408/429/5xx now and then; that says
+    // nothing about the wallet, so retry before reporting a problem.
+    if (response.ok || !RETRYABLE.has(response.status) || attempt >= attempts) break;
+    await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
+  }
   if (!response.ok) throw new Error(`${method} HTTP ${response.status}`);
   const body = await response.json();
   if (body.error) throw new Error(`${method}: ${body.error.message || JSON.stringify(body.error)}`);
@@ -248,7 +263,9 @@ export async function observeProof(url, spec) {
   try {
     result = await rpc(url, "EXPERIMENTAL_tx_status", params);
   } catch {
-    result = await rpc(url, "tx", [spec.hash, spec.signerId]);
+    // Regular nodes drop transactions after about five epochs; the
+    // archival node keeps them.
+    result = await rpc(archivalUrl(url), "EXPERIMENTAL_tx_status", params);
   }
   const status = result.status || {};
   const success = Object.prototype.hasOwnProperty.call(status, "SuccessValue")
