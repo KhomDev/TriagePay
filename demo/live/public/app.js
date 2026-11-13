@@ -3,7 +3,7 @@
   "use strict";
 
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var state = { scenarios: [], busy: false, review: null, queueScenario: null, ready: false, killSwitch: false, recentRows: null, drainRows: null };
+  var state = { scenarios: [], busy: false, review: null, queueScenario: null, ready: false, killSwitch: false, recentRows: null, drainRows: null, network: "testnet", mainnetSigning: false, mainnetProofs: [] };
 
   function $(id) { return document.getElementById(id); }
 
@@ -73,6 +73,41 @@
   function accountLink(base, id) {
     if (!base || !id) return document.createTextNode(id || "");
     return el("a", { href: base + id, rel: "noopener", target: "_blank" }, id);
+  }
+
+  function paintNumbers(board) {
+    if (!$("num-paid")) return;
+    if (!board) return;
+    $("num-paid").textContent = board.paid == null ? "—" : String(board.paid);
+    $("num-refused").textContent = board.refused == null ? "—" : String(board.refused);
+    $("num-protected").textContent = board.protectedDisplay || "amount not in the index";
+    $("num-usdc").textContent = board.usdc || "0 USDC";
+    $("num-agents").textContent = board.agents == null ? "—" : String(board.agents);
+    var source = $("num-source");
+    if (source) source.textContent = board.source || "";
+  }
+
+  function paintMainnetProofs() {
+    var box = $("mainnet-proofs");
+    if (!box) return;
+    var show = state.network === "mainnet" && !state.mainnetSigning;
+    box.hidden = !show;
+    if (!show) return;
+    clear(box);
+    box.appendChild(document.createTextNode("Mainnet proofs: "));
+    (state.mainnetProofs || []).forEach(function (item, index) {
+      if (index) box.appendChild(document.createTextNode(" · "));
+      box.appendChild(el("a", { href: item.href, rel: "noopener", target: "_blank" }, item.label));
+    });
+  }
+
+  function setNetwork(name) {
+    state.network = name === "mainnet" ? "mainnet" : "testnet";
+    var testnet = $("net-testnet");
+    var mainnet = $("net-mainnet");
+    if (testnet) testnet.setAttribute("aria-pressed", state.network === "testnet" ? "true" : "false");
+    if (mainnet) mainnet.setAttribute("aria-pressed", state.network === "mainnet" ? "true" : "false");
+    paintMainnetProofs();
   }
 
   function paintSpend(data) {
@@ -278,6 +313,9 @@
     if (chain && chain.explorerUrl) {
       root.appendChild(el("p", null, el("a", { href: chain.explorerUrl, rel: "noopener", target: "_blank" }, "Open the transaction")));
     }
+    if (payload.paid && payload.paid.explorerUrl) {
+      root.appendChild(el("p", null, "Allowed call ", el("a", { href: payload.paid.explorerUrl, rel: "noopener", target: "_blank" }, "Open the paid transaction")));
+    }
     if (payload.telegram && payload.telegram.sent) {
       root.appendChild(el("p", { class: "hint" }, "I messaged the owner with Approve and Reject."));
     }
@@ -467,6 +505,10 @@
         data.maxAttemptsPerDay + " signed attempts per UTC day."
       ));
     }
+    state.mainnetSigning = Boolean(data.mainnet && data.mainnet.signing);
+    state.mainnetProofs = (data.mainnet && data.mainnet.proofs) || [];
+    paintNumbers(data.scoreboard);
+    paintMainnetProofs();
     paintSpend(data);
     paintRisks(data.risks);
     paintPending(data.review);
@@ -640,6 +682,11 @@
 
   async function onLaunch() {
     if (state.busy) return;
+    if (state.network === "mainnet" && !state.mainnetSigning) {
+      paintMainnetProofs();
+      setStatus("Mainnet signing is off. The links above are the recorded proofs.");
+      return;
+    }
     state.busy = true;
     state.holdStatus = true;
     $("btn-launch").disabled = true;
@@ -652,7 +699,9 @@
     setStatus("Reading the finding…");
     setSteps(["step-agent"], false);
     try {
-      var result = await readSse("/api/agent", { scenario: "injected-payee" }, function (event) {
+      var launchBody = { scenario: "injected-payee" };
+      if (state.network === "mainnet") launchBody.network = "mainnet";
+      var result = await readSse("/api/agent", launchBody, function (event) {
         if (event.type === "mode") {
           $("agent-mode").textContent = event.mode === "live" ? "Live model" : "Scripted";
         }
@@ -843,6 +892,10 @@
   }
 
   $("btn-launch").addEventListener("click", onLaunch);
+  var netTestnet = $("net-testnet");
+  var netMainnet = $("net-mainnet");
+  if (netTestnet) netTestnet.addEventListener("click", function () { setNetwork("testnet"); });
+  if (netMainnet) netMainnet.addEventListener("click", function () { setNetwork("mainnet"); });
   $("run-form").addEventListener("submit", onRun);
   $("scenario").addEventListener("change", paintScenario);
   $("btn-refresh").addEventListener("click", function () { refresh(); refreshDrain(); });

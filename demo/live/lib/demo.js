@@ -13,6 +13,7 @@ import { clientIp, releaseLock, reserveAttempt } from "./limits.js";
 import { functionCall, signCall, viewCall, assertTestnet } from "./near.js";
 import { matchPending, receiptFromRun } from "./receipt.js";
 import { classifyAmount, classifyPayee } from "./risk.js";
+import { mainnetStatus, scoreboard } from "./mainnet.js";
 import { mergeRecent } from "./recent.js";
 import { storeFromEnv } from "./store.js";
 import { notifyHold } from "./telegram.js";
@@ -304,6 +305,15 @@ export async function getDashboard() {
         })),
       }
       : review,
+    mainnet: mainnetStatus(),
+    scoreboard: await scoreboard().catch(() => ({
+      paid: null,
+      refused: null,
+      agents: null,
+      protectedDisplay: null,
+      usdc: "0 USDC",
+      source: "The NearBlocks index did not answer, so these numbers are blank.",
+    })),
     cooldownRemainingSeconds: assessCooldown({
       nowMs: Date.now(),
       timestampsMs: (indexed || []).map((row) => row.atMs).filter((value) => Number.isFinite(value)),

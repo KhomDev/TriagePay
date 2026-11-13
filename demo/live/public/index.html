@@ -37,11 +37,36 @@
     <div class="hero-copy">
       <p class="eyebrow">Policy wallet for agents · NEAR testnet and mainnet</p>
       <h1 id="h-hero">The agent signs. <span>The contract decides.</span></h1>
-      <p class="lead">An agent pays for each call. A prompt can tell it to pay an attacker. The contract on NEAR testnet and mainnet decides. This page runs that attack on testnet. The browser never holds a key.</p>
+      <p class="lead">Agents pay per call over x402 on NEAR, and the wallet is the security layer that makes that safe.</p>
+      <section class="numbers" id="numbers" aria-label="Live counts">
+        <article>
+          <p class="stat-kicker">Paid calls</p>
+          <p id="num-paid" class="stat">—</p>
+        </article>
+        <article>
+          <p class="stat-kicker">Attacks refused</p>
+          <p id="num-refused" class="stat">—</p>
+        </article>
+        <article>
+          <p class="stat-kicker">Value protected</p>
+          <p id="num-protected" class="stat">—</p>
+          <p id="num-usdc" class="stat-sub">0 USDC</p>
+        </article>
+        <article>
+          <p class="stat-kicker">Unique agents</p>
+          <p id="num-agents" class="stat">—</p>
+        </article>
+        <p id="num-source" class="hint"></p>
+      </section>
       <div class="cta-row">
         <button id="btn-launch" type="button" disabled aria-label="Launch the attack">Launch the attack</button>
+        <div class="net-toggle" role="group" aria-label="Network">
+          <button type="button" id="net-testnet" class="secondary" aria-pressed="true">Testnet</button>
+          <button type="button" id="net-mainnet" class="secondary" aria-pressed="false">Mainnet</button>
+        </div>
         <a class="text-btn ghost" href="#drain">Try to drain it</a>
       </div>
+      <div id="mainnet-proofs" class="hint" hidden></div>
       <div id="live-verdict" class="live-verdict" aria-live="assertive"></div>
       <p id="agent-mode" class="mode-pill">Scripted</p>
       <p id="status" class="status" role="status" aria-live="polite"></p>

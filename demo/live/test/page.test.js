@@ -13,6 +13,8 @@ test("the judge path and the hackathon marks are on the page", () => {
   assert.match(html, /Launch the attack/);
   assert.match(html, /Try to drain it/);
   assert.match(html, /The agent signs\. The contract decides\./);
+  assert.match(html, /Agents pay per call over x402 on NEAR, and the wallet is the security layer that makes that safe/);
+  assert.match(html, /id="net-mainnet"/);
   assert.match(html, /Judge in 60 seconds/);
   assert.match(html, /Why it's different/);
   assert.match(html, /github.com\/KhomDev\/TriagePay\/blob\/main\/docs\/claims-audit.md/);

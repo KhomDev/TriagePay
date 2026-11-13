@@ -148,6 +148,16 @@ h3 { margin: 18px 0 8px; font-size: 0.95rem; letter-spacing: 0.04em; text-transf
 .hint { font-size: 0.95rem; }
 .status { min-height: 1.4em; }
 
+.numbers {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px 16px;
+  margin: 18px 0 4px;
+  min-height: 4.5rem;
+}
+.numbers .hint { grid-column: 1 / -1; margin: 0; }
+.net-toggle { display: inline-flex; gap: 6px; }
+.net-toggle button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
 .cta-row, .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 18px 0; }
 button, .text-btn {
   font: 700 1rem/1 var(--display);
@@ -427,7 +437,7 @@ details.panel[open] > summary { margin-bottom: 12px; }
 main { padding-bottom: 24px; }
 
 @media (max-width: 900px) {
-  .pipeline, .stats, .challenge-head, .split, .judge ol, .diff ol, .passport-dl { grid-template-columns: 1fr; }
+  .pipeline, .stats, .numbers, .challenge-head, .split, .judge ol, .diff ol, .passport-dl { grid-template-columns: 1fr; }
   .passport-dl dd { white-space: normal; }
   .rail { height: 18px; }
   .packet { top: 0; left: 50%; }

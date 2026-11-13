@@ -20,6 +20,7 @@ import { decimalToAtomic, parsePolicyText, validatePolicy, diffPolicy, applyAllo
 import { replayRecord, saveReplay, loadReplay, resetReplayForTests } from "../lib/replay.js";
 import { recordHoneypot, listHoneypot, honeypotAccount, resetHoneypotForTests } from "../lib/honeypot.js";
 import { buildPassport } from "../lib/passport.js";
+import { MAINNET_PAID_AMOUNT, mainnetStatus, reserveMainnetRun, resetMainnetLimits, tallyPays } from "../lib/mainnet.js";
 import { decodeCallArgs, readPayTransaction, replayFromChain, fillRow, isTrapRefusal } from "../lib/txread.js";
 import { POST as policyPost } from "../routes/policy.js";
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -507,6 +508,41 @@ test("a real testnet refusal rebuilds the replay from the pay args", () => {
   assert.equal(filled.amount, "0.0001");
   assert.equal(isTrapRefusal(pay, "tpd-e947e7-injected.testnet"), true);
   assert.equal(isTrapRefusal({ ...pay, payee: "payee.testnet", outcome: "success", errorCode: null, held: false }, "tpd-e947e7-injected.testnet"), false);
+});
+
+test("mainnet stays unsigned until its key is set, and the paid amount is 1000 yocto", () => {
+  const status = mainnetStatus({});
+  assert.equal(status.signing, false);
+  assert.equal(status.paidAmount, MAINNET_PAID_AMOUNT);
+  assert.equal(MAINNET_PAID_AMOUNT, "1000");
+  assert.equal(JSON.stringify(status).includes("ed25519:"), false);
+  assert.ok(status.proofs.some((item) => item.href.includes("nearblocks.io/txns/")));
+});
+
+test("one address can run mainnet once per 10 minutes, and 60 indexed pays stop the day", async () => {
+  resetMainnetLimits();
+  const request = { headers: { get: () => "203.0.113.5" } };
+  const first = await reserveMainnetRun({ request, nowMs: 1_000_000, chainPayCount: 0, store: null });
+  const second = await reserveMainnetRun({ request, nowMs: 1_001_000, chainPayCount: 0, store: null });
+  const later = await reserveMainnetRun({ request, nowMs: 1_000_000 + 11 * 60 * 1000, chainPayCount: 0, store: null });
+  const capped = await reserveMainnetRun({ request: { headers: { get: () => "203.0.113.9" } }, chainPayCount: 60, store: null });
+  assert.equal(first.allowed, true);
+  assert.equal(second.allowed, false);
+  assert.equal(later.allowed, true);
+  assert.equal(capped.allowed, false);
+  resetMainnetLimits();
+});
+
+test("pay tallies keep paid calls, refusals, and distinct signers", () => {
+  const tally = tallyPays([
+    { txHash: "a", methods: ["pay"], success: true, signer: "agent.testnet" },
+    { txHash: "b", methods: ["pay"], success: false, signer: "agent.testnet" },
+    { txHash: "c", methods: ["pay"], success: false, signer: "other.testnet" },
+    { txHash: "d", methods: ["set_agent"], success: true, signer: "owner.testnet" },
+  ]);
+  assert.equal(tally.paid, 1);
+  assert.equal(tally.refused, 2);
+  assert.equal(tally.signers.length, 2);
 });
 
 test("the memory store keeps a short list", async () => {
