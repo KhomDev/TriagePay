@@ -21,6 +21,10 @@ await payPerCall({
 `sign(call)` is yours. `call` is `{ receiverId, methodName: "pay", args, gas, deposit: "0" }`.
 This package does not read a secret and does not import `near-api-js`.
 
+That is the two-minute path, once the wallet and the pay-only key exist:
+`payPerCall` plus `createPolicyPayer`. The MCP server and a small outside
+agent that does the same thing live in [examples](../../examples/README.md).
+
 A NEAR AI tool that can do the same call, and nothing else:
 
 ```js

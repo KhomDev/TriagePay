@@ -1,0 +1,24 @@
+# Read-only check that the recorded mainnet and testnet wallets are still
+# the deployments this repository describes. No secrets, no signatures.
+name: mainnet watch
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    name: Read-only chain and health check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check recorded wallets, proof transactions, and demo health
+        run: node scripts/mainnet/live-check.mjs

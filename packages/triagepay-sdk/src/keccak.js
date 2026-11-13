@@ -45,6 +45,7 @@ function keccakf(state) {
   }
 }
 
+/** Keccak-256 of `bytes`, as a `Buffer`. */
 export function keccak256(bytes) {
   const input = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
   const rate = 136;
@@ -75,6 +76,7 @@ export function keccak256(bytes) {
   return out;
 }
 
+/** Keccak-256 of `bytes`, as a hex string without a `0x` prefix. */
 export function keccak256Hex(bytes) {
   return keccak256(bytes).toString("hex");
 }

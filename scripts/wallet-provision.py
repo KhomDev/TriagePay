@@ -169,7 +169,8 @@ def build_plan(args, wasm_bytes, sha256_hex, price, price_source):
             ],
             0,
             deploy_gas + int(30.6 * TGAS),
-            "deploy, initialize (new is #[private]) and lock in one batch; "
+            "deploy and initialize in one batch signed by the wallet "
+            "(new accepts only this account or its parent) and lock; "
             "afterwards the wallet has no access keys",
         ),
         tx(

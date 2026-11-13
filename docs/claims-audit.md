@@ -27,8 +27,8 @@ after those two suites were re-run. The other rows are still the
 | aps-store | 29 |
 | policy-core | 29 (26 unit, 3 property). The new unit test was re-run on 2026-11-12; the other 28 are from the audit date |
 | Rust workspace total | 226 passed, 3 ignored, counting that one new test on top of the 2026-11-12 workspace run |
-| contracts: policy-wallet / test-token | 78 / 3. The 78 are the lib tests re-run on 2026-11-12; test-token was not re-run |
-| contracts: sandbox | 18 passed on Linux CI (2026-11-12, https://github.com/KhomDev/TriagePay/actions/runs/43181541598); not runnable on Windows |
+| contracts: policy-wallet / test-token | 94 passed, 1 ignored / 3. The ignored test is the open review-queue availability issue ([PR #7](https://github.com/KhomDev/TriagePay/pull/7)). Re-run 2026-11-13 |
+| contracts: sandbox | 23 tests. 18 passed on Linux CI on 2026-11-12 (https://github.com/KhomDev/TriagePay/actions/runs/43181541598); five more were added 2026-11-13 (hold/approve, hold/reject, revoke/restore, pay-only review methods, x402 receipt verifier). Not runnable on Windows |
 | scanner | 319 |
 | knowledge-compiler | 71, plus 1 skipped (local private-denylist scan) |
 | triage-model | 73 (6 replay the committed cassettes) |
@@ -59,9 +59,9 @@ hits against the operator's off-repo list).
 | One mainnet deposit verified on 2026-10-21 | `docs/integrations/near.md`; the capture is a fixture of the current verifier | LIMITED (verified live by the earlier argument-based verifier; the current verifier checks the same transaction from its recorded receipts) |
 | Stage B runs against NEAR AI Cloud | 2026-11-12 spike, 50 calls, USD 0.096 (`docs/engine/model-selection.md`); paid route in `triage.v2` mode, live and from cassettes | GREEN |
 | Stage B without a key, from recorded replies | `triage-model/tests/test_committed_cassettes.py` (6 tests) | GREEN |
-| The 18 sandbox tests pass | GitHub Actions run https://github.com/KhomDev/TriagePay/actions/runs/43181541598: 18 passed | GREEN |
+| The sandbox tests pass on Linux | GitHub Actions run https://github.com/KhomDev/TriagePay/actions/runs/43181541598: 18 passed on 2026-11-12. The suite is now 23 tests | GREEN for the 2026-11-12 run; the five new tests run in the contracts workflow |
 | No code predates the hackathon window | `git log --reverse`: first commit 2026-10-20; rules Q-001 count code from 2026-10-19 | GREEN |
-| Hosted demo unit tests | `cd demo/live && npm test`: 68 passed on 2026-11-13 | GREEN |
+| Hosted demo unit tests | `cd demo/live && npm test`: 75 passed on 2026-11-13 | GREEN |
 | Hosted demo model, policy apply, honeypot list | Code and unit tests in `demo/live`. A model call needs `NEARAI_API_KEY`. Apply needs `TRIAGEPAY_POLICY_APPLY=1`. The honeypot list is not a contract registry | LIMITED |
 
 ## docs/protocols/x402-near.md
@@ -81,13 +81,14 @@ hits against the operator's off-repo list).
 
 | Claim | Evidence | Status |
 |---|---|---|
-| Interface, events, error codes | 78 unit tests, re-run 2026-11-12, including the review queue | GREEN |
+| Interface, events, error codes | 94 unit tests passed and 1 ignored, re-run 2026-11-13, including the review queue. The ignored test records the open availability issue from [PR #7](https://github.com/KhomDev/TriagePay/pull/7) and does not change the contract | GREEN |
 | One token per wallet | `new_rejects_a_second_token`, `set_tokens_rejects_a_second_token`, `limits_sized_for_one_token_cannot_move_another` | GREEN |
 | Testnet run of 2026-11-06, 28 steps | Evidence table in `policy-wallet.md`; step 12 re-read from an archival RPC on 2026-11-10 | GREEN for step 12; the other 27 rows are as recorded by the run |
 | Current build on testnet | Transcript: deployed, initialized, key deleted in one batch; wasm SHA-256 in the evidence equals `build.md` | GREEN |
 | The build is not reproducible | `build.md` says so; a third party cannot re-derive the hash from source | OPEN |
-| Sandbox suite | 18 passed on Linux CI on 2026-11-12. The first run found three test bugs, no contract bug (see corrections) | GREEN |
-| The policy wallet is live on mainnet (`tp-wallet.hlpok1lad.tg`, built from `82d64e3`, before the review queue) | Four mainnet transactions in `docs/demo/mainnet-e2e/2026-11-12` (paid, refused payee, revoke, revoked-agent refusal) | GREEN |
+| Sandbox suite | 18 passed on Linux CI on 2026-11-12. The first run found three test bugs, no contract bug (see corrections). Five tests were added on 2026-11-13 | GREEN |
+| The policy wallet is live on mainnet (`tp-wallet.hlpok1lad.tg`, built from `82d64e3`, before the review queue) | Four mainnet transactions in `docs/demo/mainnet-e2e/2026-11-12` (paid, refused payee, revoke, revoked-agent refusal). The account has since been replaced; see the watch row | LIMITED (the transactions still resolve; the account's current code is the review-queue hash in `scripts/mainnet/expected-live.json`) |
+| I re-check mainnet every six hours, read-only, with no secrets | `.github/workflows/mainnet-watch.yml` runs `scripts/mainnet/live-check.mjs` on that schedule and on `workflow_dispatch`. It reads public fastnear RPC. It checks that `tp-wallet.hlpok1lad.tg` exists, that its code hash is `45HbvWoxBiUoJssERUU6xr8EqAudAHcjS4kYG9NiDagC`, that it has no access keys, and that owner, pause flag, token `wrap.near`, agent `tp-agent2.hlpok1lad.tg` (active, per-call `1000000`, daily `4000000`, allowlist `[gateway.hlpok1lad.tg]`, pay-only key `ed25519:69i3HGAR51MzFSvGLjQqnZhk6Dpo39VGnaNU9LJscCdn`), and review (threshold `500000`, unknown payees held, queue capacity 8) match `scripts/mainnet/expected-live.json`. It does not pin today's spend or the key allowance. It checks the four proof transactions (`2RH77VLs…` paid, `HskzPv94…` refused, `CFutaZM9…` revoke, `C1BnCCrE…` inactive), the testnet wallet `tpd-e947e7-wallet.testnet` views, and `https://triagepay-demo.vercel.app/api/health` (`ok: true`) | GREEN |
 | The review queue is live on testnet (`tpd-e947e7-wallet.testnet`): held, approved and settled, rejected | `docs/demo/testnet-review/2026-11-12` (EVIDENCE.json with balances before and after) | GREEN |
 | The hosted agent `tpd-e947e7-agent.testnet` has one key, `pay` only | Cleanup transaction `74a2PEiV` and the `agentKeysAfter` list in the evidence | GREEN |
 | Chain Signatures: one testnet signature that recovers to the derived address | `docs/contracts/chain-signatures.md`, `docs/demo/testnet-chainsig/2026-11-12/EVIDENCE.json`; SDK tests; ethers v6 cross-check | LIMITED (not broadcast; the request came from the owner account, not from the wallet contract) |
@@ -129,6 +130,7 @@ hits against the operator's off-repo list).
 | 2026-11-12 | First live Stage B calls: every request was refused (HTTP 400 for `uniqueItems` in the output schema and for a model that left the catalogue) or came back empty (reasoning used the whole 1024-token budget). Fixed in the client; the spike then ran clean |
 | 2026-11-12 | First sandbox run: 3 of 18 failed on test bugs. `pay` with a deposit is refused by near-sdk's non-payable guard, so the contract's `ERR_DEPOSIT_NOT_ZERO` is not reached on chain; the overflow test funded the wallet before allowlisting the token; the close test measured the gas-paying owner as beneficiary |
 | 2026-11-13 | The hosted demo can call NEAR AI when `NEARAI_API_KEY` is set. Without it the agent is scripted and labelled as such. A natural-language policy is previewed by a parser (or a schema-checked model). Applying it is off unless `TRIAGEPAY_POLICY_APPLY=1`. The honeypot list is not an on-chain registry |
+| 2026-11-13 | `tp-wallet.hlpok1lad.tg` is no longer the 2026-11-12 pre-review build. The account now has code hash `45HbvWoxBiUoJssERUU6xr8EqAudAHcjS4kYG9NiDagC` (review-queue build from `ef7472c`), the agent is active, and the daily cap is `4000000`. The four proof transactions from 2026-11-12 still resolve with their original outcomes. I record the current views in `scripts/mainnet/expected-live.json` and do not pin spend or gas allowance |
 
 ## Open items
 

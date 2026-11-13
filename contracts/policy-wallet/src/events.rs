@@ -23,6 +23,8 @@ pub enum ReleaseStatus {
     /// The agent entry no longer holds the reservation (should not occur;
     /// logged instead of panicking so the callback never reverts).
     Mismatch,
+    /// The payment was only queued. It had not reserved daily budget.
+    Unreserved,
 }
 
 /// A token that blocked `close`, with its balance (`null` when the balance
@@ -172,8 +174,17 @@ pub enum WalletEvent {
         /// Why the payment is waiting: `new_payee` or `above_threshold`.
         reason: String,
     },
-    /// The owner rejected a queued payment and the reservation was handled
-    /// as `release`.
+    /// A queued payment sat longer than the hold lifetime and was dropped.
+    /// It had not reserved daily budget.
+    #[event_version("1.0.0")]
+    PaymentExpired {
+        /// Payment id from `payment_queued`.
+        payment_id: U64,
+        /// The paying agent.
+        agent_id: AccountId,
+    },
+    /// The owner rejected a queued payment. `release` is `unreserved`
+    /// because a hold does not consume the daily cap.
     #[event_version("1.0.0")]
     PaymentRejected {
         /// Payment id from `payment_queued`.
