@@ -2,8 +2,9 @@
 
 Every testable claim in the public documentation, mapped to its evidence, so
 that a reviewer (human or AI) can check the repository against its own
-promises without trusting prose. Audit date: 2026-11-11, taken on the tree
-that adds the agent demo. Previous audit: 2026-10-21.
+promises without trusting prose. Audit date: 2026-11-13, taken on main after the owner review queue and
+the hosted demo were merged (44e7955). Previous audits: 2026-11-11 and
+2026-10-21.
 
 **Rule: if a claim is not green here, it is a defect: fix the doc or the
 code, never the audit.**
@@ -11,11 +12,10 @@ code, never the audit.**
 Status words: GREEN (checked on the audit date), LIMITED (true only as
 qualified in the row), OPEN (not proven; the docs must say so).
 
-## Suites (regenerated 2026-11-11, not hand-edited)
+## Suites (regenerated 2026-11-13, not hand-edited)
 
-The policy-core and policy-wallet rows below were updated on 2026-11-12
-after those two suites were re-run. The other rows are still the
-2026-11-11 audit.
+Every row was re-run on 2026-11-13 on main, except the sandbox, which has
+no Windows build and is taken from the contracts workflow on GitHub.
 
 | Suite | Count |
 |---|---|
@@ -25,16 +25,18 @@ after those two suites were re-run. The other rows are still the
 | aps-near | 58, plus 3 live read-only tests ignored by default |
 | aps-auth | 25 |
 | aps-store | 29 |
-| policy-core | 29 (26 unit, 3 property). The new unit test was re-run on 2026-11-12; the other 28 are from the audit date |
-| Rust workspace total | 226 passed, 3 ignored, counting that one new test on top of the 2026-11-12 workspace run |
-| contracts: policy-wallet / test-token | 78 / 3. The 78 are the lib tests re-run on 2026-11-12; test-token was not re-run |
-| contracts: sandbox | 18 passed on Linux CI (2026-11-12, https://github.com/KhomDev/TriagePay/actions/runs/43181541598); not runnable on Windows |
+| policy-core | 29 (26 unit, 3 property) |
+| Rust workspace total | 226 passed, 3 ignored |
+| contracts: policy-wallet / test-token | 78 / 3 |
+| contracts: sandbox | 18 passed on Linux CI, on the push of 44e7955 to main (https://github.com/KhomDev/TriagePay/actions/runs/43330314551); not runnable on Windows |
 | scanner | 319 |
 | knowledge-compiler | 71, plus 1 skipped (local private-denylist scan) |
 | triage-model | 73 (6 replay the committed cassettes) |
 | root (OpenAPI, Python client) | 14 |
 | ui | 17 |
 | TypeScript client | 7 |
+| hosted demo (`demo/live`) | 50 |
+| policy-wallet SDK (`packages/triagepay-sdk`) | 9 |
 
 Also green on the audit date: `cargo fmt --check` and `clippy -D warnings`
 in both workspaces, `ruff`, the ruleset byte-stability check, the voice
@@ -59,7 +61,9 @@ hits against the operator's off-repo list).
 | One mainnet deposit verified on 2026-10-21 | `docs/integrations/near.md`; the capture is a fixture of the current verifier | LIMITED (verified live by the earlier argument-based verifier; the current verifier checks the same transaction from its recorded receipts) |
 | Stage B runs against NEAR AI Cloud | 2026-11-12 spike, 50 calls, USD 0.096 (`docs/engine/model-selection.md`); paid route in `triage.v2` mode, live and from cassettes | GREEN |
 | Stage B without a key, from recorded replies | `triage-model/tests/test_committed_cassettes.py` (6 tests) | GREEN |
-| The 18 sandbox tests pass | GitHub Actions run https://github.com/KhomDev/TriagePay/actions/runs/43181541598: 18 passed | GREEN |
+| The 18 sandbox tests pass | GitHub Actions run https://github.com/KhomDev/TriagePay/actions/runs/43330314551: 18 passed | GREEN |
+| The production page refuses an injected payment and settles an approved held one | Run on 2026-11-13 against https://triagepay-demo.vercel.app/ (wallet `tpd-e947e7-wallet.testnet`): refused `BxhNWAMyu2sQmA6Ep1qytu5MXDjShRgcNJLG46inVXNE` (`ERR_PAYEE_NOT_ALLOWED`), held `FLABkn4Tm2T7nbqaGYSTJXMYdLATozJ11hSSHuBda5mT`, approved and settled `Eqz4okPY57FFLWUGTPJDCYc5oNr6ybXCrHh4Sp9TMeyb` | GREEN |
+| The cross-instance rate-limit store is connected | `/api/health` reports `sharedLimits: false` | OPEN (the README says so) |
 | No code predates the hackathon window | `git log --reverse`: first commit 2026-10-20; rules Q-001 count code from 2026-10-19 | GREEN |
 
 ## docs/protocols/x402-near.md
@@ -79,12 +83,12 @@ hits against the operator's off-repo list).
 
 | Claim | Evidence | Status |
 |---|---|---|
-| Interface, events, error codes | 78 unit tests, re-run 2026-11-12, including the review queue | GREEN |
+| Interface, events, error codes | 78 unit tests, re-run 2026-11-13, including the review queue | GREEN |
 | One token per wallet | `new_rejects_a_second_token`, `set_tokens_rejects_a_second_token`, `limits_sized_for_one_token_cannot_move_another` | GREEN |
 | Testnet run of 2026-11-06, 28 steps | Evidence table in `policy-wallet.md`; step 12 re-read from an archival RPC on 2026-11-10 | GREEN for step 12; the other 27 rows are as recorded by the run |
 | Current build on testnet | Transcript: deployed, initialized, key deleted in one batch; wasm SHA-256 in the evidence equals `build.md` | GREEN |
 | The build is not reproducible | `build.md` says so; a third party cannot re-derive the hash from source | OPEN |
-| Sandbox suite | 18 passed on Linux CI on 2026-11-12. The first run found three test bugs, no contract bug (see corrections) | GREEN |
+| Sandbox suite | 18 passed on Linux CI (latest: the push of 44e7955 to main). The first run found three test bugs, no contract bug (see corrections) | GREEN |
 | The policy wallet is live on mainnet (`tp-wallet.hlpok1lad.tg`, built from `82d64e3`, before the review queue) | Four mainnet transactions in `docs/demo/mainnet-e2e/2026-11-12` (paid, refused payee, revoke, revoked-agent refusal) | GREEN |
 | The review queue is live on testnet (`tpd-e947e7-wallet.testnet`): held, approved and settled, rejected | `docs/demo/testnet-review/2026-11-12` (EVIDENCE.json with balances before and after) | GREEN |
 | The hosted agent `tpd-e947e7-agent.testnet` has one key, `pay` only | Cleanup transaction `74a2PEiV` and the `agentKeysAfter` list in the evidence | GREEN |
@@ -126,6 +130,7 @@ hits against the operator's off-repo list).
 | 2026-11-12 | First GitHub CI run: `cargo audit` failed on RUSTSEC-2026-0459 (libsqlite3-sys via rusqlite 0.37) and RUSTSEC-2026-0384 (tokio 1.54.0); rusqlite moved to 0.41.0 and tokio to 1.54.1. The contracts workflow could not install cargo-near (missing libudev headers on the runner) |
 | 2026-11-12 | First live Stage B calls: every request was refused (HTTP 400 for `uniqueItems` in the output schema and for a model that left the catalogue) or came back empty (reasoning used the whole 1024-token budget). Fixed in the client; the spike then ran clean |
 | 2026-11-12 | First sandbox run: 3 of 18 failed on test bugs. `pay` with a deposit is refused by near-sdk's non-payable guard, so the contract's `ERR_DEPOSIT_NOT_ZERO` is not reached on chain; the overflow test funded the wallet before allowlisting the token; the close test measured the gas-paying owner as beneficiary |
+| 2026-11-13 | The README listed "a mainnet campaign" as cut while the wallet was live on mainnet, and its test table mixed counts from different days. The cut list and the counts were corrected |
 
 ## Open items
 

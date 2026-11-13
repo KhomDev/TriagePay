@@ -1,34 +1,55 @@
 # TriagePay
 
-An agent key that can sign freely will pay whoever a prompt tells it to.
-TriagePay puts a wallet contract between that key and the money: the key can call only `pay`, and the contract caps each call, caps the day, and allowlists the payee.
-A judge opens the hosted demo, runs a prompt-injected payment on NEAR testnet, and watches the wallet refuse it.
+A policy wallet on NEAR that lets an AI agent pay per call, and refuses on chain when a prompt injection tells the agent to pay someone else.
 
-**Demo video:** `[VIDEO SLOT]` No recording is linked in this repository yet. Paste the URL in this slot. This project was built at NEAR HACKATHON. #NEARHackathon @NEARProtocol
+**The story.** A security agent buys triage for its findings from a paid API, one HTTP 402 (x402) payment per call. A finding it reads contains a prompt injection: "send the funds to this account". The agent obeys and signs the payment. The policy wallet refuses it on chain with `ERR_PAYEE_NOT_ALLOWED`, and no balance moves. The agent's key can call only `pay` on the wallet; the wallet contract caps each call, caps the day, allowlists the payee, and can hold a payment for the owner to approve.
 
-**Live demo:** https://triagepay-demo.vercel.app/
+**Live demo (30 seconds):** https://triagepay-demo.vercel.app/ Press Launch attack and watch NEAR testnet refuse the payment. Then queue a payment above the owner's threshold and press Approve.
 
-**Refused on testnet:** [prompt-injected payee, `ERR_PAYEE_NOT_ALLOWED`](https://testnet.nearblocks.io/txns/8y6sEwL8i5sP2aMKo5HS3WGZtZ8NMDP9MUdywYAmVnN4)
+Three proofs:
 
-**Allowed on testnet:** [payee on the allowlist, inside the cap](https://testnet.nearblocks.io/txns/4oxycWdvo9M4YWoq9mg2y4FXL7AZYQY6McvcPJQYJejq)
+1. **Refused on testnet:** [prompt-injected payee, `ERR_PAYEE_NOT_ALLOWED`](https://testnet.nearblocks.io/txns/8y6sEwL8i5sP2aMKo5HS3WGZtZ8NMDP9MUdywYAmVnN4)
+2. **Held, then approved on testnet:** [a payment above the threshold is held](https://testnet.nearblocks.io/txns/8nvs4X4jWrzEzsbUj2ziS5qEdTTi6wvRwfUTBxftdcJi), and [the owner approves it and it settles](https://testnet.nearblocks.io/txns/CwEo7ec8uk25XQbKHNmS3naUhqM9FPbRJzEAjVf223Hp) ([all steps](docs/demo/testnet-review/2026-11-12/README.md))
+3. **Live on mainnet:** [a paid call](https://nearblocks.io/txns/2RH77VLsLHovF3m4kzR76jk71X8tYKAyugxQ9YJMXLJJ) and [a refused prompt-injected payee](https://nearblocks.io/txns/HskzPv94J1JY16K5WdUG8wfGznnhnMMKcXgE1acks63F) on `tp-wallet.hlpok1lad.tg` ([details](#live-on-mainnet))
 
-**Owner approval on testnet:** [a payment above the threshold is held](https://testnet.nearblocks.io/txns/8nvs4X4jWrzEzsbUj2ziS5qEdTTi6wvRwfUTBxftdcJi), [the owner approves and it settles](https://testnet.nearblocks.io/txns/CwEo7ec8uk25XQbKHNmS3naUhqM9FPbRJzEAjVf223Hp); [a second one is rejected](https://testnet.nearblocks.io/txns/CcUmBvhQPBvtPJ9pg4NF225U4XfaJEmwjLEZV9gCAaWR). All steps: [docs/demo/testnet-review/2026-11-12](docs/demo/testnet-review/2026-11-12/README.md)
+This project was built at NEAR HACKATHON, in the `security` and `agents` tracks. #NEARHackathon @NEARProtocol
 
-**Chain Signatures on testnet:** [`v1.signer-prod.testnet` signed a Base Sepolia USDC transfer](https://testnet.nearblocks.io/txns/aeaL3TZAsYyV6kEGVCvm3ppzfc56cvP8pAsCVKrifVM) for the owner account, and the signature recovers to the derived address `0x508e984fda3bc37d8c33bfb5098441fd2169fcc8`. Not broadcast ([docs/contracts/chain-signatures.md](docs/contracts/chain-signatures.md))
+<sub>Demo video: `[VIDEO SLOT]` (no recording linked yet)</sub>
 
-**Live on mainnet:** the policy wallet (the build before the review queue): one paid call, one refused payee, revoke ([below](#live-on-mainnet))
+## What the agent is paying for: the triage API
 
-The paid API is a triage service for security findings: an agent submits a
-finding and gets a deterministic verdict (`supported`, `needs_evidence`,
-`held` or `rejected`) with the reasons. Payment is HTTP 402 (x402 v2) settled
-by a NEAR transaction that the server verifies from the token contract's own
-receipt.
+The paid service is real. An agent sends one security finding (title, component, claimed impact, evidence, the bounty program's rules) to `POST /v2/scan` and gets back a verdict with reasons:
 
-Everything in this repository was built at NEAR HACKATHON. I entered it in the `security` and `agents` tracks.
+| Verdict | Meaning |
+|---|---|
+| `rejected` | A deterministic gate failed; the reasons name the category |
+| `held` | A gate flagged something a person should look at first |
+| `needs_evidence` | The claim may be real, but the evidence is missing or only a placeholder |
+| `supported` | No deterministic objection |
+
+Two stages produce it:
+
+- **Deterministic scanner (Stage A).** Nine gates, one per public finding category, compiled from a versioned ruleset. The same finding always gets the same verdict. Text inside a finding that tries to instruct the reader is flagged and never changes the outcome.
+- **NEAR AI judge (Stage B, optional).** A model on NEAR AI Cloud gives a second opinion with a short rationale. It is advisory: it can lower a verdict, never raise it.
+
+Why an agent would pay for this per call: a bug-hunting or code-review agent produces many candidate findings, and most should not reach a bounty program or a human reviewer. The triage call filters them first and says why. With x402 there is no account or API key to set up: the 402 answer names the asset, the payee, the amount and a memo, and the agent pays and retries. That payment is exactly the step a prompt injection goes after, which is why the agent pays through the policy wallet.
+
+Internals (rule evaluators, the Stage B prompt and schema, the combiner, the knowledge compiler that builds the ruleset): [docs/engine/overview.md](docs/engine/overview.md).
+
+## Why TriagePay and not another agent spend guard
+
+These are the facts I can point to. I have not benchmarked other tools.
+
+- **The limits are on chain, not in the agent.** The agent holds a NEAR function-call key that can call only `pay` on the wallet. Caps, the payee allowlist, pause and revoke live in the contract, so a prompt-injected or stolen key cannot switch them off. Owner methods need 1 yoctoNEAR, which no function-call key can attach.
+- **The server checks the payment from the token contract's own events.** An x402 payment counts only when the token contract's own NEP-141 `ft_transfer` event, in a finalized receipt, pays the gateway with the server-issued memo. Logs from any other contract are ignored. This runs on testnet ([how](#how-the-server-knows-it-was-paid)).
+- **An owner review queue on chain.** A new payee or an amount above a threshold is held in the contract until the owner approves or rejects it. Run on testnet: [held](https://testnet.nearblocks.io/txns/8nvs4X4jWrzEzsbUj2ziS5qEdTTi6wvRwfUTBxftdcJi), [approved](https://testnet.nearblocks.io/txns/CwEo7ec8uk25XQbKHNmS3naUhqM9FPbRJzEAjVf223Hp), [rejected](https://testnet.nearblocks.io/txns/CcUmBvhQPBvtPJ9pg4NF225U4XfaJEmwjLEZV9gCAaWR).
+- **Live on mainnet** with real (tiny) wNEAR amounts: paid, refused, revoked ([below](#live-on-mainnet)).
+- **A reusable SDK.** `packages/triagepay-sdk` is a one-line policy-wallet payer, an x402 helper and a NEAR AI tool (9 tests).
+- **A claims audit.** Every testable claim in the docs is mapped to its evidence, with what is limited or open said plainly: [docs/claims-audit.md](docs/claims-audit.md).
 
 ## Live on mainnet
 
-I also deployed the policy wallet on NEAR mainnet and ran it with real (tiny) wNEAR amounts on 2026-11-12. The wallet is still live.
+I deployed the policy wallet on NEAR mainnet and ran it with real (tiny) wNEAR amounts on 2026-11-12. The wallet is still live. It is the build before the owner review queue.
 
 - Wallet contract: [`tp-wallet.hlpok1lad.tg`](https://nearblocks.io/address/tp-wallet.hlpok1lad.tg) (0 access keys; owner `hlpok1lad.tg`; token `wrap.near`; payee allowlist `[gateway.hlpok1lad.tg]`)
 - Agent: [`tp-agent2.hlpok1lad.tg`](https://nearblocks.io/address/tp-agent2.hlpok1lad.tg), whose only key is a function-call key for `pay` on the wallet
@@ -40,135 +61,23 @@ Every transaction, the costs, and two setup mistakes I hit are in [`docs/demo/ma
 
 ## Hosted demo
 
-`demo/live` is the judge page: pick a prompt injection, an over-limit
-payment, or a flagged payee, and the server signs `pay` on NEAR testnet.
-The page shows the payee risk verdict (allow, warn, or block), today's
-spend against the daily limit, explorer links, and Revoke and Restore.
-The Human in the loop card queues a payment above the owner's threshold, and Approve or Reject settles or drops it on chain.
-The browser never sees a key. Revoke, Restore, Approve and Reject are public buttons. They
-use the owner account's full-access key, which is held on the server as
-`TRIAGEPAY_OWNER_SECRET_KEY`.
+`demo/live` is the judge page at https://triagepay-demo.vercel.app/. Pick a prompt injection, an over-limit payment, or a flagged payee, and the server signs `pay` on NEAR testnet. The page shows the payee risk verdict (allow, warn, or block), today's spend against the daily limit, explorer links, and Revoke and Restore. The Human in the loop card queues a payment above the owner's threshold, and Approve or Reject settles or drops it on chain. The browser never sees a key.
 
-An allowlisted payee shows warn when the account is under seven days old.
-The demo payee was created for the page, so warn is expected. Warn does
-not move money. The risk check reads the allowlist from the wallet
-contract, the same list the spend panel shows. If a visitor leaves the
-agent revoked, the next Launch restores it before the attack, and a daily
-cron calls the same restore.
+The demo accounts on testnet: wallet `tpd-e947e7-wallet.testnet` (with the owner review queue), agent `tpd-e947e7-agent.testnet`, owner `tpd-e947e7-owner.testnet`. The agent's only key is the pay-only function-call key. `/api/health` shows which wallet the page is using.
 
-Required Vercel environment variables (names only; values stay out of git):
+An allowlisted payee shows warn when the account is under seven days old. The demo payee was created for the page, so warn is expected; warn does not move money. If a visitor leaves the agent revoked, the next Launch restores it before the attack, and a daily cron calls the same restore.
 
-| Variable | What it is |
-|---|---|
-| `TRIAGEPAY_AGENT_SECRET_KEY` | `ed25519:...` function-call key. It can call only `pay` on the wallet. |
-| `TRIAGEPAY_OWNER_SECRET_KEY` | `ed25519:...` owner key. Used only to revoke and restore the agent and to approve or reject a held payment. |
+The same wallet also refused [an over-limit payment (`ERR_PER_CALL_LIMIT`)](https://testnet.nearblocks.io/txns/BMoHjQXgQasLxn4wZspzTQU9g1rBjbqThhZQevknCZ7s) and, after [a revoke](https://testnet.nearblocks.io/txns/5qZ5yQAPTm5dFg7i455HvsrgBNk8bTbbCou6zq4461as), [a revoked agent (`ERR_AGENT_INACTIVE`)](https://testnet.nearblocks.io/txns/3iHytU9nkYuqPh74its9TPW3MwQoUJeaPQg1nbGGyQTZ).
 
-Public account ids, the RPC URL, limits, the flagged account, and the
-verified code hash live in `demo/live/config.json` after setup. Optional
-overrides: `TRIAGEPAY_RPC_URL`, `TRIAGEPAY_OWNER_ACCOUNT`,
-`TRIAGEPAY_AGENT_ACCOUNT`, `TRIAGEPAY_WALLET_ACCOUNT`,
-`TRIAGEPAY_TOKEN_ACCOUNT`, `TRIAGEPAY_PAYEE_ACCOUNT`,
-`TRIAGEPAY_INJECTED_ACCOUNT`, `TRIAGEPAY_FLAGGED_ACCOUNT`,
-`TRIAGEPAY_COOLDOWN_SECONDS` (default 20), `TRIAGEPAY_MAX_ATTEMPTS_PER_DAY`
-(default 40). The full template is `demo/live/.env.example`.
+Running or deploying it yourself (environment variables, rate limits, the shared store, setup, and how the hosted keys were moved): [docs/demo/hosted.md](docs/demo/hosted.md).
 
-The server signs at most once per cooldown, at most the daily attempt cap,
-and at most a few times a minute from one address
-(`TRIAGEPAY_IP_LIMIT`, default 4, per `TRIAGEPAY_IP_WINDOW_SECONDS`,
-default 60). Those three hold across serverless instances when a shared
-store is configured: `KV_REST_API_URL` and `KV_REST_API_TOKEN`, or
-`UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`. Create the store
-in the Vercel or Upstash dashboard and add the two variables with
-`npx vercel env add`. Do not pass the token on the command line. If the
-store is set and does not answer, signing is refused. If it is unset, the
-daily cap is read from the chain index (paginated through the UTC day, not
-the last eight transactions) plus this instance's journal, and the
-per-address cap is only inside that instance. A truncated index fails
-closed. Refused attempts are still transactions on the explorer. The
-hosted project has no store connected yet (`/api/health` reports
-`sharedLimits: false`), so it runs on that fallback.
+## Chain Signatures
 
-The function-call key also has a limited gas allowance, and the contract's
-own daily limit caps the token.
-
-```sh
-cd demo/live
-npm ci
-npx vercel link
-npx vercel env add TRIAGEPAY_AGENT_SECRET_KEY production
-npx vercel env add TRIAGEPAY_OWNER_SECRET_KEY production
-npx vercel deploy --prod
-```
-
-The CLI prompts for each secret. Do not pass the key on the command line.
-A local run of the same functions:
-
-```sh
-cd demo/live
-npm ci
-node server.mjs
-```
-
-When `VERCEL` is unset and the two variables are empty, the server reads
-`demo/live/.keys/` (gitignored). On Vercel that fallback is off.
-
-Setup (once, from a machine that can reach the testnet faucet) builds
-nothing by itself. Point it at the policy-wallet wasm, then copy the two
-secrets into Vercel:
-
-```sh
-cd contracts
-# --cfg near is what cargo-near adds. Without it, env::panic_str does not
-# call the host and a refusal is a silent trap.
-RUSTFLAGS='--cfg near' cargo build --release --target wasm32-unknown-unknown -p policy-wallet --locked
-cd ..
-TRIAGEPAY_WALLET_WASM=contracts/target/wasm32-unknown-unknown/release/policy_wallet.wasm node demo/live/setup.mjs
-```
-
-`setup.mjs` prints account ids and writes keys under `demo/live/.keys/`.
-It does not print the secrets. The public demo accounts on testnet are in
-`demo/live/config.json`: wallet `tpd-e947e7-wallet.testnet` (with the
-owner-review queue, deployed 2026-11-12), agent
-`tpd-e947e7-agent.testnet`, owner `tpd-e947e7-owner.testnet`.
-`node demo/live/proof.mjs` runs the live proof against them; the
-transactions are in
-[docs/demo/testnet-review/2026-11-12](docs/demo/testnet-review/2026-11-12/README.md).
-
-The agent account has one access key: the function-call key that can call
-only `pay` on that wallet
-(`ed25519:9iERawak26p4uGVfktNgcpG1zxuEV31d8GAnY1qUxUis`). That is the key
-the Vercel project already held for the previous demo wallet. I added its
-public half to the new agent
-([2sfo5j9N](https://testnet.nearblocks.io/txns/2sfo5j9NdZGT3Bb3ap9FpfXaPjtzfCZfkEB5iQCJXByZ)), and the
-hosted owner key to the new owner
-([D9Vghe56](https://testnet.nearblocks.io/txns/D9Vghe56X4yY47awicJoo4Gaj3KPN3xmdHLmT1qfMZZp)), so no secret
-had to move. Then I deleted the setup full-access key and my local pay key
-in one transaction
-([74a2PEiV](https://testnet.nearblocks.io/txns/74a2PEiV98G5gJppaiXTNZ2vmGBCEDbPxUAuSzPpsAsC)). With no
-full-access key left, the agent cannot add a key or move its own NEAR. When
-the pay key's 0.25 NEAR gas allowance runs out, the agent needs a new
-account.
-
-`node demo/live/setup.mjs cleanup` does the same deletion for an agent
-set up the old way (`--drop-full-access` also removes the full-access key,
-and only when a pay key remains). The previous demo agent,
-`tpd-797021-agent.testnet`, still holds three keys (a full-access setup
-key, the pay key above, and a leftover pay key for
-`tpd-797021-wallet.testnet`). I do not have its full-access secret, so I
-could not delete them. The page no longer uses that account.
-
-The same run on the new wallet also produced an over-limit refusal
-([`ERR_PER_CALL_LIMIT`](https://testnet.nearblocks.io/txns/BMoHjQXgQasLxn4wZspzTQU9g1rBjbqThhZQevknCZ7s)),
-a revoke ([`revoke_agent`](https://testnet.nearblocks.io/txns/5qZ5yQAPTm5dFg7i455HvsrgBNk8bTbbCou6zq4461as))
-and a revoked-agent refusal
-([`ERR_AGENT_INACTIVE`](https://testnet.nearblocks.io/txns/3iHytU9nkYuqPh74its9TPW3MwQoUJeaPQg1nbGGyQTZ)).
+[`v1.signer-prod.testnet` signed a Base Sepolia USDC transfer](https://testnet.nearblocks.io/txns/aeaL3TZAsYyV6kEGVCvm3ppzfc56cvP8pAsCVKrifVM) for the owner account, and the signature recovers to the derived address `0x508e984fda3bc37d8c33bfb5098441fd2169fcc8`. It was not broadcast, and the wallet contract does not call `sign` yet ([docs/contracts/chain-signatures.md](docs/contracts/chain-signatures.md)).
 
 ## The problem
 
-An agent that holds a normal NEAR key can empty its account the first time a
-prompt injection tells it to. A function-call key cannot move tokens either:
-it cannot attach the 1 yoctoNEAR that NEP-141 `ft_transfer` requires. So the
-agent needs a contract between its key and the money.
+An agent that holds a normal NEAR key can empty its account the first time a prompt injection tells it to. A function-call key cannot move tokens either: it cannot attach the 1 yoctoNEAR that NEP-141 `ft_transfer` requires. So the agent needs a contract between its key and the money.
 
 ## Try it
 
@@ -178,52 +87,30 @@ Needs Rust (stable) and Python 3.12.
 
 | Do | See |
 |---|---|
-| `cargo test --workspace` | `226 passed`, `3 ignored` (the ignored three read mainnet RPC). The extra pass is the unlisted-reserve test in `policy-core`; the other workspace suites were not re-run for this change |
+| `cargo test --workspace` | `226 passed`, `3 ignored` (the ignored three read mainnet RPC) |
 | Terminal 1: `cargo run -p aps-api --bin aps-api` | `aps-api listening on http://127.0.0.1:8080 (payment provider: mock)` |
 | Terminal 2: `python scripts/x402-demo.py` | Step 1: `HTTP 402` and the decoded payment requirement. Step 2: `HTTP 200`, `verdict: needs_evidence`, the content hash the payment settled against. Step 3: the same proof again returns the identical response. Step 4: the proof reused for another finding is `proof_already_consumed` |
 | `./scripts/demo.sh` (or `demo.ps1`) | The prepaid flow without x402: fund, reserve, scan, settle, reject, refund; final balances conserve |
 
-The mock provider accepts any transaction hash on a development-only network
-(`aps:mock`). It shows the HTTP exchange and the ledger, not payment
-verification.
+The mock provider accepts any transaction hash on a development-only network (`aps:mock`). It shows the HTTP exchange and the ledger, not payment verification.
 
-To add the model judge without a NEAR AI key, start the API with
-`APS_SCAN_SKU=triage.v2` and `APS_TRIAGE_CASSETTES=triage-model/cassettes`.
-The walkthrough then also prints `model judge z-ai/glm-5.3-flash (listed as
-TEE-verifiable): high, p=0.75` and the model's rationale, replayed from
-recorded replies for the repository's synthetic findings. With
-`APS_LIVE_MODEL=1` and `NEARAI_API_KEY` set instead, the call goes to NEAR AI
-Cloud (about USD 0.0002 per call).
+To add the NEAR AI judge without a key, start the API with `APS_SCAN_SKU=triage.v2` and `APS_TRIAGE_CASSETTES=triage-model/cassettes`: the walkthrough then also prints the judge's opinion and rationale, replayed from recorded replies. With `APS_LIVE_MODEL=1` and `NEARAI_API_KEY` set instead, the call goes to NEAR AI Cloud (about USD 0.0002 per call). Details: [docs/engine/overview.md](docs/engine/overview.md).
 
 ### B. Read the testnet run, no setup
 
-[docs/demo/transcript-2026-11-11.md](docs/demo/transcript-2026-11-11.md) is
-the unedited output of the agent demo on NEAR testnet. Every step links to
-its transaction. In order:
+[docs/demo/transcript-2026-11-11.md](docs/demo/transcript-2026-11-11.md) is the unedited output of the agent demo on NEAR testnet. Every step links to its transaction. In order:
 
-1. The wallet account has 0 access keys. The agent's key is
-   `FunctionCall{receiver: wallet, methods: [pay]}`.
-2. The agent pays for four triage calls. Each is a 402, a wallet `pay`, and a
-   proof the server accepts only after reading the token contract's transfer
-   event. Verdicts: `needs_evidence`, `supported`, `supported` with embedded
-   instructions flagged, `rejected`.
-3. A finding tells the agent to send a token to another account. The agent
-   obeys; the wallet answers `ERR_PAYEE_NOT_ALLOWED` and no balance moves.
+1. The wallet account has 0 access keys. The agent's key is `FunctionCall{receiver: wallet, methods: [pay]}`.
+2. The agent pays for four triage calls. Each is a 402, a wallet `pay`, and a proof the server accepts only after reading the token contract's transfer event. Verdicts: `needs_evidence`, `supported`, `supported` with embedded instructions flagged, `rejected`.
+3. A finding tells the agent to send a token to another account. The agent obeys; the wallet answers `ERR_PAYEE_NOT_ALLOWED` and no balance moves.
 4. One atomic unit over the per-call limit: `ERR_PER_CALL_LIMIT`.
 5. A fifth call the same day: `ERR_DAILY_LIMIT`.
-6. The agent calls the owner method `set_agent` to raise its own limit. The
-   node rejects the transaction: a function-call key cannot attach the
-   required deposit, and the key does not list the method.
-7. The owner calls `revoke_agent`. The agent's key still exists and its next
-   `pay` fails with `ERR_AGENT_INACTIVE`.
+6. The agent calls the owner method `set_agent` to raise its own limit. The node rejects the transaction: a function-call key cannot attach the required deposit, and the key does not list the method.
+7. The owner calls `revoke_agent`. The agent's key still exists and its next `pay` fails with `ERR_AGENT_INACTIVE`.
 
 ### C. Re-run it on testnet, about ten minutes
 
-Needs Node 22.18 or later, `cargo-near` 0.21.1 with the
-`wasm32-unknown-unknown` target, and the key file of a testnet account
-holding about 6 NEAR (`{"account_id": "...", "secret_key": "ed25519:..."}`,
-kept outside the repository). The script creates throwaway accounts and
-never touches mainnet.
+Needs Node 22.18 or later, `cargo-near` 0.21.1 with the `wasm32-unknown-unknown` target, and the key file of a testnet account holding about 6 NEAR (`{"account_id": "...", "secret_key": "ed25519:..."}`, kept outside the repository). The script creates throwaway accounts and never touches mainnet.
 
 ```sh
 npm ci --prefix clients/typescript
@@ -236,122 +123,82 @@ node agents/demo/demo.mjs direct --out-dir ../demo-run --api http://127.0.0.1:80
 node agents/demo/demo.mjs revoke --out-dir ../demo-run --api http://127.0.0.1:8080
 ```
 
-`../demo-run/transcript.md` then reads like the file in B, with new
-transaction hashes. Details: [agents/demo/README.md](agents/demo/README.md).
+`../demo-run/transcript.md` then reads like the file in B, with new transaction hashes. Details: [agents/demo/README.md](agents/demo/README.md).
 
 ## What NEAR does here
 
 | NEAR feature | Use | Proof |
 |---|---|---|
-| Function-call access keys | The key the agent uses to pay: one contract, one method, no deposit. On the hosted agent account it is the only key | Transcript steps `keys_view`, `self_escalation`; [docs/contracts/policy-wallet.md](docs/contracts/policy-wallet.md) testnet steps 11-24; hosted keys listed under Hosted demo |
-| A contract as the spending policy | Per-call limit, per-UTC-day limit, payee allowlist, pause, revoke, and an owner queue for a new payee or an amount above a threshold; owner methods need 1 yoctoNEAR, which no function-call key can attach | `contracts/policy-wallet`: 78 unit tests, 3 property tests in `crates/policy-core`; transcript refusals |
+| Function-call access keys | The key the agent uses to pay: one contract, one method, no deposit. On the hosted agent account it is the only key | Transcript steps `keys_view`, `self_escalation`; [docs/contracts/policy-wallet.md](docs/contracts/policy-wallet.md) testnet steps 11-24; [docs/demo/hosted.md](docs/demo/hosted.md) for the hosted keys |
+| A contract as the spending policy | Per-call limit, per-UTC-day limit, payee allowlist, pause, revoke, and an owner queue for a new payee or an amount above a threshold; owner methods need 1 yoctoNEAR, which no function-call key can attach | `contracts/policy-wallet`: 78 unit tests and 18 sandbox tests, 3 property tests in `crates/policy-core`; transcript refusals |
 | Chain Signatures | One testnet `sign` request on `v1.signer-prod.testnet` for an EIP-1559 USDC transfer on Base Sepolia; the signature recovers to the address derived for (owner account, `base-sepolia-1`). Not broadcast, and the wallet does not call `sign` yet | [docs/contracts/chain-signatures.md](docs/contracts/chain-signatures.md); [sign transaction](https://testnet.nearblocks.io/txns/aeaL3TZAsYyV6kEGVCvm3ppzfc56cvP8pAsCVKrifVM); SDK tests reuse the recorded values |
 | NEP-141 and NEP-297 events | Payment is an `ft_transfer`; the server accepts it only when the token contract's own `ft_transfer` event, in a finalized receipt, pays the gateway with the server-issued memo | `crates/near-adapter/src/verify.rs`; 21 receipt-fixture tests, one a real mainnet capture; transcript |
-| x402 v2 over NEAR | A client-submitted payment proof (`near-tx-proof`) that works from a policy wallet. The upstream NEAR binding needs a full-access key; this one does not. A proposed profile, not upstream | [docs/protocols/x402-near.md](docs/protocols/x402-near.md); 15 flow tests; transcript |
+| x402 v2 over NEAR | A client-submitted payment proof (`near-tx-proof`) that works from a policy wallet. The upstream NEAR binding needs a full-access key; this one does not. A proposed profile, not upstream | [docs/protocols/x402-near.md](docs/protocols/x402-near.md); 16 x402 flow tests; transcript |
 | NEP-413 signed messages | Login-message verification for future caller authentication | `crates/auth`, 25 tests. A library: the API does not use it yet |
-| NEAR AI Cloud | The optional Stage B model judge (`APS_SCAN_SKU=triage.v2`) calls a model the catalogue lists as TEE-verifiable; it is advisory and can never raise a verdict. The hosted demo separately checks that an attestation report echoes a fresh nonce. The Intel quote is not verified | Spike on 2026-11-12: 50 live calls, 5 models, USD 0.096 ([docs/engine/model-selection.md](docs/engine/model-selection.md)); recorded replies in `triage-model/cassettes`, replayed by 6 tests. Paid route: no attestation (ADR-0011). Demo check: [docs/engine/attestation.md](docs/engine/attestation.md) |
+| NEAR AI Cloud | The optional Stage B judge (`APS_SCAN_SKU=triage.v2`) calls a model the catalogue lists as TEE-verifiable; it is advisory and can never raise a verdict. The hosted demo separately checks that an attestation report echoes a fresh nonce. The Intel quote is not verified | Spike on 2026-11-12: 50 live calls, 5 models, USD 0.096 ([docs/engine/model-selection.md](docs/engine/model-selection.md)); recorded replies in `triage-model/cassettes`, replayed by 6 tests. Paid route: no attestation (ADR-0011). Demo check: [docs/engine/attestation.md](docs/engine/attestation.md) |
 
 ## What the agent's key can and cannot do
 
-- It can call `pay(token, receiver, amount, memo)` on one wallet, with no
-  deposit. The wallet checks, in order: not paused, agent active, token
-  allowlisted, payee allowlisted, amount within the per-call limit, day total
-  within the daily limit. Then the wallet itself sends the `ft_transfer`.
-  With owner review on, a new payee or an amount above the threshold is
-  queued instead of transferred ([docs/contracts/review-policy.md](docs/contracts/review-policy.md)).
-- On the hosted agent account (`tpd-e947e7-agent.testnet`) this is the
-  only key. The paragraph under Hosted demo has the deletion transaction.
-- It cannot call any owner method, transfer NEAR, add or delete keys, or
-  deploy code. Those need a deposit or a full-access key.
-- Stolen, the pay-only key can spend at most the daily limit per UTC day,
-  to allowlisted payees only, until the owner revokes the agent or pauses
-  the wallet. Across a UTC midnight that is up to two daily limits within
-  minutes.
-- It carries a gas allowance. When the allowance runs out the key stops
-  working until the account's full-access key replaces it. An account that
-  holds only function-call keys can lock itself out this way. The hosted
-  agent is such an account.
-- Revocation happens at the wallet (`revoke_agent`). The wallet owner cannot
-  delete a key on the agent's account; the demo shows key deletion as a
-  separate step by the agent account.
-- One wallet holds one token. Limits are integers in that token's atomic
-  units.
-- The owner key is not limited: it can withdraw everything. The wallet
-  account itself has no keys and no upgrade method.
+- It can call `pay(token, receiver, amount, memo)` on one wallet, with no deposit. The wallet checks, in order: not paused, agent active, token allowlisted, payee allowlisted, amount within the per-call limit, day total within the daily limit. Then the wallet itself sends the `ft_transfer`. With owner review on, a new payee or an amount above the threshold is queued instead of transferred ([docs/contracts/review-policy.md](docs/contracts/review-policy.md)).
+- On the hosted agent account (`tpd-e947e7-agent.testnet`) this is the only key. [docs/demo/hosted.md](docs/demo/hosted.md) has the deletion transaction.
+- It cannot call any owner method, transfer NEAR, add or delete keys, or deploy code. Those need a deposit or a full-access key.
+- Stolen, the pay-only key can spend at most the daily limit per UTC day, to allowlisted payees only, until the owner revokes the agent or pauses the wallet. Across a UTC midnight that is up to two daily limits within minutes.
+- It carries a gas allowance. When the allowance runs out the key stops working until the account's full-access key replaces it. An account that holds only function-call keys can lock itself out this way. The hosted agent is such an account.
+- Revocation happens at the wallet (`revoke_agent`). The wallet owner cannot delete a key on the agent's account; the demo shows key deletion as a separate step by the agent account.
+- One wallet holds one token. Limits are integers in that token's atomic units.
+- The owner key is not limited: it can withdraw everything. The wallet account itself has no keys and no upgrade method.
 
 ## How the server knows it was paid
 
-1. `POST /v2/scan` without payment creates a deposit intent and answers 402.
-   The requirement names the asset, the payee, the exact amount and a memo
-   that ends in a 128-bit random nonce.
-2. The agent pays with that memo, directly or through the wallet, and
-   retries with the transaction hash.
-3. The server reads the transaction with `wait_until: FINAL` and looks for a
-   successful receipt executed by the asset contract, carrying an
-   `ft_transfer` call with 1 yoctoNEAR and exactly one `nep141` event to the
-   payee with the memo. Events logged by any other contract are ignored.
-   `ft_transfer_call` is refused because it can be refunded.
-4. The exact amount funds the intent once. A wrong amount, a second payment
-   or a late one is recorded as an orphan for an operator-approved refund
-   and never becomes credit.
-5. The ledger reserves the price, runs the scan, and settles against the
-   report's content hash. The same proof and request replay the stored
-   response; anything else is refused.
+1. `POST /v2/scan` without payment creates a deposit intent and answers 402. The requirement names the asset, the payee, the exact amount and a memo that ends in a 128-bit random nonce.
+2. The agent pays with that memo, directly or through the wallet, and retries with the transaction hash.
+3. The server reads the transaction with `wait_until: FINAL` and looks for a successful receipt executed by the asset contract, carrying an `ft_transfer` call with 1 yoctoNEAR and exactly one `nep141` event to the payee with the memo. Events logged by any other contract are ignored. `ft_transfer_call` is refused because it can be refunded.
+4. The exact amount funds the intent once. A wrong amount, a second payment or a late one is recorded as an orphan for an operator-approved refund and never becomes credit.
+5. The ledger reserves the price, runs the scan, and settles against the report's content hash. The same proof and request replay the stored response; anything else is refused.
 
-Money is integer-only (u128 atomic units). Every balance satisfies
-`deposited == available + reserved + settled`, checked after every operation
-by a randomized test.
+Money is integer-only (u128 atomic units). Every balance satisfies `deposited == available + reserved + settled`, checked after every operation by a randomized test.
 
 ## Status
 
 | | |
 |---|---|
-| Run on testnet | Policy wallet (28-step run on 2026-11-06, and the agent demo on 2026-11-11); the owner-review wallet on 2026-11-12 (held, approved, rejected); one Chain Signatures request on 2026-11-12, signed and not broadcast; x402 round trips paid through the wallet and directly; receipt verification |
-| Run on mainnet | The policy wallet on 2026-11-12: one paid call, one refused payee, revoke, one revoked-agent refusal, in wNEAR ([Live on mainnet](#live-on-mainnet)). Earlier, one native-USDC deposit verified on 2026-10-21 by the argument-based verifier ([docs/integrations/near.md](docs/integrations/near.md)). The x402 receipt check has not run on mainnet |
-| Run against NEAR AI Cloud | Stage B, the model judge: a 50-call spike on 2026-11-12 and the paid route in `triage.v2` mode. Every verdict in the 2026-11-11 testnet transcript comes from Stage A (deterministic gates) alone; the run predates the working key |
+| Run on testnet | Policy wallet (28-step run on 2026-11-06, and the agent demo on 2026-11-11); the owner-review wallet on 2026-11-12 (held, approved, rejected) and again from the production page on 2026-11-13; one Chain Signatures request on 2026-11-12, signed and not broadcast; x402 round trips paid through the wallet and directly; receipt verification |
+| Run on mainnet | The policy wallet on 2026-11-12: one paid call, one refused payee, revoke, one revoked-agent refusal, in wNEAR ([Live on mainnet](#live-on-mainnet)). Earlier, one native-USDC deposit verified on 2026-10-21 by the argument-based verifier ([docs/integrations/near.md](docs/integrations/near.md)). The x402 receipt check has not run on mainnet, and the review queue is not deployed there |
+| Run against NEAR AI Cloud | Stage B: a 50-call spike on 2026-11-12 and the paid route in `triage.v2` mode. Every verdict in the 2026-11-11 testnet transcript comes from Stage A alone; the run predates the working key |
 | Built, tested offline only | The x402 facilitator endpoints, the SQLite journal (`crates/store`), NEP-413 and API keys (`crates/auth`), the static UI (`ui/`), the Dockerfile |
 | Not wired | The API keeps its ledger in memory, serves one development caller with no authentication, binds loopback only, and does not serve the UI |
-| Run in CI only | The 18 sandbox tests in `contracts/tests` (near-workspaces, a local NEAR node): 18 passed on GitHub Actions, Linux, 2026-11-12. The sandbox has no Windows build |
-| Hosted judge demo | `demo/live`: Vercel static page plus serverless functions. Signing keys are environment variables. A local run hits NEAR testnet | 
-| Cut | Attested verdicts on the paid route (ADR-0011). The demo checks a nonce echo and does not verify the Intel quote. Also cut: NEAR Intents deposits, a mainnet campaign, a measured accuracy figure. No accuracy is claimed anywhere |
+| Run in CI only | The 18 sandbox tests in `contracts/tests` (near-workspaces, a local NEAR node) pass on GitHub Actions, Linux. The sandbox has no Windows build |
+| Hosted judge demo | `demo/live`: Vercel static page plus serverless functions on testnet. Signing keys are environment variables. The cross-instance rate-limit store is not connected yet (`sharedLimits: false`) |
+| Cut | Attested verdicts on the paid route (ADR-0011); the demo checks a nonce echo and does not verify the Intel quote. Also cut: NEAR Intents deposits and a measured accuracy figure. No accuracy is claimed anywhere |
 
-Known limits of the paid route: no rate limiting; the server trusts its RPC
-endpoint; on `/v2/scan` the envelope is validated after payment (an invalid
-one keeps the payment claimed and can be retried with a corrected body); the
-agent in the demo has no language model.
+Known limits of the paid route: no rate limiting; the server trusts its RPC endpoint; on `/v2/scan` the envelope is validated after payment (an invalid one keeps the payment claimed and can be retried with a corrected body); the agent in the demo has no language model.
 
 ## Hackathon window and what is reused
 
-The first commit is dated 2026-10-20. The rules count code from the
-announcement on 2026-10-19 (Q-001), so no code here predates the window.
-`git log --reverse` shows the whole history.
+The first commit is dated 2026-10-20. The rules count code from the announcement on 2026-10-19 (Q-001), so no code here predates the window. `git log --reverse` shows the whole history.
 
-Libraries: axum, tokio, serde, ureq, base64, getrandom, ed25519-dalek, sha2,
-bs58, rusqlite (bundled SQLite), proptest; near-sdk 5.29.1,
-near-contract-standards and near-workspaces for the contracts; near-api-js
-7.3.1 for the clients and testnet scripts. The Python packages use the
-standard library only. The x402 work follows the public x402 v2
-specification; the `near-tx-proof` method is my own proposal.
+Libraries: axum, tokio, serde, ureq, base64, getrandom, ed25519-dalek, sha2, bs58, rusqlite (bundled SQLite), proptest; near-sdk 5.29.1, near-contract-standards and near-workspaces for the contracts; near-api-js 7.3.1 for the clients and testnet scripts. The Python packages use the standard library only. The x402 work follows the public x402 v2 specification; the `near-tx-proof` method is my own proposal.
 
-I am one developer and I wrote this with AI coding agents (Claude Code). The
-commits carry the co-author trailer.
+I am one developer and I wrote this with AI coding agents (Claude Code). The commits carry the co-author trailer.
 
 ## Tests
 
+All counts are from one run on 2026-11-13 on the merged main, except the sandbox, which needs Linux and runs in CI.
+
 | Suite | Command | Result |
 |---|---|---|
-| Rust workspace | `cargo test --workspace` | 226 passed, 3 ignored (225 from 2026-11-12, plus 1 new `policy-core` test re-run here) |
-| Contracts | `cd contracts && cargo test` | policy-wallet 78 re-run on 2026-11-12; test-token 3; sandbox 18 (Linux only; passed in CI on the previous build, not re-run here) |
+| Rust workspace | `cargo test --workspace` | 226 passed, 3 ignored |
+| Contracts | `cd contracts && cargo test` | policy-wallet 78 passed, test-token 3 passed; sandbox 18 passed in the contracts workflow on GitHub Actions (Linux) |
 | Scanner | `cd scanner && python -m pytest -q` | 319 passed |
 | Knowledge compiler | `cd knowledge-compiler && python -m pytest -q` | 71 passed, 1 skipped |
 | Model judge (offline, with cassette replay) | `cd triage-model && python -m pytest -q` | 73 passed |
 | OpenAPI and Python client | `python -m pytest tests -q` | 14 passed |
 | UI | `python -m pytest ui/tests -q` | 17 passed |
 | TypeScript client | `cd clients/typescript && npm ci && npm test` | 7 passed |
-| Policy-wallet SDK | `cd packages/triagepay-sdk && npm test` | 6 passed |
+| Hosted demo | `cd demo/live && npm test` | 50 passed |
+| Policy-wallet SDK | `cd packages/triagepay-sdk && npm test` | 9 passed |
 
-Counts were regenerated on 2026-11-12. The claim-by-claim record is
-[docs/claims-audit.md](docs/claims-audit.md).
+The claim-by-claim record is [docs/claims-audit.md](docs/claims-audit.md).
 
 ## Layout
 
@@ -406,11 +253,12 @@ everywhere: `{"error":{"code","message"}}`.
 
 ## More
 
-[Architecture](docs/architecture.md) ·
-[threat model](docs/threat-model.md) ·
-[wallet](docs/contracts/policy-wallet.md) ·
-[x402 profile](docs/protocols/x402-near.md) ·
-[engine](docs/engine/overview.md) ·
+[Architecture](docs/architecture.md) |
+[threat model](docs/threat-model.md) |
+[wallet](docs/contracts/policy-wallet.md) |
+[x402 profile](docs/protocols/x402-near.md) |
+[engine](docs/engine/overview.md) |
+[hosted demo](docs/demo/hosted.md) |
 [decisions](docs/decisions/)
 
 ## License
