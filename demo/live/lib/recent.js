@@ -41,7 +41,7 @@ export function mergeRecent(indexed, journal, explorerBase) {
     byHash.set(row.txHash, {
       txHash: row.txHash,
       atMs: row.atMs,
-      outcome: row.success ? "success" : "failure",
+      outcome: row.success ? "success" : "refused",
       errorCode: null,
       kind: kindFromMethods(row.methods),
       title: row.methods.length ? row.methods.join(", ") : "transaction",
@@ -58,7 +58,7 @@ export function mergeRecent(indexed, journal, explorerBase) {
       ...prev,
       txHash: row.txHash,
       atMs: row.atMs || prev.atMs || null,
-      outcome: row.outcome || prev.outcome || null,
+      outcome: (row.outcome === "failure" ? "refused" : row.outcome) || (prev.outcome === "failure" ? "refused" : prev.outcome) || null,
       errorCode: row.errorCode || prev.errorCode || null,
       kind: row.kind || prev.kind || "chain",
       title: row.title || prev.title || "transaction",

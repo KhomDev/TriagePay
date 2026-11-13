@@ -38,10 +38,12 @@ const HEADLINES = {
 };
 
 export function buildReceipt({ kind, code, tried, amount, payee, txHash, explorerUrl }) {
-  const rule = code || (kind ? kind.toUpperCase() : "RULE");
   const headline = HEADLINES[kind] || "RECEIPT";
-  const ruleText = RULE_TEXT[rule] || "The wallet applied its spend policy.";
-  const shareText = `${headline} ${rule}. ${amount || "an amount"} to ${payee || "a payee"}. ${SHARE_TAIL}`;
+  const rule = code && code !== headline ? code : "";
+  const ruleText = RULE_TEXT[code] || RULE_TEXT[headline] || "The wallet applied its spend policy.";
+  const movement = amount && payee ? `${amount} to ${payee}` : (amount || payee || "");
+  const head = [headline, rule].filter(Boolean).join(" ");
+  const shareText = `${[head, movement].filter(Boolean).join(". ")}. ${SHARE_TAIL}`;
   return {
     kind,
     headline,
@@ -54,6 +56,18 @@ export function buildReceipt({ kind, code, tried, amount, payee, txHash, explore
     explorerUrl: explorerUrl || null,
     shareText,
   };
+}
+
+function presentAmount(text) {
+  const value = String(text || "");
+  if (!value) return null;
+  const over = /^(\d+\.\d{0,6}?)0{8,}1$/.exec(value);
+  if (over) {
+    const head = over[1].replace(/\.$/, "") || "0";
+    return `${head} wNEAR plus 1 yocto`;
+  }
+  if (/[A-Za-z]/.test(value)) return value;
+  return `${value} wNEAR`;
 }
 
 export function receiptFromRun({ scenario, chain, action, amountDisplay, payee }) {
@@ -77,7 +91,7 @@ export function receiptFromRun({ scenario, chain, action, amountDisplay, payee }
     kind,
     code,
     tried: (scenario && (scenario.narrative || scenario.title)) || "The agent asked the wallet to pay.",
-    amount: amountDisplay || (scenario && scenario.amountDisplay) || null,
+    amount: presentAmount(amountDisplay || (scenario && scenario.amountDisplay) || "") ,
     payee: payee || (scenario && scenario.payee) || null,
     txHash: chain.txHash || null,
     explorerUrl: chain.explorerUrl || null,

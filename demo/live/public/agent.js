@@ -38,14 +38,25 @@
     card.appendChild(list);
     card.appendChild(el("p", null, "Allowlist: " + ((data.allowlist || []).join(", ") || "none")));
     var counts = data.counts || {};
-    card.appendChild(el("p", null, "In the indexed transactions: " + (counts.refusals || 0) + " refusals, " + (counts.paid || 0) + " payments, " + (counts.approved || 0) + " approvals, " + (counts.revokes || 0) + " revokes."));
+    function counted(n, one, many) { return (n || 0) + " " + ((n || 0) === 1 ? one : many); }
+    card.appendChild(el("p", null, "In the indexed transactions: " + counted(counts.refusals, "refusal", "refusals") + ", " + counted(counts.paid, "payment", "payments") + ", " + counted(counts.approved, "approval", "approvals") + ", " + counted(counts.revokes, "revoke", "revokes") + "."));
     var source = data.source || {};
     card.appendChild(el("p", { class: "hint" }, "Limits: " + (source.limits || "") + ". Transactions: " + (source.transactions || "") + ". Error codes: " + (source.errorCodes || "") + "."));
     if (data.explorerUrl) card.appendChild(el("p", null, el("a", { href: data.explorerUrl, rel: "noopener", target: "_blank" }, "Account on the explorer")));
     var feed = el("ol", { class: "feed" });
     (data.events || []).forEach(function (row) {
+      var when = row.atMs ? new Date(row.atMs).toISOString().replace("T", " ").slice(0, 19) + " UTC" : "";
       var link = row.explorerUrl ? el("a", { href: row.explorerUrl, rel: "noopener", target: "_blank" }, "transaction") : null;
-      feed.appendChild(el("li", null, (row.label || "transaction") + (row.errorCode ? " " + row.errorCode : ""), link ? " " : "", link || ""));
+      feed.appendChild(el("li", null,
+        when,
+        " ",
+        row.label || "transaction",
+        row.payee ? " " + row.payee : "",
+        row.amount ? " " + row.amount + " wNEAR" : "",
+        row.errorCode ? " " + row.errorCode : "",
+        link ? " " : "",
+        link || ""
+      ));
     });
     card.appendChild(feed);
     var jsonUrl = "/api/passport?account=" + encodeURIComponent(data.accountId || "");

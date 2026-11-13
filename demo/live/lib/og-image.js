@@ -36,7 +36,8 @@ function loadRenderers() {
 }
 
 function box(style, children) {
-  return { type: "div", props: { style: { display: "flex", ...style }, children } };
+  const kids = Array.isArray(children) ? children.filter(Boolean) : children;
+  return { type: "div", props: { style: { display: "flex", ...style }, children: kids } };
 }
 
 function clip(value, pattern) {
@@ -89,8 +90,8 @@ export async function renderReceiptPng(fields) {
         box({ fontSize: 92, marginTop: 28, color: "#e2ff54", fontWeight: 700 }, fields.headline),
         box({ fontSize: 28, marginTop: 18, color: "#f4f1e8" }, `${fields.rule}`),
         box({ fontSize: 26, marginTop: 8, color: "#b7b3a8" }, fields.ruleText),
-        box({ fontSize: 26, marginTop: 28 }, `Amount  ${fields.amount || "—"}`),
-        box({ fontSize: 26, marginTop: 8 }, `Payee  ${fields.payee || "—"}`),
+        fields.amount ? box({ fontSize: 26, marginTop: 28 }, `Amount  ${fields.amount}`) : null,
+        fields.payee ? box({ fontSize: 26, marginTop: 8 }, `Payee  ${fields.payee}`) : null,
         box({ fontSize: 22, marginTop: 8, color: "#b7b3a8" }, fields.tried || "The agent asked the wallet to pay."),
         box({ fontSize: 20, marginTop: 36, color: "#e2ff54" }, fields.tx ? `tx ${fields.tx}` : "no transaction hash"),
         box({ fontSize: 20, marginTop: 18, color: "#8d897f" }, SHARE_TAIL),
@@ -123,9 +124,9 @@ export async function renderSitePng() {
       },
       [
         box({ fontSize: 22, letterSpacing: 6, color: "#e2ff54" }, "TRIAGEPAY"),
-        box({ fontSize: 68, marginTop: 28, fontWeight: 700 }, "It will pay the attacker."),
-        box({ fontSize: 68, marginTop: 8, color: "#e2ff54", fontWeight: 700 }, "The wallet will not."),
-        box({ fontSize: 24, marginTop: 36, color: "#b7b3a8" }, "A policy wallet for AI agents on NEAR. built at NEAR HACKATHON @NEARProtocol #NEARHackathon"),
+        box({ fontSize: 64, marginTop: 28, fontWeight: 700 }, "The agent signs."),
+        box({ fontSize: 64, marginTop: 8, color: "#e2ff54", fontWeight: 700 }, "The contract decides."),
+        box({ fontSize: 24, marginTop: 36, color: "#b7b3a8" }, "A policy wallet on NEAR testnet and mainnet. built at NEAR HACKATHON @NEARProtocol #NEARHackathon"),
       ],
     ),
     { width: 1200, height: 630, fonts: [{ name: "Geist", data: font, weight: 400, style: "normal" }] },

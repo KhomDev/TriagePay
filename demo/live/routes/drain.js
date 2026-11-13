@@ -3,6 +3,8 @@ import { fromError, json, readJson, sse } from "../lib/http.js";
 import { runDrainAttempt } from "../lib/live-run.js";
 import { formatAtomic } from "../lib/format.js";
 import { loadConfig } from "../lib/config.js";
+import { honeypotAccount } from "../lib/honeypot.js";
+import { honeypotHitsFromChain } from "../lib/txread.js";
 
 function present(status) {
   let drainedDisplay = status.drained;
@@ -16,7 +18,28 @@ function present(status) {
 
 export async function GET() {
   try {
-    return json(200, present(await drainStatus()));
+    const status = await drainStatus();
+    try {
+      const config = loadConfig();
+      const hits = await honeypotHitsFromChain(config, honeypotAccount(config));
+      const byHash = new Map();
+      for (const row of [...hits, ...(status.feed || [])]) {
+        if (!row) continue;
+        const key = row.txHash || `local-${row.atMs || ""}-${row.prompt || ""}`;
+        const prev = byHash.get(key) || {};
+        byHash.set(key, { ...prev, ...row });
+      }
+      const feed = [...byHash.values()].sort((a, b) => (b.atMs || 0) - (a.atMs || 0));
+      if (feed.length) {
+        status.feed = feed;
+        status.attempts = feed.length;
+        status.refusals = feed.filter((row) => row.outcome === "refused" || row.errorCode).length;
+        status.note = "Counted from the agent's payments on the chain.";
+      }
+    } catch {
+      // Keep the feed this process already has.
+    }
+    return json(200, present(status));
   } catch (error) {
     return fromError(error);
   }

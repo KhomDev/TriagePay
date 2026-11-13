@@ -3,7 +3,8 @@
   "use strict";
 
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var state = { scenarios: [], busy: false, review: null, queueScenario: null };
+  var FLOOR_KEY = "triagepay-board-floor";
+  var state = { scenarios: [], busy: false, review: null, queueScenario: null, ready: false, killSwitch: false, recentRows: null, drainRows: null, network: "testnet", mainnetSigning: false, mainnetProofs: [], mainnetRemaining: null, testnetRemaining: null, maxAttempts: 300, floor: { paid: null, refused: null, agents: null, protectedYocto: null, protectedDisplay: null, asOf: null } };
 
   function $(id) { return document.getElementById(id); }
 
@@ -57,11 +58,14 @@
     var select = $("scenario");
     var current = select.value;
     clear(select);
+    var reviewOn = Boolean(state.review && state.review.reviewUnknownPayees);
     scenarios.forEach(function (scenario) {
+      if (scenario.id === "review-payee" && !reviewOn) return;
       select.appendChild(el("option", { value: scenario.id }, scenario.title));
     });
-    if (current && scenarios.some(function (item) { return item.id === current; })) select.value = current;
-    else if (scenarios.some(function (item) { return item.id === "injected-payee"; })) select.value = "injected-payee";
+    var offered = Array.prototype.map.call(select.options, function (option) { return option.value; });
+    if (current && offered.indexOf(current) !== -1) select.value = current;
+    else if (offered.indexOf("injected-payee") !== -1) select.value = "injected-payee";
     paintScenario();
     var injected = scenarios.filter(function (item) { return item.id === "injected-payee"; })[0];
     if (injected && injected.injection) $("inject-line").textContent = injected.injection;
@@ -70,6 +74,171 @@
   function accountLink(base, id) {
     if (!base || !id) return document.createTextNode(id || "");
     return el("a", { href: base + id, rel: "noopener", target: "_blank" }, id);
+  }
+
+  function yoctoOf(value) {
+    try { return BigInt(value || "0"); } catch (err) { return 0n; }
+  }
+
+  function asOfLabel(iso) {
+    if (!iso) return "";
+    var when = new Date(iso);
+    if (isNaN(when.getTime())) return "";
+    var hh = String(when.getUTCHours()).padStart(2, "0");
+    var mm = String(when.getUTCMinutes()).padStart(2, "0");
+    return "as of " + hh + ":" + mm + " UTC";
+  }
+
+  function seedFromDom() {
+    var paid = Number($("num-paid") && $("num-paid").textContent);
+    var refused = Number($("num-refused") && $("num-refused").textContent);
+    var agents = Number($("num-agents") && $("num-agents").textContent);
+    var protectedDisplay = $("num-protected") && $("num-protected").textContent;
+    var source = $("num-source");
+    if (isFinite(paid) && isFinite(refused)) {
+      raiseBoard({
+        paid: paid,
+        refused: refused,
+        agents: isFinite(agents) ? agents : null,
+        protectedDisplay: protectedDisplay && protectedDisplay !== "—" ? protectedDisplay : null,
+        asOf: source && source.getAttribute("data-asof")
+      });
+    }
+    var left = $("attempt-left");
+    var match = left && /(\d+)\s+testnet attempts left/.exec(left.textContent || "");
+    if (match) state.testnetRemaining = Number(match[1]);
+  }
+
+  function loadFloor() {
+    try {
+      var saved = JSON.parse(sessionStorage.getItem(FLOOR_KEY) || "null");
+      if (saved && typeof saved === "object") raiseBoard(saved);
+    } catch (err) {}
+  }
+
+  function paintTape(rows) {
+    var root = $("tape");
+    if (!root || !rows || !rows.length) return;
+    var key = rows.map(function (row) { return row && row.hash; }).join(",");
+    if (root.getAttribute("data-key") === key) return;
+    root.setAttribute("data-key", key);
+    clear(root);
+    rows.slice(0, 6).forEach(function (row) {
+      if (!row || !row.hash) return;
+      var href = row.network === "mainnet"
+        ? "https://nearblocks.io/txns/" + row.hash
+        : "https://testnet.nearblocks.io/txns/" + row.hash;
+      root.appendChild(el("li", null, el("a", { href: href, rel: "noopener", target: "_blank" },
+        el("span", { class: row.paid ? "paid" : "refused" }, row.paid ? "PAID" : "REFUSED"),
+        " " + String(row.hash).slice(0, 8) + " · " + (row.network === "mainnet" ? "mainnet" : "testnet")
+      )));
+    });
+  }
+
+  function rememberFloor() {
+    try { sessionStorage.setItem(FLOOR_KEY, JSON.stringify(state.floor)); } catch (err) {}
+  }
+
+  function raiseBoard(board) {
+    if (!board) return;
+    var floor = state.floor;
+    if (board.paid != null) floor.paid = floor.paid == null ? Number(board.paid) : Math.max(floor.paid, Number(board.paid));
+    if (board.refused != null) floor.refused = floor.refused == null ? Number(board.refused) : Math.max(floor.refused, Number(board.refused));
+    if (board.agents != null) floor.agents = floor.agents == null ? Number(board.agents) : Math.max(floor.agents, Number(board.agents));
+    if (board.protectedYocto != null && (floor.protectedYocto == null || yoctoOf(board.protectedYocto) >= yoctoOf(floor.protectedYocto))) {
+      floor.protectedYocto = String(board.protectedYocto);
+      if (board.protectedDisplay) floor.protectedDisplay = board.protectedDisplay;
+    } else if (board.protectedDisplay && floor.protectedYocto == null) {
+      floor.protectedDisplay = board.protectedDisplay;
+    }
+    if (board.asOf && (!floor.asOf || String(board.asOf) > String(floor.asOf))) floor.asOf = board.asOf;
+    rememberFloor();
+    paintNumbers(floor, board);
+  }
+
+  function paintNumbers(floor, board) {
+    if (!$("num-paid")) return;
+    var shown = floor || board;
+    if (!shown || shown.paid == null) return;
+    $("num-paid").textContent = String(shown.paid);
+    $("num-refused").textContent = shown.refused == null ? "—" : String(shown.refused);
+    $("num-protected").textContent = shown.protectedDisplay || (board && board.protectedDisplay) || "—";
+    $("num-agents").textContent = shown.agents == null ? "—" : String(shown.agents);
+    var source = $("num-source");
+    var stamp = asOfLabel(shown.asOf || (board && board.asOf));
+    if (source && stamp) {
+      clear(source);
+      if (shown.asOf) source.setAttribute("data-asof", shown.asOf);
+      source.appendChild(el("a", { href: (board && board.sourceUrl) || "https://nearblocks.io", rel: "noopener", target: "_blank" }, "Live from NearBlocks"));
+      source.appendChild(document.createTextNode(" · " + stamp));
+    }
+  }
+
+  function paintAttemptLeft() {
+    var left = $("attempt-left");
+    if (!left) return;
+    if (state.testnetRemaining == null) return;
+    left.classList.remove("is-skeleton");
+    left.removeAttribute("aria-busy");
+    clear(left);
+    left.appendChild(document.createTextNode(state.testnetRemaining + " testnet attempts left today"));
+  }
+
+  function noteRemaining(value) {
+    if (value == null || !isFinite(Number(value))) return;
+    var next = Number(value);
+    if (state.testnetRemaining == null || next < state.testnetRemaining) state.testnetRemaining = next;
+    paintAttemptLeft();
+  }
+
+  function applyBoard(board) {
+    if (!board) return;
+    raiseBoard(board);
+    noteRemaining(board.attemptsRemaining);
+    paintTape(board.recent);
+  }
+
+  function loadStaticBoard() {
+    return fetch("/scoreboard.json").then(function (res) {
+      if (!res.ok) return null;
+      return res.json();
+    }).then(applyBoard).catch(function () {});
+  }
+
+  function loadLiveBoard() {
+    return fetch("/api/board").then(function (res) {
+      if (!res.ok) throw new Error("board");
+      return res.json();
+    }).then(applyBoard).catch(function () { return loadStaticBoard(); });
+  }
+
+  function paintMainnetProofs() {
+    var box = $("mainnet-proofs");
+    if (!box) return;
+    var show = state.network === "mainnet";
+    box.hidden = !show;
+    if (!show) return;
+    clear(box);
+    box.appendChild(document.createTextNode("Mainnet proofs: "));
+    (state.mainnetProofs || []).forEach(function (item, index) {
+      if (index) box.appendChild(document.createTextNode(" · "));
+      box.appendChild(el("a", { href: item.href, rel: "noopener", target: "_blank" }, item.label));
+    });
+  }
+
+  function setNetwork(name) {
+    state.network = name === "mainnet" ? "mainnet" : "testnet";
+    var testnet = $("net-testnet");
+    var mainnet = $("net-mainnet");
+    if (testnet) testnet.setAttribute("aria-pressed", state.network === "testnet" ? "true" : "false");
+    if (mainnet) mainnet.setAttribute("aria-pressed", state.network === "mainnet" ? "true" : "false");
+    paintMainnetProofs();
+    var left = $("mainnet-left");
+    if (left) {
+      var showLeft = state.network === "mainnet" && state.mainnetRemaining != null;
+      left.hidden = !showLeft;
+      if (showLeft) left.textContent = state.mainnetRemaining + " mainnet runs left today";
+    }
   }
 
   function paintSpend(data) {
@@ -109,9 +278,7 @@
       $("nav-wallet").textContent = data.wallet;
       $("nav-wallet").setAttribute("href", data.explorerAccount + data.wallet);
     }
-    $("agent-mode").textContent = data.agentMode === "live"
-      ? "Agent: live · " + (data.model || "NEAR AI")
-      : "Agent: scripted";
+    if (!state.holdStatus) $("agent-mode").textContent = "Deterministic attack, real on-chain refusal";
   }
 
   function paintRisks(risks) {
@@ -143,36 +310,33 @@
       $("btn-queue").disabled = true;
       return;
     }
+    var threshold = review.approvalThresholdDisplay || review.approvalThreshold || "0";
     copy.appendChild(document.createTextNode(
-      review.reviewUnknownPayees
-        ? "Unknown payees are queued on chain. "
-        : "Unknown payees are still refused. "
+      "An attacker payee is refused, not held. A payment above " + threshold + " is held. Queue one, then Approve it. " +
+      (review.pendingCount || 0) + " waiting."
     ));
-    copy.appendChild(document.createTextNode(
-      "Approval threshold " + (review.approvalThresholdDisplay || review.approvalThreshold || "0") + ". " + (review.pendingCount || 0) + " waiting."
-    ));
-    state.queueScenario = review.reviewUnknownPayees ? "review-payee" : (BigInt(review.approvalThreshold || "0") > 0n ? "above-threshold" : null);
-    $("btn-queue").textContent = state.queueScenario === "review-payee" ? "Queue a new payee" : "Queue a payment above the threshold";
+    state.queueScenario = BigInt(review.approvalThreshold || "0") > 0n ? "above-threshold" : null;
+    $("btn-queue").textContent = "Queue a payment above the threshold";
     $("btn-queue").disabled = !state.queueScenario || state.busy;
     var rows = review.pending || [];
     if (!rows.length) {
-      root.appendChild(el("p", { class: "hint" }, "Nothing is waiting."));
+      root.appendChild(el("p", { class: "hint" }, "Nothing is waiting. Queue a payment above the threshold, then approve or reject it here."));
       return;
     }
     rows.forEach(function (row) {
       var id = String(row.payment_id);
       root.appendChild(el("p", null,
         pill(row.reason || "held", "warn"),
-        " #",
+        " payment #",
         id,
         " ",
         el("span", { class: "mono" }, row.receiver_id || ""),
         " ",
-        String(row.amount || "")
+        row.amountDisplay || ""
       ));
       var actions = el("div", { class: "actions" });
-      var approve = el("button", { type: "button" }, "Approve " + id);
-      var reject = el("button", { type: "button", class: "secondary" }, "Reject " + id);
+      var approve = el("button", { type: "button" }, "Approve payment #" + id);
+      var reject = el("button", { type: "button", class: "secondary" }, "Reject payment #" + id);
       approve.addEventListener("click", function () { onReview("approve", id); });
       reject.addEventListener("click", function () { onReview("reject", id); });
       actions.appendChild(approve);
@@ -182,21 +346,24 @@
   }
 
   function paintRecent(rows) {
+    if ((!rows || !rows.length) && state.recentRows && state.recentRows.length) return;
+    state.recentRows = rows || [];
     var body = clear($("recent"));
     if (!rows || !rows.length) {
-      body.appendChild(el("tr", null, el("td", { colspan: "5" }, "No attempts yet.")));
+      body.appendChild(el("tr", null, el("td", { colspan: "5" }, "No signed attempts yet. Launch the attack and the transaction shows up here.")));
       return;
     }
     rows.forEach(function (row) {
       var when = row.atMs ? new Date(row.atMs).toISOString().replace("T", " ").slice(0, 19) + " UTC" : "";
-      var chain = row.outcome === "success" ? "settled" : row.errorCode || row.outcome || "";
+      var chain = row.outcome === "success" ? "settled" : (row.outcome === "failure" ? "refused" : (row.errorCode || row.outcome || "refused"));
+      var risk = row.riskVerdict || (row.errorCode ? "block" : (row.outcome === "success" ? "allow" : "block"));
       var link = row.explorerUrl
         ? el("a", { href: row.explorerUrl, rel: "noopener", target: "_blank" }, "view")
         : document.createTextNode("");
       body.appendChild(el("tr", null,
         el("td", null, when),
-        el("td", null, row.title || row.kind || ""),
-        el("td", null, row.riskVerdict ? pill(row.riskVerdict, row.riskVerdict) : document.createTextNode("")),
+        el("td", null, [row.title || row.kind || "", row.payee || "", withNear(row.amount || "")].filter(Boolean).join(" ")),
+        el("td", null, risk ? pill(risk, risk) : document.createTextNode("")),
         el("td", null, chain),
         el("td", null, link)
       ));
@@ -228,11 +395,15 @@
       text = (text ? text + " " : "") + "built at NEAR HACKATHON @NEARProtocol #NEARHackathon";
     }
     var intent = "https://x.com/intent/post?text=" + encodeURIComponent(text) + "&url=" + encodeURIComponent(location.origin + page);
-    var rows = el("dl", null,
-      el("dt", null, "Rule"), el("dd", null, (receipt.rule || "") + (receipt.ruleText ? " — " + receipt.ruleText : "")),
-      el("dt", null, "Amount"), el("dd", null, receipt.amount || "—"),
-      el("dt", null, "Payee"), el("dd", { class: "mono" }, receipt.payee || "—")
-    );
+    var rows = el("dl", null);
+    function addRow(label, value, mono) {
+      if (!value) return;
+      rows.appendChild(el("dt", null, label));
+      rows.appendChild(el("dd", mono ? { class: "mono" } : null, value));
+    }
+    addRow("Rule", receipt.rule ? (receipt.rule + (receipt.ruleText ? " — " + receipt.ruleText : "")) : "");
+    addRow("Amount", receipt.amount);
+    addRow("Payee", receipt.payee, true);
     return el("article", { class: "receipt" },
       el("p", { class: "kicker" }, "On-chain receipt"),
       el("h3", null, receipt.headline || "RECEIPT"),
@@ -260,24 +431,68 @@
     }
     var word = wordFor(payload);
     if (word) root.appendChild(el("p", { class: "verdict-word " + word.kind }, word.text));
-    if (payload.agent && payload.agent.label) {
-      root.appendChild(el("p", null, "Agent ", pill(payload.agent.label, payload.agent.mode === "live" ? "allow" : "warn")));
+    if (payload.agent) {
+      root.appendChild(el("p", null, agentLabel(payload.agent)));
     }
     if (payload.summary) root.appendChild(el("p", null, payload.summary));
     if (payload.risk) root.appendChild(el("p", null, "Payee risk ", pill(payload.risk.verdict, payload.risk.verdict)));
     if (payload.amountCheck) root.appendChild(el("p", null, "Amount check ", pill(payload.amountCheck.verdict, payload.amountCheck.verdict)));
     var chain = payload.chain;
-    if (chain && chain.explorerUrl) {
-      root.appendChild(el("p", null, el("a", { href: chain.explorerUrl, rel: "noopener", target: "_blank" }, "Transaction on the testnet explorer")));
+    if (chain && chain.errorCode) {
+      root.appendChild(el("p", null, "Contract ", el("span", { class: "mono" }, chain.errorCode)));
     }
-    if (payload.telegram && payload.telegram.reason && !payload.telegram.sent) {
-      root.appendChild(el("p", { class: "hint" }, payload.telegram.reason));
+    if (chain && chain.explorerUrl) {
+      root.appendChild(el("p", null, el("a", { href: chain.explorerUrl, rel: "noopener", target: "_blank" }, "Open the transaction")));
+    }
+    if (payload.paid && payload.paid.explorerUrl) {
+      root.appendChild(el("p", null, "Allowed call ", el("a", { href: payload.paid.explorerUrl, rel: "noopener", target: "_blank" }, "Open the paid transaction")));
     }
     if (payload.telegram && payload.telegram.sent) {
-      root.appendChild(el("p", { class: "hint" }, "I messaged the owner on Telegram with Approve and Reject."));
+      root.appendChild(el("p", { class: "hint" }, "I messaged the owner with Approve and Reject."));
     }
     var card = shareCard(payload.receipt);
     if (card) root.appendChild(card);
+  }
+
+  function withNear(text) {
+    var value = String(text || "");
+    if (!value || /[A-Za-z]/.test(value)) return value;
+    var over = /^(\d+\.\d{0,6}?)0{8,}1$/.exec(value);
+    if (over) return (over[1].replace(/\.$/, "") || "0") + " wNEAR plus 1 yocto";
+    return value + " wNEAR";
+  }
+
+  function agentLabel(agent) {
+    if (agent && agent.mode === "live") return "Live model";
+    return "Deterministic attack, real on-chain refusal";
+  }
+
+  function syncControls() {
+    var busy = Boolean(state.busy);
+    var ready = Boolean(state.ready);
+    var blocked = (state.network === "mainnet" && state.mainnetRemaining === 0)
+      || (state.network !== "mainnet" && state.testnetRemaining === 0);
+    if ($("btn-launch")) $("btn-launch").disabled = !ready || busy || blocked;
+    if ($("btn-run")) $("btn-run").disabled = !ready || busy;
+    if ($("btn-drain")) $("btn-drain").disabled = !ready || busy;
+    if ($("btn-kill")) $("btn-kill").disabled = !state.killSwitch || busy;
+    if ($("btn-attest")) $("btn-attest").disabled = busy;
+    if ($("btn-queue")) $("btn-queue").disabled = !state.queueScenario || busy;
+  }
+
+  function showLiveVerdict(word, payload) {
+    var box = clear($("live-verdict"));
+    if (!box) return;
+    if (!word) return;
+    box.appendChild(el("p", { class: "verdict-word " + word.kind }, word.text));
+    var chain = payload && payload.chain;
+    if (chain && chain.errorCode) box.appendChild(el("p", null, el("span", { class: "mono" }, chain.errorCode)));
+    if (chain && chain.explorerUrl) {
+      box.appendChild(el("p", null, el("a", { href: chain.explorerUrl, rel: "noopener", target: "_blank" }, "Open the transaction")));
+    }
+    if (window.matchMedia("(max-width: 900px)").matches) {
+      box.scrollIntoView({ block: "nearest", behavior: reduceMotion ? "auto" : "smooth" });
+    }
   }
 
   function setSteps(names, bad) {
@@ -307,9 +522,19 @@
     return { status: response.status, ok: response.ok, json: parsed, text: text };
   }
 
+  async function apiRead(path) {
+    var result = await api(path);
+    if (result.ok || (result.status && result.status < 500)) return result;
+    await sleep(400);
+    return api(path);
+  }
+
   function errorText(result) {
     if (result.json && result.json.error && result.json.error.message) return result.json.error.message;
-    return result.text || ("request failed (" + result.status + ")");
+    var text = String(result.text || "");
+    if (/<!doctype|<html/i.test(text)) return "The server sent a page instead of data (" + (result.status || "error") + "). Refresh and try again.";
+    if (text.length > 220) return text.slice(0, 220);
+    return text || ("request failed (" + result.status + ")");
   }
 
   async function readSse(path, body, onEvent) {
@@ -355,6 +580,9 @@
 
   function paintDrain(data) {
     if (!data) return;
+    var incoming = data.feed || [];
+    if (!incoming.length && state.drainRows && state.drainRows.length) return;
+    state.drainRows = incoming;
     $("drain-attempts").textContent = String(data.attempts || 0);
     $("drain-refusals").textContent = String(data.refusals || 0);
     $("drain-drained").textContent = data.drainedDisplay || data.drained || "0";
@@ -363,7 +591,7 @@
     var feed = clear($("drain-feed"));
     var rows = data.feed || [];
     if (!rows.length) {
-      feed.appendChild(el("li", null, "No Drain Me attempts on this instance yet."));
+      feed.appendChild(el("li", null, "No one has tried yet. Write a prompt above and press Try to drain it."));
       return;
     }
     rows.forEach(function (row) {
@@ -388,11 +616,21 @@
 
   async function refresh() {
     var status = $("status");
-    clear(status);
-    status.appendChild(document.createTextNode("Reading the wallet on testnet…"));
-    var result = await api("/api/dashboard");
-    clear(status);
+    if (!state.holdStatus) {
+      clear(status);
+      status.appendChild(document.createTextNode("Reading the wallet on testnet…"));
+    }
+    var result = await apiRead("/api/dashboard");
+    if (state.holdStatus) {
+      // The launch verdict stays. Stats still update below.
+    } else {
+      clear(status);
+    }
     if (!result.ok || !result.json) {
+      if (state.ready) {
+        status.appendChild(document.createTextNode("The wallet read failed. The last numbers are still on the page."));
+        return;
+      }
       status.appendChild(el("span", { class: "notice bad" }, errorText(result)));
       return;
     }
@@ -402,14 +640,23 @@
     fillSelect(state.scenarios);
     if (!data.configured) {
       status.appendChild(document.createTextNode(data.message || "Demo wallet is not configured."));
-    } else if (!data.signing) {
-      status.appendChild(document.createTextNode("Chain reads are live. Signing keys are not set on this server, so Launch stays off."));
-    } else {
+    } else if (!state.holdStatus && !data.signing) {
+      status.appendChild(document.createTextNode("I can read the chain. Signing is off, so Launch the attack stays off."));
+    } else if (!state.holdStatus) {
+      var wait = Number(data.cooldownRemainingSeconds || 0);
       status.appendChild(document.createTextNode(
-        "Live on NEAR testnet. Cooldown " + data.cooldownSeconds + "s. " +
+        "Live on NEAR testnet. " +
+        (wait > 0 ? ("Next signature in " + wait + "s. ") : ("Cooldown " + data.cooldownSeconds + "s. ")) +
         data.maxAttemptsPerDay + " signed attempts per UTC day."
       ));
     }
+    state.mainnetSigning = Boolean(data.mainnet && data.mainnet.signing);
+    state.mainnetProofs = (data.mainnet && data.mainnet.proofs) || [];
+    state.mainnetRemaining = data.mainnet && data.mainnet.remaining != null ? data.mainnet.remaining : null;
+    state.maxAttempts = data.maxAttemptsPerDay || state.maxAttempts;
+    noteRemaining(data.attemptsRemaining);
+    raiseBoard(data.scoreboard);
+    paintMainnetProofs();
     paintSpend(data);
     paintRisks(data.risks);
     paintPending(data.review);
@@ -417,29 +664,25 @@
     var telegram = clear($("telegram-note"));
     telegram.appendChild(document.createTextNode(
       data.telegram
-        ? "When a payment is held, I message the owner on Telegram with Approve and Reject."
-        : "Telegram is not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_OWNER_CHAT_ID. Approve and Reject on this page still work."
+        ? "When a payment is held, I message the owner with Approve and Reject."
+        : "Owner messages are off. Approve and Reject on this page still work."
     ));
     var kill = clear($("kill-note"));
     kill.appendChild(document.createTextNode(
       data.killSwitch
-        ? (data.sharedLimits
-          ? "Single-use is stored in the shared store, so the link dies after one open on any instance."
-          : "No shared store is set. Single-use holds on this instance. A second instance could still open the same link, and the second revoke does nothing if the agent is already inactive.")
-        : "Set KILL_SWITCH_SECRET on the server. Until then I cannot mint a revoke link."
+        ? "The link works once, then it dies."
+        : "The one-time link is off on this server."
     ));
-    var ready = Boolean(data.signing && data.configured);
-    $("btn-launch").disabled = !ready || state.busy;
-    $("btn-run").disabled = !ready || state.busy;
-    $("btn-drain").disabled = !ready || state.busy;
-    $("btn-kill").disabled = !data.killSwitch || state.busy;
+    state.ready = Boolean(data.signing && data.configured);
+    state.killSwitch = Boolean(data.killSwitch);
+    syncControls();
     paintReceiptFeed(data.recent);
     var policyNote = clear($("policy-note"));
     if (policyNote) {
       policyNote.appendChild(document.createTextNode(
         data.policyApply
-          ? "Apply is on for this server. Preview first. Apply signs with the owner key."
-          : "Apply is off on this public demo. Preview shows the diff and does not sign. Set TRIAGEPAY_POLICY_APPLY=1 to allow apply."
+          ? "Apply is on. Preview first. Apply signs with the owner key."
+          : "Preview shows the difference and does not sign."
       ));
     }
     if (data.agent && data.explorerAccount) {
@@ -449,30 +692,55 @@
     loadHoneypot();
   }
 
+  function ruleSentence(row) {
+    if (row.outcome === "held") return "The wallet held the payment for the owner.";
+    if (row.outcome === "success" && !row.errorCode) return "The wallet settled the payment.";
+    if (row.errorCode === "ERR_PAYEE_NOT_ALLOWED") return "The payee is not on the allowlist.";
+    if (row.errorCode === "ERR_PER_CALL_LIMIT") return "The amount is above the per-call cap.";
+    if (row.errorCode === "ERR_DAILY_LIMIT") return "The amount would pass the daily cap.";
+    if (row.errorCode) return "The wallet refused the payment.";
+    if (row.title && row.title !== "pay") return row.title;
+    return "The wallet refused the payment.";
+  }
+
   function paintReceiptFeed(rows) {
     var root = $("receipts-feed");
     if (!root) return;
+    var shown = (rows || []).filter(function (row) { return row.txHash && (row.payee || row.amount || row.errorCode || row.title); });
+    if (!shown.length && state.receiptRows && state.receiptRows.length) return;
+    state.receiptRows = shown;
     clear(root);
-    var shown = (rows || []).filter(function (row) { return row.txHash; }).slice(0, 6);
     if (!shown.length) {
-      root.appendChild(el("p", { class: "hint" }, "Receipts appear after a signed attempt. A replay link is added when this server stored the agent's text."));
+      root.appendChild(el("p", { class: "hint" }, "No receipt yet. Launch the attack. The error code and the transaction link show up here."));
       return;
     }
-    shown.forEach(function (row) {
+    var featured = shown[0];
+    var rest = shown.slice(1, 6);
+    [featured].forEach(function (row) {
       var card = shareCard({
-        kind: row.outcome === "success" && !row.errorCode ? "settled" : "refused",
-        headline: row.errorCode || (row.outcome === "success" ? "SETTLED" : "REFUSED"),
+        kind: row.outcome === "held" ? "held" : (row.outcome === "success" && !row.errorCode ? "settled" : "refused"),
+        headline: row.outcome === "held" ? "HELD" : (row.outcome === "success" && !row.errorCode ? "SETTLED" : "REFUSED"),
         rule: row.errorCode || "",
-        ruleText: row.title || "",
-        tried: row.title || "",
-        amount: row.amount || "",
+        ruleText: ruleSentence(row),
+        tried: ruleSentence(row),
+        amount: withNear(row.amount || ""),
         payee: row.payee || "",
         txHash: row.txHash,
         explorerUrl: row.explorerUrl,
-        shareText: (row.errorCode || "RECEIPT") + " built at NEAR HACKATHON @NEARProtocol #NEARHackathon",
+        shareText: (row.outcome === "held" ? "HELD" : (row.outcome === "success" && !row.errorCode ? "SETTLED" : "REFUSED")) + ". " + ruleSentence(row) + " built at NEAR HACKATHON @NEARProtocol #NEARHackathon",
       });
       if (card) root.appendChild(card);
     });
+    if (rest.length) {
+      var list = el("ol", { class: "feed" });
+      rest.forEach(function (row) {
+        var link = row.explorerUrl
+          ? el("a", { href: row.explorerUrl, rel: "noopener", target: "_blank" }, "transaction")
+          : document.createTextNode("no transaction");
+        list.appendChild(el("li", null, (row.errorCode || row.outcome || "receipt") + " ", row.payee || "", " ", row.amount || "", " ", link));
+      });
+      root.appendChild(list);
+    }
   }
 
   async function loadHoneypot() {
@@ -484,15 +752,27 @@
     clear(note).appendChild(document.createTextNode(data.note || ""));
     var payee = $("honeypot-payee");
     if (payee) payee.textContent = data.payee || "";
-    var list = clear($("honeypot-list"));
     var rows = data.feed || [];
+    var panel = document.querySelector(".honeypot");
+    if (!rows.length && state.honeypotRows && state.honeypotRows.length) return;
+    if (panel) panel.hidden = !rows.length;
+    state.honeypotRows = rows;
+    var list = clear($("honeypot-list"));
     if (!rows.length) {
-      list.appendChild(el("li", null, "No trap payment is stored on this instance yet."));
+      list.appendChild(el("li", null, "No refusal to this trap is on the chain index yet. Launch the attack to add one."));
       return;
     }
     rows.forEach(function (row) {
-      var link = row.explorerUrl ? el("a", { href: row.explorerUrl, rel: "noopener", target: "_blank" }, "evidence") : document.createTextNode("no transaction");
-      list.appendChild(el("li", null, (row.outcome || "refused") + (row.errorCode ? " " + row.errorCode : "") + " ", link));
+      var when = row.atMs ? new Date(row.atMs).toISOString().replace("T", " ").slice(0, 19) + " UTC" : "";
+      var link = row.explorerUrl ? el("a", { href: row.explorerUrl, rel: "noopener", target: "_blank" }, "transaction") : document.createTextNode("no transaction");
+      list.appendChild(el("li", null,
+        row.payee || "payee",
+        " ",
+        row.amount ? withNear(row.amount) + " " : "",
+        when ? when + " " : "",
+        (row.errorCode ? row.errorCode + " " : ""),
+        link
+      ));
     });
   }
 
@@ -502,7 +782,9 @@
       root.appendChild(el("p", { class: "notice bad" }, payload));
       return;
     }
-    root.appendChild(el("p", null, "Parser: " + (payload.mode || "parser") + "."));
+    root.appendChild(el("p", null, payload.mode === "live"
+      ? "A model agreed with this reading."
+      : "I read the sentence and compared it with the policy on the wallet."));
     if (payload.modelNote) root.appendChild(el("p", { class: "hint" }, payload.modelNote));
     (payload.notes || []).forEach(function (line) { root.appendChild(el("p", { class: "hint" }, line)); });
     var changes = payload.changes || [];
@@ -518,65 +800,140 @@
   async function onPolicy(event, action) {
     if (event) event.preventDefault();
     var text = $("policy-text").value;
-    var result = await api("/api/policy", { text: text, action: action || "preview" });
-    if (!result.ok) paintPolicy(errorText(result), true);
-    else paintPolicy(result.json, false);
+    if (action === "apply") {
+      var applied = await api("/api/policy", { text: text, action: "apply" });
+      if (!applied.ok) paintPolicy(errorText(applied), true);
+      else paintPolicy(applied.json, false);
+      return;
+    }
+    var fast = await api("/api/policy", { text: text, action: "preview", fast: true });
+    if (!fast.ok) paintPolicy(errorText(fast), true);
+    else paintPolicy(fast.json, false);
+    var result = await api("/api/policy", { text: text, action: "preview" });
+    if (result.ok) paintPolicy(result.json, false);
   }
 
   function slam(word) {
+    var wait = $("verdict-wait");
+    if (wait) wait.hidden = true;
     var stamp = $("stamp");
-    stamp.textContent = word || "REFUSED";
+    if (!stamp) return;
+    stamp.hidden = false;
+    stamp.textContent = word || "";
     stamp.classList.remove("is-in");
-    if (reduceMotion) return;
+    if (reduceMotion || !word) return;
     void stamp.offsetWidth;
     stamp.classList.add("is-in");
   }
 
-  async function playDiagram() {
-    $("flow").classList.add("is-live");
-    setSteps(["step-agent"], false);
-    await sleep(280);
-    setSteps(["step-agent", "step-instruction"], false);
-    await sleep(280);
-    setSteps(["step-agent", "step-instruction", "step-wallet"], false);
-    await sleep(320);
-    setSteps(["step-agent", "step-instruction", "step-wallet", "step-verdict"], true);
-    slam("REFUSED");
+  function setStatus(text) {
+    var status = $("status");
+    clear(status);
+    status.appendChild(document.createTextNode(text));
   }
 
   async function onLaunch() {
     if (state.busy) return;
+    if (state.network !== "mainnet" && state.testnetRemaining === 0) {
+      setStatus("This demo has used its " + state.maxAttempts + " signed attempts for the UTC day.");
+      return;
+    }
+    if (state.network === "mainnet" && state.mainnetRemaining === 0) {
+      paintMainnetProofs();
+      setStatus("No mainnet runs left today. The proof links stay on the page.");
+      return;
+    }
+    if (state.network === "mainnet" && !state.mainnetSigning) {
+      paintMainnetProofs();
+      setStatus("Mainnet signing is off. The proof links stay on the page.");
+      return;
+    }
     state.busy = true;
+    state.holdStatus = true;
     $("btn-launch").disabled = true;
+    $("btn-launch").classList.add("is-busy");
     clear($("verdict"));
+    clear($("live-verdict"));
     $("flow").classList.add("is-live");
-    $("agent-trace").textContent = "";
+    $("agent-trace").textContent = "Reading the finding.";
+    var waiting = $("verdict-wait");
+    if (waiting) waiting.hidden = false;
+    var stamp = $("stamp");
+    if (stamp) {
+      stamp.hidden = true;
+      stamp.textContent = "";
+    }
+    $("sign-line").textContent = "Waiting to sign.";
+    setStatus(state.network === "mainnet" ? "Signing on NEAR mainnet…" : "Signing the deterministic attack…");
     setSteps(["step-agent"], false);
-    var trace = "";
     try {
-      var result = await readSse("/api/agent", { scenario: "injected-payee" }, function (event) {
+      var launchBody = { scenario: "injected-payee" };
+      if (state.network === "mainnet") launchBody.network = "mainnet";
+      if ($("opt-live") && $("opt-live").checked && state.network !== "mainnet") launchBody.live = true;
+      var result = await readSse("/api/agent", launchBody, function (event) {
         if (event.type === "mode") {
-          $("agent-mode").textContent = event.mode === "live" ? "Agent: live" : "Agent: scripted";
-        }
-        if (event.type === "delta") {
-          trace += event.text || "";
-          $("agent-trace").textContent = trace;
-          setSteps(["step-agent"], false);
+          $("agent-mode").textContent = event.mode === "live" ? "Live model" : "Deterministic attack, real on-chain refusal";
         }
         if (event.type === "tool") {
           setSteps(["step-agent", "step-instruction"], false);
-          if (event.tool && event.tool.receiver_id) $("inject-line").textContent = "pay " + event.tool.receiver_id;
+          if (event.tool && event.tool.receiver_id) $("inject-line").textContent = "Pay " + event.tool.receiver_id;
+          $("agent-trace").textContent = "The agent named a payee.";
+          setStatus("Injection found. Signing pay…");
         }
-        if (event.type === "status") setSteps(["step-agent", "step-instruction", "step-wallet"], false);
+        if (event.type === "status") {
+          setSteps(["step-agent", "step-instruction", "step-wallet"], false);
+          var netName = state.network === "mainnet" ? "mainnet" : "testnet";
+          $("sign-line").textContent = "Signing pay on " + netName + ".";
+          setStatus(event.text || ("Signing pay on NEAR " + netName + "."));
+        }
       });
       var word = result.ok ? wordFor(result.json) : null;
+      var chain = result.ok && result.json ? result.json.chain : null;
+      var code = chain && chain.errorCode ? chain.errorCode : "";
+      var link = chain && chain.explorerUrl ? chain.explorerUrl : "";
       setSteps(["step-agent", "step-instruction", "step-wallet", "step-verdict"], !word || word.kind === "bad");
-      slam(word ? word.text : "—");
-      if (!result.ok) paintResult($("verdict"), result.text || errorText(result), true);
-      else paintResult($("verdict"), result.json, false);
+      if (word) slam(word.text);
+      if (result.ok && result.json && result.json.agent) {
+        $("agent-mode").textContent = agentLabel(result.json.agent);
+      }
+      if (!result.ok) {
+        setStatus("This attempt did not finish. There is no transaction link.");
+        paintResult($("verdict"), result.text || errorText(result), true);
+      } else if (!link) {
+        setStatus((word ? word.text : "This attempt did not reach the chain") + ". There is no transaction link.");
+        paintResult($("verdict"), result.json, false);
+      } else {
+        if (state.network === "mainnet" && state.mainnetRemaining != null) {
+          state.mainnetRemaining = Math.max(0, state.mainnetRemaining - 1);
+          var remain = $("mainnet-left");
+          if (remain) remain.textContent = state.mainnetRemaining + " mainnet runs left today";
+        }
+        if (state.testnetRemaining != null) {
+          state.testnetRemaining = Math.max(0, state.testnetRemaining - 1);
+          var attemptLeft = $("attempt-left");
+          if (attemptLeft) attemptLeft.textContent = state.testnetRemaining + " testnet attempts left today";
+        }
+        setStatus((word ? word.text : "Done") + (code ? " " + code : "") + ". The transaction link is next to the button.");
+        showLiveVerdict(word, result.json);
+        paintResult($("verdict"), result.json, false);
+      }
     } finally {
+      var keptMainnet = state.mainnetRemaining;
+      var keptTestnet = state.testnetRemaining;
+      $("btn-launch").classList.remove("is-busy");
       state.busy = false;
       await refresh();
+      if (keptMainnet != null && state.mainnetRemaining != null && state.mainnetRemaining > keptMainnet) {
+        state.mainnetRemaining = keptMainnet;
+        var remain = $("mainnet-left");
+        if (remain && state.network === "mainnet") remain.textContent = keptMainnet + " mainnet runs left today";
+      }
+      if (keptTestnet != null && state.testnetRemaining != null && state.testnetRemaining > keptTestnet) {
+        state.testnetRemaining = keptTestnet;
+        var attemptLeft = $("attempt-left");
+        if (attemptLeft) attemptLeft.textContent = keptTestnet + " testnet attempts left today";
+      }
+      syncControls();
       await refreshDrain();
     }
   }
@@ -601,6 +958,8 @@
 
   async function onOwner(action) {
     if (state.busy) return;
+    var sure = window.confirm(action === "revoke" ? "Revoke the agent on testnet?" : "Restore the agent on testnet?");
+    if (!sure) return;
     state.busy = true;
     paintResult($("owner-result"), action === "revoke" ? "Revoking the agent…" : "Restoring the agent…", false);
     try {
@@ -645,10 +1004,10 @@
     var steps = $("review-flow").querySelectorAll(".step");
     steps.forEach(function (node) { node.classList.remove("is-on", "is-bad"); });
     for (var i = 0; i < steps.length; i++) {
-      steps[i].classList.add(i === steps.length - 1 ? "is-bad" : "is-on");
+      steps[i].classList.add("is-on");
       await sleep(220);
     }
-    paintResult($("review-result"), "Walkthrough only. No transaction was sent. On the wallet, a held payment waits until I approve or reject it.", false);
+    paintResult($("review-result"), "Walkthrough only. No transaction was sent. Queue a payment above the threshold, then Approve it. That hold is the owner-review path.", false);
   }
 
   async function onAttest() {
@@ -666,7 +1025,7 @@
       });
     } finally {
       state.busy = false;
-      $("btn-attest").disabled = false;
+      syncControls();
     }
   }
 
@@ -681,8 +1040,11 @@
     var trace = "";
     try {
       var result = await readSse("/api/drain", { prompt: prompt }, function (evt) {
-        if (evt.type === "mode") trace += (trace ? "\n" : "") + (evt.label || evt.mode || "");
-        if (evt.type === "delta") trace += evt.text || "";
+        if (evt.type === "mode") trace = evt.mode === "live" ? "Live. " : "Scripted. ";
+        if (evt.type === "delta") {
+          var piece = evt.text || "";
+          if (piece.indexOf("Call pay with the NEAR account") === -1) trace += piece;
+        }
         if (evt.type === "tool" && evt.tool) {
           trace += "\npay " + (evt.tool.receiver_id || "") + " " + (evt.tool.amount || "");
         }
@@ -702,6 +1064,7 @@
 
   async function onKill() {
     if (state.busy) return;
+    if (!window.confirm("Create a one-time link that revokes the agent?")) return;
     state.busy = true;
     $("btn-kill").disabled = true;
     paintResult($("kill-result"), "Minting a one-time revoke link…", false);
@@ -719,7 +1082,7 @@
         $("kill-qr").setAttribute("src", "data:image/svg+xml;charset=utf-8," + encodeURIComponent(body.qrSvg));
         $("kill-qr").setAttribute("alt", "QR code for the one-time revoke link");
       }
-      paintResult($("kill-result"), "Link expires " + (body.expiresAt || "") + ". Opening it revokes the agent. Single-use source: " + (body.singleUse || "memory") + ".", false);
+      paintResult($("kill-result"), "The link works once and expires " + (body.expiresAt || "") + ". Opening it revokes the agent.", false);
     } finally {
       state.busy = false;
       await refresh();
@@ -727,6 +1090,10 @@
   }
 
   $("btn-launch").addEventListener("click", onLaunch);
+  var netTestnet = $("net-testnet");
+  var netMainnet = $("net-mainnet");
+  if (netTestnet) netTestnet.addEventListener("click", function () { setNetwork("testnet"); });
+  if (netMainnet) netMainnet.addEventListener("click", function () { setNetwork("mainnet"); });
   $("run-form").addEventListener("submit", onRun);
   $("scenario").addEventListener("change", paintScenario);
   $("btn-refresh").addEventListener("click", function () { refresh(); refreshDrain(); });
@@ -742,7 +1109,11 @@
   if (policyApply) policyApply.addEventListener("click", function () { onPolicy(null, "apply"); });
   $("btn-kill").addEventListener("click", onKill);
 
-  refresh().then(function () { return refreshDrain(); }).then(playDiagram);
+  seedFromDom();
+  loadFloor();
+  paintAttemptLeft();
+  loadLiveBoard();
+  refresh().then(function () { return refreshDrain(); });
   setInterval(function () {
     if (state.busy || document.visibilityState === "hidden") return;
     refresh();

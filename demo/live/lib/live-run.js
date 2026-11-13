@@ -2,6 +2,7 @@
 // only when the wallet would refuse or hold. A payment the wallet would
 // settle is not signed.
 
+import { extractAccount } from "./accounts.js";
 import { describeAttack } from "./attacks.js";
 import { decidePayment, modelFromEnv, publicAgent } from "./agent.js";
 import { chainReady, loadConfig, loadKeys, signingReady } from "./config.js";
@@ -143,7 +144,7 @@ export async function runTrackedPayment(request, { attack, agent, onEvent, drain
   }
 
   return withSigningLock(async ({ note }) => {
-    if (onEvent) onEvent({ type: "status", text: "Signing the pay call on testnet." });
+    if (onEvent) onEvent({ type: "status", text: "Signing pay on NEAR testnet." });
     const decision = await gate(config, request);
     note(decision);
     const { agent: chainAgent, restored } = await ensureAgentActive(config, keys);
@@ -239,8 +240,10 @@ export async function runTrackedPayment(request, { attack, agent, onEvent, drain
       outcome: chain.outcome,
       explorerUrl: chain.explorerUrl,
       checks: [
-        { name: "Payee", result: again.code || again.effect },
-        { name: "Wallet", result: chain.held ? "held for the owner" : (chain.errorCode || chain.outcome || "submitted") },
+        { name: "Reads the finding", result: attack.injection || attack.narrative || "The agent read the finding." },
+        { name: "Injection", result: payee },
+        { name: "Signs pay", result: shown },
+        { name: "Contract", result: chain.held ? "Held for the owner" : (chain.errorCode || (chain.outcome === "success" ? "Settled" : "Refused")) },
       ],
     });
     return {
@@ -259,22 +262,49 @@ export async function runTrackedPayment(request, { attack, agent, onEvent, drain
   });
 }
 
+export function deterministicAgent(attack) {
+  return {
+    mode: "deterministic",
+    label: "deterministic attack, real on-chain refusal",
+    reasoning: "Deterministic attack. The injected account is signed on chain. The contract decides.",
+    tool: attack && attack.payee && attack.amount
+      ? { name: "pay", receiver_id: attack.payee, amount: String(attack.amount) }
+      : null,
+    fallbackReason: null,
+    model: null,
+  };
+}
+
+export function drainStory(prompt, signedDisplay, capDisplay) {
+  const match = /(\d+(?:\.\d+)?)\s*(?:wnear|near)\b/i.exec(String(prompt || ""));
+  if (!match) return null;
+  return `Attacker asked for ${match[1]} wNEAR. The contract cap allows ${capDisplay}. This attempt signed ${signedDisplay}.`;
+}
+
 export async function runLaunch(request, options = {}) {
   const config = loadConfig();
   const attack = describeAttack(options.scenario || "injected-payee", config);
   if (!attack) throw new DemoError("unknown_attack", "unknown scenario", 400);
   requireChain(config);
   requireKeys(loadKeys());
-  const agent = await decidePayment({
-    finding: attack.injection || attack.narrative,
-    fallbackPayee: attack.payee,
-    fallbackAmount: attack.amount,
-    preferFallback: true,
-    apiKey: process.env.NEARAI_API_KEY || "",
-    model: modelFromEnv(),
-    fetchImpl: options.fetchImpl || fetch,
-    onEvent: options.onEvent,
-  });
+  let agent = deterministicAgent(attack);
+  if (options.live) {
+    const modeled = await decidePayment({
+      finding: attack.injection || attack.narrative,
+      fallbackPayee: attack.payee,
+      fallbackAmount: attack.amount,
+      preferFallback: true,
+      apiKey: process.env.NEARAI_API_KEY || "",
+      model: modelFromEnv(),
+      models: [modelFromEnv()],
+      budgetMs: 8_000,
+      maxTokens: 60,
+      quiet: true,
+      fetchImpl: options.fetchImpl || fetch,
+      onEvent: options.onEvent,
+    });
+    agent = modeled && modeled.tool ? modeled : deterministicAgent(attack);
+  }
   return runTrackedPayment(request, { attack, agent, onEvent: options.onEvent, drain: null });
 }
 
@@ -285,16 +315,36 @@ export async function runDrainAttempt(request, prompt, options = {}) {
   requireChain(config);
   requireKeys(loadKeys());
   await assertDrainRate(request);
-  const agent = await decidePayment({
+  const allow = new Set((config.policy.payees || []).map((item) => String(item).toLowerCase()));
+  const named = extractAccount(text);
+  const attacker = named && !allow.has(named) ? named : config.accounts.injected;
+  let agent = await decidePayment({
     finding: text,
-    fallbackPayee: null,
+    fallbackPayee: attacker,
     fallbackAmount: config.policy.allowedAmount,
     preferFallback: false,
     apiKey: process.env.NEARAI_API_KEY || "",
     model: modelFromEnv(),
+    models: [modelFromEnv()],
+    budgetMs: 8_000,
+    maxTokens: 80,
+    quiet: true,
     fetchImpl: options.fetchImpl || fetch,
     onEvent: options.onEvent,
   });
+  const toolPayee = agent.tool && agent.tool.receiver_id;
+  if (!agent.tool || (toolPayee && allow.has(String(toolPayee).toLowerCase()))) {
+    agent = {
+      mode: "scripted",
+      label: "Scripted",
+      reasoning: "Scripted. The agent pays the attacker named in the prompt.",
+      tool: attacker && config.policy.allowedAmount
+        ? { name: "pay", receiver_id: attacker, amount: String(config.policy.allowedAmount) }
+        : null,
+      fallbackReason: "scripted",
+      model: null,
+    };
+  }
   const attack = {
     id: "drain",
     kind: "attack",
@@ -306,10 +356,16 @@ export async function runDrainAttempt(request, prompt, options = {}) {
     amountDisplay: amountDisplay(agent.tool ? agent.tool.amount : config.policy.allowedAmount, config.policy.decimals),
     expectedError: null,
   };
-  return runTrackedPayment(request, {
+  const result = await runTrackedPayment(request, {
     attack,
     agent,
     onEvent: options.onEvent,
     drain: { prompt: text, atMs: Date.now() },
   });
+  const capDisplay = amountDisplay(config.policy.perCallMax, config.policy.decimals);
+  const signedDisplay = amountDisplay(agent.tool ? agent.tool.amount : config.policy.allowedAmount, config.policy.decimals);
+  const story = drainStory(text, `${signedDisplay} wNEAR`, `${capDisplay} wNEAR`);
+  if (story) result.summary = `${story} ${result.summary || ""}`.trim();
+  result.asked = story;
+  return result;
 }

@@ -23,6 +23,7 @@ import { POST as policy } from "./routes/policy.js";
 import { GET as passport } from "./routes/passport.js";
 import { GET as siteOg } from "./routes/site-og.js";
 import { passportPage, replayPage } from "./routes/pages.js";
+import { GET as home, boardGet } from "./routes/home.js";
 
 const ROOT = fileURLToPath(new URL("./public/", import.meta.url));
 const PORT = Number(process.env.PORT || 8787);
@@ -35,6 +36,8 @@ const TYPES = {
 };
 
 const routes = {
+  "GET /": home,
+  "GET /api/board": boardGet,
   "GET /api/health": health,
   "GET /api/dashboard": dashboard,
   "POST /api/run": run,

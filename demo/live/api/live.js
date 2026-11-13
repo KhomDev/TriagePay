@@ -14,8 +14,9 @@ import { POST as policy } from "../routes/policy.js";
 import { GET as passport, og as passportOg } from "../routes/passport.js";
 import { GET as siteOg } from "../routes/site-og.js";
 import { passportPage, replayPage } from "../routes/pages.js";
+import { GET as home, boardGet } from "../routes/home.js";
 
-const NAMES = new Set(["agent", "drain", "kill", "og", "share", "replay", "honeypot", "policy", "passport", "passport-og", "site-og", "replay-page", "passport-page"]);
+const NAMES = new Set(["agent", "drain", "kill", "og", "share", "replay", "honeypot", "policy", "passport", "passport-og", "site-og", "replay-page", "passport-page", "home", "board"]);
 
 const GETS = {
   drain: drainGet,
@@ -29,6 +30,8 @@ const GETS = {
   "site-og": siteOg,
   "replay-page": replayPage,
   "passport-page": passportPage,
+  home,
+  board: boardGet,
 };
 
 const POSTS = {

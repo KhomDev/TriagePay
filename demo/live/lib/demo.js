@@ -6,6 +6,7 @@ import { describeAttack, explain, listScenarios, shouldSubmit } from "./attacks.
 import { chainReady, loadConfig, loadKeys, signingReady } from "./config.js";
 import { MAINNET_CONTRACTS } from "./mainnet.js";
 import { assessCooldown, cooldownMessage } from "./cooldown.js";
+import { cacheGet, cacheSet } from "./region-cache.js";
 import { payeeFacts, fetchIndexerTxns, fetchDayStamps } from "./facts.js";
 import { formatAmount, formatAtomic, nsToIso, tokenSymbol } from "./format.js";
 import { DemoError } from "./http.js";
@@ -14,11 +15,15 @@ import { clientIp, releaseLock, reserveAttempt } from "./limits.js";
 import { functionCall, signCall, viewCall, assertTestnet } from "./near.js";
 import { matchPending, receiptFromRun } from "./receipt.js";
 import { classifyAmount, classifyPayee } from "./risk.js";
+import { persistedAttempts, readBoards, signedAttemptCount } from "./board-store.js";
+import { mainnetPublic, scoreboard } from "./mainnet.js";
+import { publishAttempts } from "./scoreboard.js";
 import { mergeRecent } from "./recent.js";
 import { storeFromEnv } from "./store.js";
 import { notifyHold } from "./telegram.js";
 import { traceOutcome } from "./trace.js";
-import { modelFromEnv } from "./agent.js";
+import { enrichRecent } from "./txread.js";
+import { llmStatus, modelFromEnv } from "./agent.js";
 
 let signing = false;
 const ONE_YOCTO = 1n;
@@ -61,23 +66,38 @@ function limitMessage(decision, config) {
   return cooldownMessage(decision, config.cooldownSeconds, config.maxAttemptsPerDay);
 }
 
+function dayCacheKey(config, nowMs) {
+  return `testnet-day:${config.accounts.agent}:${new Date(nowMs).toISOString().slice(0, 10)}`;
+}
+
+async function cachedDayStamps(config, nowMs) {
+  const key = dayCacheKey(config, nowMs);
+  const cached = await cacheGet(key);
+  if (cached && Array.isArray(cached.stamps)) return cached;
+  const day = await fetchDayStamps(config.indexerAccountsBase, config.accounts.agent, nowMs, {
+    maxPages: 16,
+    limit: 25,
+    stopAt: config.maxAttemptsPerDay,
+  });
+  if (!day.unavailable) await cacheSet(key, day, 15);
+  return day;
+}
+
+export function noteTestnetSign(config, nowMs = Date.now()) {
+  const key = dayCacheKey(config, nowMs);
+  return cacheGet(key).then((day) => {
+    if (!day || !Array.isArray(day.stamps)) return;
+    const next = { ...day, stamps: [...day.stamps, nowMs] };
+    return cacheSet(key, next, 15);
+  }).catch(() => {});
+}
+
 async function chainDecision(config, nowMs) {
-  const day = await fetchDayStamps(config.indexerAccountsBase, config.accounts.agent, nowMs);
-  if (day.unavailable) return null;
-  if (day.truncated) {
-    const next = Date.UTC(new Date(nowMs).getUTCFullYear(), new Date(nowMs).getUTCMonth(), new Date(nowMs).getUTCDate()) + 86400000;
-    return {
-      allowed: false,
-      code: "daily_attempt_cap",
-      retryAfterSeconds: Math.max(1, Math.ceil((next - nowMs) / 1000)),
-      attemptsToday: day.stamps.length,
-    };
-  }
-  const newest = day.stamps.reduce((max, value) => (value > max ? value : max), 0);
-  const extra = recall().map((row) => row.atMs).filter((value) => value && value > newest);
+  const day = await cachedDayStamps(config, nowMs);
+  if (!day || day.unavailable) return null;
   return assessCooldown({
     nowMs,
-    timestampsMs: [...day.stamps, ...extra],
+    timestampsMs: day.stamps,
     cooldownMs: config.cooldownSeconds * 1000,
     maxPerDay: config.maxAttemptsPerDay,
   });
@@ -85,7 +105,11 @@ async function chainDecision(config, nowMs) {
 
 export async function gate(config, request) {
   const nowMs = Date.now();
-  const chain = await chainDecision(config, nowMs);
+  let chain = await chainDecision(config, nowMs);
+  const remembered = persistedAttempts(await readBoards().catch(() => []), nowMs);
+  if (chain && remembered != null && remembered > chain.attemptsToday) {
+    chain = { ...chain, attemptsToday: remembered };
+  }
   const store = storeFromEnv();
   let decision;
   try {
@@ -114,6 +138,8 @@ export async function gate(config, request) {
       limit_source: decision.source,
     });
   }
+  await noteTestnetSign(config, nowMs);
+  await publishAttempts(signedAttemptCount(decision), nowMs).catch(() => {});
   return { ...decision, store };
 }
 
@@ -217,6 +243,7 @@ export async function getHealth() {
     agentMode: String(process.env.NEARAI_API_KEY || "").trim() ? "live" : "scripted",
     policyApply: String(process.env.TRIAGEPAY_POLICY_APPLY || "") === "1",
     model: modelFromEnv(),
+    llm: llmStatus(),
   };
 }
 
@@ -261,6 +288,7 @@ export async function getDashboard() {
     const scaled = (spentToday * 10000n) / dailyMax;
     percent = Math.max(0, Math.min(100, Number(scaled) / 100));
   }
+  const board = await scoreboard().catch(() => null);
   return {
     ...health,
     wallet: config.accounts.wallet,
@@ -271,20 +299,22 @@ export async function getDashboard() {
     paused: Boolean(walletConfig && walletConfig.paused),
     spend: {
       spentToday: spentToday.toString(),
-      spentDisplay: formatAtomic(spentToday, decimals),
+      spentDisplay: formatAmount(spentToday, decimals, tokenSymbol(config.accounts.token)),
       dailyMax: dailyMax.toString(),
-      dailyDisplay: formatAtomic(dailyMax, decimals),
+      dailyDisplay: formatAmount(dailyMax, decimals, tokenSymbol(config.accounts.token)),
       remaining: remaining.toString(),
-      remainingDisplay: formatAtomic(remaining < 0n ? 0n : remaining, decimals),
+      remainingDisplay: formatAmount(remaining < 0n ? 0n : remaining, decimals, tokenSymbol(config.accounts.token)),
       perCallMax: perCall.toString(),
-      perCallDisplay: formatAtomic(perCall, decimals),
+      perCallDisplay: formatAmount(perCall, decimals, tokenSymbol(config.accounts.token)),
       percent,
       active: Boolean(agent && agent.active),
       payees: (agent && agent.payees) || config.policy.payees,
       allowlistSource: chainPayees ? "chain" : "config",
       resetsAt: agent ? nsToIso(agent.resets_at_ns) : null,
     },
-    scenarios: listScenarios(config).map(scenarioView),
+    scenarios: listScenarios(config)
+      .filter((scenario) => scenario.id !== "review-payee" || Boolean(review && review.reviewUnknownPayees))
+      .map(scenarioView),
     risks,
     review: review && review.supported
       ? {
@@ -294,9 +324,25 @@ export async function getDashboard() {
           decimals,
           tokenSymbol(config.accounts.token),
         ),
+        pending: (review.pending || []).map((row) => ({
+          ...row,
+          amountDisplay: row && row.amount != null
+            ? formatAmount(String(row.amount), decimals, tokenSymbol(config.accounts.token))
+            : null,
+        })),
       }
       : review,
-    recent: mergeRecent(indexed, recall(), config.explorerTxBase),
+    mainnet: await mainnetPublic(),
+    scoreboard: board,
+    attemptsToday: board ? board.attemptsToday : null,
+    attemptsRemaining: board ? board.attemptsRemaining : null,
+    cooldownRemainingSeconds: assessCooldown({
+      nowMs: Date.now(),
+      timestampsMs: (indexed || []).map((row) => row.atMs).filter((value) => Number.isFinite(value)),
+      cooldownMs: config.cooldownSeconds * 1000,
+      maxPerDay: config.maxAttemptsPerDay,
+    }).retryAfterSeconds,
+    recent: await enrichRecent(config, mergeRecent(indexed, recall(), config.explorerTxBase)),
   };
 }
 
@@ -453,7 +499,7 @@ async function assertReviewWillHold(config, attack) {
   if (attack.id === "review-payee" && !review.reviewUnknownPayees) {
     throw new DemoError(
       "review_not_enabled",
-      "Owner review of unknown payees is off, so this payment would be refused instead of queued. Enable it with set_review_policy.",
+      "Unknown payees are refused on this wallet, not queued. Queue a payment above the threshold instead. That one is held for approval.",
       409,
     );
   }

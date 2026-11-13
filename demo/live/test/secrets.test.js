@@ -41,6 +41,8 @@ test("config.json is public chain data", () => {
   assert.ok(BigInt(config.policy.perCallMax) <= BigInt(config.policy.dailyMax));
   assert.equal(config.policy.decimals, 24);
   assert.ok(config.cooldownSeconds >= 1);
+  assert.ok(config.cooldownSeconds <= 2);
+  assert.ok(config.ipLimit >= 40);
   assert.ok(config.maxAttemptsPerDay >= 1);
   if (config.ready) {
     for (const role of ["owner", "agent", "wallet", "payee", "injected", "flagged", "funder"]) {

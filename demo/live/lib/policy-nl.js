@@ -156,7 +156,7 @@ export async function proposePolicy({ text, context, apiKey, fetchImpl = fetch, 
           { role: "user", content: String(text || "").slice(0, 500) },
         ],
       }),
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(45_000),
     });
     if (!response.ok) {
       try { await response.body?.cancel?.(); } catch { /* status only */ }

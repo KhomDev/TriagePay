@@ -9,7 +9,17 @@ export function formatAtomic(atomic, decimals) {
   let frac = (abs % scale).toString().padStart(Number(decimals), "0");
   frac = frac.replace(/0+$/, "");
   const text = Number(decimals) > 0 && frac ? `${whole}.${frac}` : whole.toString();
-  return negative ? `-${text}` : text;
+  return humanDust(negative ? `-${text}` : text);
+}
+
+function humanDust(text) {
+  const match = /^(-?)(\d+)\.(\d+)$/.exec(text);
+  if (!match) return text;
+  const dust = /^(\d*?)(0{8,})([1-9]\d{0,4})$/.exec(match[3]);
+  if (!dust || dust[3] !== "1") return text;
+  const head = dust[1].replace(/0+$/, "");
+  const shown = head ? `${match[1]}${match[2]}.${head}` : `${match[1]}${match[2]}`;
+  return `${shown} wNEAR + 1 yocto`;
 }
 
 const TOKEN_SYMBOLS = {
@@ -23,7 +33,30 @@ export function tokenSymbol(accountId) {
 
 export function formatAmount(atomic, decimals, symbol) {
   const text = formatAtomic(atomic, decimals);
-  return symbol ? `${text} ${symbol}` : text;
+  if (!symbol || text.includes(symbol)) return text;
+  return `${text} ${symbol}`;
+}
+
+export function formatAmountShort(atomic, decimals = 24, symbol = "wNEAR", places = 4) {
+  const value = BigInt(atomic);
+  const negative = value < 0n;
+  const abs = negative ? -value : value;
+  const scale = 10n ** BigInt(decimals);
+  let whole = abs / scale;
+  const fracStr = (abs % scale).toString().padStart(Number(decimals), "0");
+  const head = fracStr.slice(0, places) || "0";
+  const next = fracStr[places] || "0";
+  let digits = BigInt(head);
+  if (next >= "5") digits += 1n;
+  const limit = 10n ** BigInt(places);
+  if (digits >= limit) {
+    whole += 1n;
+    digits = 0n;
+  }
+  const fracText = digits.toString().padStart(places, "0").replace(/0+$/, "");
+  const text = fracText ? `${whole}.${fracText}` : whole.toString();
+  const signed = negative ? `-${text}` : text;
+  return symbol ? `${signed} ${symbol}` : signed;
 }
 
 export function nsToIso(ns) {
