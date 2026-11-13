@@ -58,20 +58,42 @@ export function compactBoard(board) {
     complete: true,
     truncated: false,
     sourceUrl: board.sourceUrl || "https://nearblocks.io",
+    recent: sanitizeRecent(board.recent),
   };
 }
 
-async function readBlob() {
+function sanitizeRecent(rows) {
+  if (!Array.isArray(rows)) return [];
+  const seen = new Set();
+  const items = [];
+  for (const row of rows) {
+    const hash = row && typeof row.hash === "string" ? row.hash : "";
+    if (!/^[A-Za-z0-9]{8,88}$/.test(hash) || seen.has(hash)) continue;
+    seen.add(hash);
+    items.push({
+      hash,
+      network: row.network === "mainnet" ? "mainnet" : "testnet",
+      paid: Boolean(row.paid),
+      atMs: Number.isFinite(row.atMs) ? row.atMs : 0,
+    });
+  }
+  items.sort((a, b) => b.atMs - a.atMs);
+  return items.slice(0, 6);
+}
+
+export async function readBlobBoard() {
   const token = String(process.env.BLOB_READ_WRITE_TOKEN || "").trim();
   if (!token) return null;
   try {
-    const { list } = await import("@vercel/blob");
-    const found = await list({ prefix: BLOB_PATH, token, limit: 1 });
-    const blob = (found.blobs || []).find((item) => item.pathname === BLOB_PATH);
-    if (!blob || !blob.url) return null;
-    const response = await fetch(blob.url, { signal: AbortSignal.timeout(4000) });
-    if (!response.ok) return null;
-    return parseBoard(await response.text());
+    const { get } = await import("@vercel/blob");
+    const result = await get(BLOB_PATH, {
+      access: "public",
+      token,
+      useCache: false,
+      abortSignal: AbortSignal.timeout(1500),
+    });
+    if (!result || !result.stream) return null;
+    return parseBoard(await new Response(result.stream).text());
   } catch {
     return null;
   }
@@ -108,7 +130,7 @@ export async function readBoards() {
       // The rate limiter store did not answer. The other copies remain.
     }
   }
-  const blob = await readBlob();
+  const blob = await readBlobBoard();
   if (blob) boards.push(blob);
   return boards;
 }

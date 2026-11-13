@@ -31,6 +31,8 @@ test("the judge path and the hackathon marks are on the page", () => {
   assert.match(html, /6F3jNamjerT69EMnxaQVy7WRdZuscj7t53V1oceTU4Yj/);
   assert.match(html, /5BCGjxC4CkPSy8iv876cP65xxs2LRWwcWKFqmcVJEyEw/);
   assert.match(html, /Earlier proof, paid call/);
+  assert.match(html, /id="tape"/);
+  assert.match(script, /\/api\/board/);
   assert.match(script, /scoreboard\.json/);
   assert.match(script, /as of /);
   assert.match(script, /triagepay-board-floor/);

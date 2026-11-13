@@ -89,11 +89,50 @@
     return "as of " + hh + ":" + mm + " UTC";
   }
 
+  function seedFromDom() {
+    var paid = Number($("num-paid") && $("num-paid").textContent);
+    var refused = Number($("num-refused") && $("num-refused").textContent);
+    var agents = Number($("num-agents") && $("num-agents").textContent);
+    var protectedDisplay = $("num-protected") && $("num-protected").textContent;
+    var source = $("num-source");
+    if (isFinite(paid) && isFinite(refused)) {
+      raiseBoard({
+        paid: paid,
+        refused: refused,
+        agents: isFinite(agents) ? agents : null,
+        protectedDisplay: protectedDisplay && protectedDisplay !== "—" ? protectedDisplay : null,
+        asOf: source && source.getAttribute("data-asof")
+      });
+    }
+    var left = $("attempt-left");
+    var match = left && /(\d+)\s+testnet attempts left/.exec(left.textContent || "");
+    if (match) state.testnetRemaining = Number(match[1]);
+  }
+
   function loadFloor() {
     try {
       var saved = JSON.parse(sessionStorage.getItem(FLOOR_KEY) || "null");
-      if (saved && typeof saved === "object") state.floor = saved;
+      if (saved && typeof saved === "object") raiseBoard(saved);
     } catch (err) {}
+  }
+
+  function paintTape(rows) {
+    var root = $("tape");
+    if (!root || !rows || !rows.length) return;
+    var key = rows.map(function (row) { return row && row.hash; }).join(",");
+    if (root.getAttribute("data-key") === key) return;
+    root.setAttribute("data-key", key);
+    clear(root);
+    rows.slice(0, 6).forEach(function (row) {
+      if (!row || !row.hash) return;
+      var href = row.network === "mainnet"
+        ? "https://nearblocks.io/txns/" + row.hash
+        : "https://testnet.nearblocks.io/txns/" + row.hash;
+      root.appendChild(el("li", null, el("a", { href: href, rel: "noopener", target: "_blank" },
+        el("span", { class: row.paid ? "paid" : "refused" }, row.paid ? "PAID" : "REFUSED"),
+        " " + String(row.hash).slice(0, 8) + " · " + (row.network === "mainnet" ? "mainnet" : "testnet")
+      )));
+    });
   }
 
   function rememberFloor() {
@@ -109,6 +148,8 @@
     if (board.protectedYocto != null && (floor.protectedYocto == null || yoctoOf(board.protectedYocto) >= yoctoOf(floor.protectedYocto))) {
       floor.protectedYocto = String(board.protectedYocto);
       if (board.protectedDisplay) floor.protectedDisplay = board.protectedDisplay;
+    } else if (board.protectedDisplay && floor.protectedYocto == null) {
+      floor.protectedDisplay = board.protectedDisplay;
     }
     if (board.asOf && (!floor.asOf || String(board.asOf) > String(floor.asOf))) floor.asOf = board.asOf;
     rememberFloor();
@@ -124,11 +165,12 @@
     $("num-protected").textContent = shown.protectedDisplay || (board && board.protectedDisplay) || "—";
     $("num-agents").textContent = shown.agents == null ? "—" : String(shown.agents);
     var source = $("num-source");
-    if (source) {
+    var stamp = asOfLabel(shown.asOf || (board && board.asOf));
+    if (source && stamp) {
       clear(source);
+      if (shown.asOf) source.setAttribute("data-asof", shown.asOf);
       source.appendChild(el("a", { href: (board && board.sourceUrl) || "https://nearblocks.io", rel: "noopener", target: "_blank" }, "Live from NearBlocks"));
-      var stamp = asOfLabel(shown.asOf || (board && board.asOf));
-      if (stamp) source.appendChild(document.createTextNode(" · " + stamp));
+      source.appendChild(document.createTextNode(" · " + stamp));
     }
   }
 
@@ -149,15 +191,25 @@
     paintAttemptLeft();
   }
 
+  function applyBoard(board) {
+    if (!board) return;
+    raiseBoard(board);
+    noteRemaining(board.attemptsRemaining);
+    paintTape(board.recent);
+  }
+
   function loadStaticBoard() {
-    return fetch("/scoreboard.json", { cache: "no-store" }).then(function (res) {
+    return fetch("/scoreboard.json").then(function (res) {
       if (!res.ok) return null;
       return res.json();
-    }).then(function (board) {
-      if (!board) return;
-      raiseBoard(board);
-      noteRemaining(board.attemptsRemaining);
-    }).catch(function () {});
+    }).then(applyBoard).catch(function () {});
+  }
+
+  function loadLiveBoard() {
+    return fetch("/api/board").then(function (res) {
+      if (!res.ok) throw new Error("board");
+      return res.json();
+    }).then(applyBoard).catch(function () { return loadStaticBoard(); });
   }
 
   function paintMainnetProofs() {
@@ -1057,10 +1109,10 @@
   if (policyApply) policyApply.addEventListener("click", function () { onPolicy(null, "apply"); });
   $("btn-kill").addEventListener("click", onKill);
 
+  seedFromDom();
   loadFloor();
   paintAttemptLeft();
-  if (state.floor.paid != null) paintNumbers(state.floor, state.floor);
-  loadStaticBoard();
+  loadLiveBoard();
   refresh().then(function () { return refreshDrain(); });
   setInterval(function () {
     if (state.busy || document.visibilityState === "hidden") return;

@@ -4,10 +4,12 @@
   "functions": {
     "api/**/*.js": {
       "maxDuration": 60,
-      "includeFiles": "config.json,public/scoreboard.json,lib/fonts/**,node_modules/satori/layout.wasm,node_modules/@resvg/resvg-wasm/index_bg.wasm"
+      "includeFiles": "config.json,public/index.html,public/scoreboard.json,lib/fonts/**,node_modules/satori/layout.wasm,node_modules/@resvg/resvg-wasm/index_bg.wasm"
     }
   },
   "rewrites": [
+    { "source": "/", "destination": "/api/live?route=home" },
+    { "source": "/api/board", "destination": "/api/live?route=board" },
     { "source": "/api/agent", "destination": "/api/live?route=agent" },
     { "source": "/api/drain", "destination": "/api/live?route=drain" },
     { "source": "/api/kill", "destination": "/api/live?route=kill" },

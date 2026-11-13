@@ -4,6 +4,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { GET as liveGet } from "../api/live.js";
+import { fillHome, tapeFromRows } from "../lib/tape.js";
+import { HOME_CACHE } from "../lib/live-board.js";
 import { persistedAttempts, signedAttemptCount } from "../lib/board-store.js";
 import {
   amountFromRpcStatus,
@@ -196,6 +198,42 @@ test("a failed index walk keeps the persisted board and the limiter count", asyn
   assert.equal(board.attemptsToday, 58);
   assert.equal(board.attemptsRemaining, 242);
   assert.equal(board.truncated, false);
+});
+
+test("the home document takes its numbers from the live board", async () => {
+  const sample = fillHome(
+    '<p id="num-paid" class="stat">1</p><p id="num-refused" class="stat">1</p><p id="num-protected" class="stat">0</p><p id="num-agents" class="stat">0</p><p id="attempt-left" class="hint">1 testnet attempts left today</p><p id="num-source" class="hint">old</p><ol id="tape" class="tape"></ol>',
+    {
+      paid: 85,
+      refused: 113,
+      agents: 2,
+      protectedDisplay: "0.009 wNEAR",
+      attemptsRemaining: 221,
+      asOf: "2026-11-13T07:00:00.000Z",
+      recent: [{ hash: "5BCGjxC4CkPSy8iv876cP65xxs2LRWwcWKFqmcVJEyEw", network: "mainnet", paid: false, atMs: 10 }],
+    },
+  );
+  assert.match(sample, /id="num-paid" class="stat">85</);
+  assert.match(sample, /221 testnet attempts left today/);
+  assert.match(sample, /as of 07:00 UTC/);
+  assert.match(sample, /REFUSED/);
+  assert.match(sample, /nearblocks\.io\/txns\/5BCGjxC4/);
+  const tape = tapeFromRows([{
+    network: "testnet",
+    rows: [
+      { txHash: "abcdefghij123456", methods: ["pay"], success: false, atMs: 2 },
+      { txHash: "abcdefghij123456", methods: ["pay"], success: true, atMs: 9 },
+      { txHash: "zzzzzzzzzz123456", methods: ["set_agent"], success: true, atMs: 3 },
+    ],
+  }]);
+  assert.equal(tape.length, 1);
+  assert.equal(tape[0].paid, false);
+  const home = await liveGet(new Request("http://demo.local/api/live?route=home"));
+  assert.equal(home.status, 200);
+  assert.match(home.headers.get("cache-control") || "", /s-maxage=10/);
+  assert.match(home.headers.get("cache-control") || "", /stale-while-revalidate/);
+  assert.match(await home.text(), /id="tape"/);
+  assert.equal(HOME_CACHE.includes("s-maxage=10"), true);
 });
 
 test("a signed attempt is stored above the snapshot floor", async () => {

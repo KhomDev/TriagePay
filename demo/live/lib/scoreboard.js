@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readAttemptCounter, readBoards, writeBoard, boardRose } from "./board-store.js";
+import { tapeFromRows } from "./tape.js";
 import { utcDayStartMs } from "./cooldown.js";
 import { fetchIndexerPage } from "./facts.js";
 import { formatAmountShort } from "./format.js";
@@ -213,6 +214,7 @@ export function presentScoreboard(board, nowMs = Date.now()) {
     day: source.day || new Date(nowMs).toISOString().slice(0, 10),
     source: "Live from NearBlocks",
     sourceUrl: source.sourceUrl || "https://nearblocks.io",
+    recent: Array.isArray(source.recent) ? source.recent : [],
     networks: source.networks || {},
     definition: source.definition || "Pay calls by the two demo agents, deduped by transaction hash.",
   };
@@ -245,14 +247,16 @@ function newestNetworks(boards) {
 async function pagesUntil(fetchPage, side, watermark) {
   const pages = [];
   let cursor = null;
+  let head = [];
   for (let i = 0; i < LIVE_PAGES; i += 1) {
     const page = await fetchPage(side, cursor);
+    if (i === 0) head = (page && page.rows) || [];
     pages.push(page);
     const taken = takeNewer(pages, watermark, LIVE_PAGES);
-    if (taken.ok || !page || !page.ok || !page.next) return taken;
+    if (taken.ok || !page || !page.ok || !page.next) return { ...taken, head };
     cursor = page.next;
   }
-  return takeNewer(pages, watermark, LIVE_PAGES);
+  return { ...takeNewer(pages, watermark, LIVE_PAGES), head };
 }
 
 export async function publishAttempts(count, nowMs = Date.now(), options = {}) {
@@ -278,6 +282,11 @@ export async function publishAttempts(count, nowMs = Date.now(), options = {}) {
     asOf: new Date(nowMs).toISOString(),
     networks: newestNetworks([merged, ...saved]),
   });
+  const keptRecent = [merged, ...saved].reduce((best, board) => {
+    const rows = board && Array.isArray(board.recent) ? board.recent : [];
+    return rows.length > best.length ? rows : best;
+  }, []);
+  merged = { ...merged, recent: keptRecent };
   await write(merged);
   return merged;
 }
@@ -317,14 +326,16 @@ export async function scoreboard(options = {}) {
   let added = false;
   const agents = new Set(Array.isArray(floor.agentIds) ? floor.agentIds : []);
   const networks = { ...(floor.networks || {}) };
+  const heads = [];
   for (const side of SIDES) {
     const mark = networks[side.network];
-    let walked = { ok: false, rows: [] };
+    let walked = { ok: false, rows: [], head: [] };
     try {
       walked = await pagesUntil(fetchPage, side, mark);
     } catch {
-      walked = { ok: false, rows: [] };
+      walked = { ok: false, rows: [], head: [] };
     }
+    if (walked.head && walked.head.length) heads.push({ network: side.network, rows: walked.head });
     if (side.network === "testnet" && walked.ok) testnetWalked = true;
     if (!walked.ok || !walked.rows.length) continue;
     const tally = tallyPaySet(walked.rows, side.network === "testnet" ? utcDayStartMs(nowMs) : null);
@@ -371,9 +382,11 @@ export async function scoreboard(options = {}) {
     asOf: added ? new Date(nowMs).toISOString() : (floor.asOf || new Date(nowMs).toISOString()),
     day: attemptsToday == null ? floor.day : day,
     networks,
+    recent: tapeFromRows(heads).length ? tapeFromRows(heads) : (floor.recent || []),
     complete: true,
     truncated: false,
   };
-  if (boardRose(floor, merged)) await write(merged).catch(() => {});
+  const recentChanged = JSON.stringify(merged.recent || []) !== JSON.stringify(floor.recent || []);
+  if (boardRose(floor, merged) || recentChanged) await write(merged).catch(() => {});
   return presentScoreboard(merged, nowMs);
 }

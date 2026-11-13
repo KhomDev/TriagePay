@@ -159,6 +159,39 @@ h3 { margin: 18px 0 8px; font-size: 0.95rem; letter-spacing: 0.04em; text-transf
 .numbers .stat-kicker { white-space: normal; line-height: 1.2; }
 .numbers .stat { margin: 2px 0 0; font-size: 1rem; overflow-wrap: anywhere; }
 .numbers .hint { grid-column: 1 / -1; margin: 0; }
+.tape {
+  list-style: none;
+  display: flex;
+  gap: 8px;
+  height: 36px;
+  min-height: 36px;
+  margin: 10px 0 0;
+  padding: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.tape li {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 10px;
+  font-size: 0.78rem;
+  animation: tape-in 0.45s ease both;
+}
+.tape li:nth-child(2) { animation-delay: 70ms; }
+.tape li:nth-child(3) { animation-delay: 140ms; }
+.tape li:nth-child(4) { animation-delay: 210ms; }
+.tape li:nth-child(5) { animation-delay: 280ms; }
+.tape li:nth-child(6) { animation-delay: 350ms; }
+.tape a { color: inherit; text-decoration: none; }
+.tape .paid { color: var(--ok); font-weight: 700; margin-right: 6px; }
+.tape .refused { color: var(--bad); font-weight: 700; margin-right: 6px; }
+@keyframes tape-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
 .is-skeleton .skel {
   display: inline-block;
   width: 16rem;
@@ -493,7 +526,7 @@ main { padding-bottom: 24px; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .pipeline.is-live .packet, .stamp.is-in, button:hover, button.is-busy::after { animation: none; transform: none; }
-  .is-skeleton .skel { animation: none; }
+  .is-skeleton .skel, .tape li { animation: none; }
   .step.is-on .dot, .step.is-bad .dot { box-shadow: none; }
   .gauge > span { transition: none; }
 }
