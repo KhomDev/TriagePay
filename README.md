@@ -337,6 +337,10 @@ everywhere: `{"error":{"code","message"}}`.
 | `APS_TRIAGE_CASSETTES` | unset | Replay Stage B from a cassette directory, no key |
 | `APS_TRIAGE_MODEL_ID` | z-ai/glm-5.3-flash | Stage B model |
 
+## Sister project
+
+I also built [VibeWallet](https://vibe-wallet-flame.vercel.app) at NEAR HACKATHON. TriagePay and VibeWallet are the two projects from the same team.
+
 ## More
 
 [Architecture](docs/architecture.md) |
