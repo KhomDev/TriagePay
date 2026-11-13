@@ -68,8 +68,13 @@ Inflated, that is 221,884 bytes, sha256
 The cargo registry folder `index.crates.io-<hash>` differs between machines
 and is the same length, so a remap of only the cargo home still produces
 two hashes. The build remaps that folder to `/cargo/registry/src` last,
-because rustc keeps the last matching prefix. CI rebuilds it and rejects a
-mismatch.
+because rustc keeps the last matching prefix. After that remap the size
+matches and the hash does not: this host produced
+`17acbefc65151683d5a37771b785ec0e5a9fa6debfbdc566084370a714e25b7e`, and
+GitHub Actions produced
+`48562c554fe8ec0d29a4aa10222eceec53d36954d10f9c7cea0f124a5992f41e`, both
+221,884 bytes. The committed blob is the one from this host. CI rejects a
+rebuild that still contains a host path or the registry folder name.
 
 `--no-abi` is required on Windows: the ABI step builds a host `cdylib` with
 `near-sdk/__abi-generate`, and the MSVC linker fails on the unresolved NEAR
