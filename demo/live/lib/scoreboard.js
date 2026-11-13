@@ -7,6 +7,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readAttemptCounter, readBoards, writeBoard, boardRose } from "./board-store.js";
 import { utcDayStartMs } from "./cooldown.js";
 import { fetchIndexerPage } from "./facts.js";
 import { formatAmountShort } from "./format.js";
@@ -226,6 +227,21 @@ async function defaultFetchAmount(side, hash) {
   return amountFromTxn(await response.json());
 }
 
+function newestNetworks(boards) {
+  const networks = {};
+  for (const board of boards) {
+    const nets = board && board.networks;
+    if (!nets) continue;
+    for (const key of Object.keys(nets)) {
+      const next = nets[key];
+      const prev = networks[key];
+      if (!next) continue;
+      if (!prev || (next.newestAtMs || 0) > (prev.newestAtMs || 0)) networks[key] = next;
+    }
+  }
+  return networks;
+}
+
 async function pagesUntil(fetchPage, side, watermark) {
   const pages = [];
   let cursor = null;
@@ -239,10 +255,40 @@ async function pagesUntil(fetchPage, side, watermark) {
   return takeNewer(pages, watermark, LIVE_PAGES);
 }
 
+export async function publishAttempts(count, nowMs = Date.now(), options = {}) {
+  const day = new Date(nowMs).toISOString().slice(0, 10);
+  const read = options.readBoards || readBoards;
+  const write = options.writeBoard || writeBoard;
+  const saved = await read();
+  let merged = options.floor || readSnapshot() || {
+    paid: 0,
+    refused: 0,
+    protectedYocto: "0",
+    agentIds: [],
+    attemptsToday: 0,
+    day,
+  };
+  for (const board of saved) {
+    if (board) merged = raiseScoreboard(merged, board);
+  }
+  merged = raiseScoreboard(merged, {
+    ...merged,
+    day,
+    attemptsToday: count,
+    asOf: new Date(nowMs).toISOString(),
+    networks: newestNetworks([merged, ...saved]),
+  });
+  await write(merged);
+  return merged;
+}
+
 export async function scoreboard(options = {}) {
   const nowMs = options.nowMs || Date.now();
   const snapshot = options.snapshot === undefined ? readSnapshot() : options.snapshot;
-  const base = snapshot || {
+  const read = options.readBoards || readBoards;
+  const write = options.writeBoard || writeBoard;
+  const saved = await read().catch(() => []);
+  let floor = snapshot || {
     paid: 0,
     refused: 0,
     agentIds: [],
@@ -252,22 +298,27 @@ export async function scoreboard(options = {}) {
     networks: {},
     asOf: new Date(nowMs).toISOString(),
   };
+  for (const board of saved || []) {
+    if (board) floor = raiseScoreboard(floor, board);
+  }
+  floor = { ...floor, networks: newestNetworks([floor, snapshot, ...(saved || [])]) };
   const fetchPage = options.fetchPage || ((side, cursor) => fetchIndexerPage(side.indexerAccountsBase, side.agent, {
     limit: PAGE_LIMIT,
     next: cursor,
   }));
   const fetchAmount = options.fetchAmount === undefined ? defaultFetchAmount : options.fetchAmount;
   const day = new Date(nowMs).toISOString().slice(0, 10);
-  const sameDay = base.day === day;
+  const sameDay = floor.day === day;
   let paid = 0;
   let refused = 0;
   let attempts = 0;
   let testnetWalked = false;
   let extraYocto = 0n;
   let added = false;
-  const agents = new Set(Array.isArray(base.agentIds) ? base.agentIds : []);
+  const agents = new Set(Array.isArray(floor.agentIds) ? floor.agentIds : []);
+  const networks = { ...(floor.networks || {}) };
   for (const side of SIDES) {
-    const mark = base.networks && base.networks[side.network];
+    const mark = networks[side.network];
     let walked = { ok: false, rows: [] };
     try {
       walked = await pagesUntil(fetchPage, side, mark);
@@ -281,6 +332,13 @@ export async function scoreboard(options = {}) {
     refused += tally.refused;
     if (side.network === "testnet") attempts += tally.attemptsToday;
     for (const id of tally.agentIds) agents.add(id);
+    if (tally.newest) {
+      networks[side.network] = {
+        ...(networks[side.network] || {}),
+        newestHash: tally.newest.hash,
+        newestAtMs: tally.newest.atMs,
+      };
+    }
     added = true;
     if (fetchAmount && tally.refusedHashes.length > 0 && tally.refusedHashes.length <= 12) {
       const amounts = await Promise.all(tally.refusedHashes.map((hash) => fetchAmount(side, hash).catch(() => null)));
@@ -292,21 +350,30 @@ export async function scoreboard(options = {}) {
       }
     }
   }
-  const attemptsToday = sameDay
-    ? (base.attemptsToday || 0) + attempts
-    : (testnetWalked ? attempts : null);
+  let attemptsToday = sameDay
+    ? (floor.attemptsToday || 0) + attempts
+    : (testnetWalked ? attempts : floor.attemptsToday);
+  const limiter = options.attemptCount !== undefined
+    ? options.attemptCount
+    : await readAttemptCounter(nowMs).catch(() => null);
+  if (limiter != null && (sameDay || testnetWalked)) {
+    attemptsToday = Math.max(attemptsToday || 0, limiter);
+  }
   const agentIds = [...agents].sort();
-  return presentScoreboard({
-    ...base,
-    paid: (base.paid || 0) + paid,
-    refused: (base.refused || 0) + refused,
+  const merged = {
+    ...floor,
+    paid: (floor.paid || 0) + paid,
+    refused: (floor.refused || 0) + refused,
     agentIds,
     agents: agentIds.length,
-    protectedYocto: (BigInt(base.protectedYocto || "0") + extraYocto).toString(),
+    protectedYocto: (BigInt(floor.protectedYocto || "0") + extraYocto).toString(),
     attemptsToday,
-    asOf: added ? new Date(nowMs).toISOString() : (base.asOf || new Date(nowMs).toISOString()),
-    day: attemptsToday == null ? base.day : day,
+    asOf: added ? new Date(nowMs).toISOString() : (floor.asOf || new Date(nowMs).toISOString()),
+    day: attemptsToday == null ? floor.day : day,
+    networks,
     complete: true,
     truncated: false,
-  }, nowMs);
+  };
+  if (boardRose(floor, merged)) await write(merged).catch(() => {});
+  return presentScoreboard(merged, nowMs);
 }

@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const html = readFileSync(join(ROOT, "public", "index.html"), "utf8");
+const scoreboard = JSON.parse(readFileSync(join(ROOT, "public", "scoreboard.json"), "utf8"));
 const css = readFileSync(join(ROOT, "public", "style.css"), "utf8");
 const script = readFileSync(join(ROOT, "public", "app.js"), "utf8");
 
@@ -19,7 +20,11 @@ test("the judge path and the hackathon marks are on the page", () => {
   assert.equal(/vercel\.live/.test(html), false);
   assert.equal(/CFutaZM9/.test(html), false);
   assert.match(html, /id="attempt-left"/);
-  assert.match(html, /is-skeleton/);
+  assert.match(html, new RegExp(scoreboard.attemptsRemaining + " testnet attempts left today"));
+  assert.match(html, new RegExp(`id="num-paid" class="stat">${scoreboard.paid}`));
+  assert.match(html, new RegExp(`id="num-refused" class="stat">${scoreboard.refused}`));
+  assert.match(css, /replay-steps \.trace/);
+  assert.match(css, /word-break: break-word/);
   assert.match(html, /The contract has not decided yet/);
   assert.equal(/The three proofs/.test(html), false);
   assert.match(html, /1000-yocto mainnet pair/);

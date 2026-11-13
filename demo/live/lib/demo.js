@@ -14,7 +14,9 @@ import { clientIp, releaseLock, reserveAttempt } from "./limits.js";
 import { functionCall, signCall, viewCall, assertTestnet } from "./near.js";
 import { matchPending, receiptFromRun } from "./receipt.js";
 import { classifyAmount, classifyPayee } from "./risk.js";
+import { persistedAttempts, readBoards, signedAttemptCount } from "./board-store.js";
 import { mainnetPublic, scoreboard } from "./mainnet.js";
+import { publishAttempts } from "./scoreboard.js";
 import { mergeRecent } from "./recent.js";
 import { storeFromEnv } from "./store.js";
 import { notifyHold } from "./telegram.js";
@@ -102,7 +104,11 @@ async function chainDecision(config, nowMs) {
 
 export async function gate(config, request) {
   const nowMs = Date.now();
-  const chain = await chainDecision(config, nowMs);
+  let chain = await chainDecision(config, nowMs);
+  const remembered = persistedAttempts(await readBoards().catch(() => []), nowMs);
+  if (chain && remembered != null && remembered > chain.attemptsToday) {
+    chain = { ...chain, attemptsToday: remembered };
+  }
   const store = storeFromEnv();
   let decision;
   try {
@@ -132,6 +138,7 @@ export async function gate(config, request) {
     });
   }
   await noteTestnetSign(config, nowMs);
+  await publishAttempts(signedAttemptCount(decision), nowMs).catch(() => {});
   return { ...decision, store };
 }
 

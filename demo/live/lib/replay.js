@@ -34,7 +34,7 @@ export function replayRecord(input) {
     explorerUrl: input.explorerUrl || null,
     checks: Array.isArray(input.checks) ? input.checks.slice(0, 6).map((item) => ({
       name: clip(item.name, 40),
-      result: clip(item.result, 80),
+      result: clip(item.result, 500),
     })) : [],
     source: "record",
   };

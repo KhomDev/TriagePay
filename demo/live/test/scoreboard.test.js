@@ -1,13 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { GET as liveGet } from "../api/live.js";
+import { persistedAttempts, signedAttemptCount } from "../lib/board-store.js";
 import {
   amountFromRpcStatus,
   amountFromTxn,
   presentScoreboard,
+  publishAttempts,
+  scoreboard,
   sumProtected,
   raiseScoreboard,
   takeAll,
@@ -136,10 +139,72 @@ test("the committed snapshot is one complete board", () => {
   assert.match(board.asOf, /^\d{4}-\d{2}-\d{2}T/);
   assert.equal(board.networks.testnet.agent, "tpd-e947e7-agent.testnet");
   assert.equal(board.networks.mainnet.agent, "tp-agent2.hlpok1lad.tg");
+  assert.equal(existsSync(join(root, "..", "..", ".github", "workflows", "scoreboard.yml")), false);
 });
 
 test("a bare receipt image route returns the default card", async () => {
   const png = await liveGet(new Request("http://demo.local/api/live?route=og"));
   assert.equal(png.status, 200);
   assert.equal(png.headers.get("content-type"), "image/png");
+  const extra = await liveGet(new Request("http://demo.local/api/live?route=og&utm=judge"));
+  assert.equal(extra.status, 200);
+  assert.equal(extra.headers.get("content-type"), "image/png");
+  const share = await liveGet(new Request("http://demo.local/api/live?route=share"));
+  assert.equal(share.status, 200);
+  assert.match(await share.text(), /og:image/);
+});
+
+test("the limiter count is what a chain reservation reports after the sign", () => {
+  assert.equal(signedAttemptCount({ source: "chain", attemptsToday: 50 }), 51);
+  assert.equal(signedAttemptCount({ source: "shared", attemptsToday: 51 }), 51);
+  assert.equal(persistedAttempts([
+    { day: "2026-11-13", attemptsToday: 50 },
+    { day: "2026-11-13", attemptsToday: 58 },
+    { day: "2026-11-12", attemptsToday: 90 },
+  ], Date.parse("2026-11-13T08:00:00.000Z")), 58);
+});
+
+test("a failed index walk keeps the persisted board and the limiter count", async () => {
+  const board = await scoreboard({
+    nowMs: Date.parse("2026-11-13T08:00:00.000Z"),
+    snapshot: {
+      paid: 79,
+      refused: 100,
+      attemptsToday: 50,
+      day: "2026-11-13",
+      agentIds: ["a.testnet"],
+      protectedYocto: "10",
+      networks: { testnet: { newestHash: "old", newestAtMs: 1 } },
+      asOf: "2026-11-13T06:15:00.000Z",
+    },
+    readBoards: async () => [{
+      paid: 81,
+      refused: 106,
+      attemptsToday: 58,
+      day: "2026-11-13",
+      agentIds: ["a.testnet"],
+      protectedYocto: "20",
+      networks: { testnet: { newestHash: "newer", newestAtMs: 5 } },
+    }],
+    writeBoard: async () => {},
+    fetchPage: async () => ({ ok: false, rows: [], next: null }),
+    fetchAmount: async () => null,
+    attemptCount: 58,
+  });
+  assert.equal(board.paid, 81);
+  assert.equal(board.refused, 106);
+  assert.equal(board.attemptsToday, 58);
+  assert.equal(board.attemptsRemaining, 242);
+  assert.equal(board.truncated, false);
+});
+
+test("a signed attempt is stored above the snapshot floor", async () => {
+  let stored = null;
+  await publishAttempts(58, Date.parse("2026-11-13T08:00:00.000Z"), {
+    floor: { paid: 79, refused: 100, attemptsToday: 50, day: "2026-11-13", protectedYocto: "10", agentIds: [] },
+    readBoards: async () => [],
+    writeBoard: async (board) => { stored = board; },
+  });
+  assert.equal(stored.attemptsToday, 58);
+  assert.equal(stored.paid, 79);
 });

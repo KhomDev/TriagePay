@@ -7,11 +7,11 @@
 <meta name="description" content="The agent signs. The contract decides. A policy wallet on NEAR testnet and mainnet. Launch the attack and watch the contract refuse it.">
 <meta property="og:title" content="TriagePay — The agent signs. The contract decides.">
 <meta property="og:description" content="The agent signs. The contract decides. Live on NEAR testnet and mainnet.">
-<meta property="og:image" content="/api/site-og">
+<meta property="og:image" content="/og.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="TriagePay — The agent signs. The contract decides.">
 <meta name="twitter:description" content="The agent signs. The contract decides. Live on NEAR testnet and mainnet.">
-<meta name="twitter:image" content="/api/site-og">
+<meta name="twitter:image" content="/og.png">
 <meta name="vercel-toolbar" content="false">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'">
 <title>TriagePay — The agent signs. The contract decides.</title>
@@ -41,21 +41,21 @@
       <section class="numbers" id="numbers" aria-label="Live counts">
         <article>
           <p class="stat-kicker">Paid calls</p>
-          <p id="num-paid" class="stat">—</p>
+          <p id="num-paid" class="stat">79</p>
         </article>
         <article>
           <p class="stat-kicker">Attacks refused</p>
-          <p id="num-refused" class="stat">—</p>
+          <p id="num-refused" class="stat">100</p>
         </article>
         <article>
           <p class="stat-kicker">Value protected</p>
-          <p id="num-protected" class="stat">—</p>
+          <p id="num-protected" class="stat">0.0086 wNEAR</p>
         </article>
         <article>
           <p class="stat-kicker">Unique agents</p>
-          <p id="num-agents" class="stat">—</p>
+          <p id="num-agents" class="stat">2</p>
         </article>
-        <p id="num-source" class="hint"></p>
+        <p id="num-source" class="hint"><a href="https://nearblocks.io" rel="noopener" target="_blank">Live from NearBlocks</a> · as of 06:15 UTC</p>
       </section>
       <div class="cta-row">
         <button id="btn-launch" type="button" disabled aria-label="Launch the attack">Launch the attack</button>
@@ -66,7 +66,7 @@
         <label class="live-opt" for="opt-live"><input id="opt-live" type="checkbox"> Live model</label>
         <a class="text-btn ghost" href="#drain">Try to drain it</a>
       </div>
-      <p id="attempt-left" class="hint is-skeleton" aria-busy="true"><span class="skel"></span></p>
+      <p id="attempt-left" class="hint">250 testnet attempts left today</p>
       <div id="mainnet-proofs" class="hint" hidden></div>
       <div id="live-verdict" class="live-verdict" aria-live="assertive"></div>
       <p id="mainnet-left" class="hint" hidden></p>

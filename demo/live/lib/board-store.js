@@ -1,0 +1,154 @@
+// One board for every client. KV/Upstash is the rate-limiter store. Vercel
+// Blob is the shared copy when that token is set. The region cache is the
+// fallback, and it is the same value the signer writes.
+
+import { cacheRead, cacheSet } from "./region-cache.js";
+import { dayKey } from "./limits.js";
+import { storeFromEnv } from "./store.js";
+
+const KEY = "triagepay:board";
+const BLOB_PATH = "triagepay-board.json";
+const memory = { board: null };
+
+export function resetBoardStore() {
+  memory.board = null;
+}
+
+export function persistedAttempts(boards, nowMs) {
+  const day = new Date(nowMs).toISOString().slice(0, 10);
+  let max = null;
+  for (const board of boards || []) {
+    if (!board || board.day !== day || !Number.isFinite(board.attemptsToday)) continue;
+    max = max == null ? board.attemptsToday : Math.max(max, board.attemptsToday);
+  }
+  return max;
+}
+
+export function signedAttemptCount(decision) {
+  const seen = Number(decision && decision.attemptsToday) || 0;
+  if (decision && String(decision.source || "").startsWith("shared")) return seen;
+  return seen + 1;
+}
+
+function parseBoard(raw) {
+  if (!raw) return null;
+  if (typeof raw === "object") return raw;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function compactBoard(board) {
+  if (!board || typeof board !== "object") return null;
+  return {
+    paid: board.paid || 0,
+    refused: board.refused || 0,
+    agents: board.agents || 0,
+    agentIds: Array.isArray(board.agentIds) ? board.agentIds : [],
+    protectedYocto: String(board.protectedYocto || "0"),
+    protectedDisplay: board.protectedDisplay || null,
+    attemptsToday: Number.isFinite(board.attemptsToday) ? board.attemptsToday : null,
+    maxAttemptsPerDay: board.maxAttemptsPerDay || 300,
+    day: board.day || null,
+    asOf: board.asOf || null,
+    networks: board.networks || {},
+    complete: true,
+    truncated: false,
+    sourceUrl: board.sourceUrl || "https://nearblocks.io",
+  };
+}
+
+async function readBlob() {
+  const token = String(process.env.BLOB_READ_WRITE_TOKEN || "").trim();
+  if (!token) return null;
+  try {
+    const { list } = await import("@vercel/blob");
+    const found = await list({ prefix: BLOB_PATH, token, limit: 1 });
+    const blob = (found.blobs || []).find((item) => item.pathname === BLOB_PATH);
+    if (!blob || !blob.url) return null;
+    const response = await fetch(blob.url, { signal: AbortSignal.timeout(4000) });
+    if (!response.ok) return null;
+    return parseBoard(await response.text());
+  } catch {
+    return null;
+  }
+}
+
+async function writeBlob(board) {
+  const token = String(process.env.BLOB_READ_WRITE_TOKEN || "").trim();
+  if (!token) return;
+  try {
+    const { put } = await import("@vercel/blob");
+    await put(BLOB_PATH, JSON.stringify(board), {
+      access: "public",
+      token,
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: "application/json",
+    });
+  } catch {
+    // KV or the region cache still holds the board.
+  }
+}
+
+export async function readBoards() {
+  const boards = [];
+  if (memory.board) boards.push(memory.board);
+  const cached = await cacheRead(KEY);
+  if (cached) boards.push(cached);
+  const store = storeFromEnv();
+  if (store) {
+    try {
+      const parsed = parseBoard(await store.get(KEY));
+      if (parsed) boards.push(parsed);
+    } catch {
+      // The rate limiter store did not answer. The other copies remain.
+    }
+  }
+  const blob = await readBlob();
+  if (blob) boards.push(blob);
+  return boards;
+}
+
+export async function readAttemptCounter(nowMs, store = storeFromEnv()) {
+  if (!store) return null;
+  try {
+    const count = Number(await store.get(dayKey(nowMs)));
+    return Number.isFinite(count) ? count : null;
+  } catch {
+    return null;
+  }
+}
+
+export function boardRose(previous, next) {
+  if (!previous) return true;
+  if ((next.paid || 0) > (previous.paid || 0)) return true;
+  if ((next.refused || 0) > (previous.refused || 0)) return true;
+  if ((next.attemptsToday || 0) > (previous.attemptsToday || 0)) return true;
+  try {
+    if (BigInt(next.protectedYocto || "0") > BigInt(previous.protectedYocto || "0")) return true;
+  } catch {
+    return false;
+  }
+  return false;
+}
+
+export async function writeBoard(board) {
+  const compact = compactBoard(board);
+  if (!compact) return null;
+  memory.board = compact;
+  await cacheSet(KEY, compact, 24 * 60 * 60);
+  const store = storeFromEnv();
+  if (store) {
+    try {
+      await store.set(KEY, JSON.stringify(compact));
+    } catch {
+      // The region copy is still there.
+    }
+  }
+  await writeBlob(compact);
+  return compact;
+}

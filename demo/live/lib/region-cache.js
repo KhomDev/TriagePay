@@ -15,6 +15,25 @@ function remoteCache() {
   return remotePromise;
 }
 
+// Remote wins when it answers, so a write from another instance is visible.
+export async function cacheRead(key) {
+  const remote = await remoteCache();
+  if (remote) {
+    try {
+      const value = await remote.get(key);
+      if (value != null) {
+        memory.set(key, { value, until: Date.now() + 5000 });
+        return value;
+      }
+    } catch {
+      // Fall through to this process.
+    }
+  }
+  const local = memory.get(key);
+  if (local && local.until > Date.now()) return local.value;
+  return null;
+}
+
 export async function cacheGet(key) {
   const local = memory.get(key);
   if (local && local.until > Date.now()) return local.value;

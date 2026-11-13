@@ -264,8 +264,13 @@ button[disabled] { opacity: 0.45; cursor: not-allowed; transform: none; }
   padding: 0;
   max-width: 40rem;
 }
-.replay-steps .step { min-width: 0; }
-.replay-steps .trace { white-space: normal; overflow-wrap: anywhere; }
+.replay-steps { width: 100%; }
+.replay-steps .step { min-width: 0; max-width: 100%; overflow: visible; }
+.replay-steps .kicker, .replay-steps .trace {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 .stamp { white-space: nowrap; }
 .pipeline {
   list-style: none;

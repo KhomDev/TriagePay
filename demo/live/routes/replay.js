@@ -18,7 +18,7 @@ function prefer(stored, chain) {
     amountDisplay: stored.amountDisplay || chain.amountDisplay,
     errorCode: stored.errorCode || chain.errorCode,
     ruleText: stored.ruleText || chain.ruleText,
-    checks: stored.checks && stored.checks.length ? stored.checks : chain.checks,
+    checks: chain.checks && chain.checks.length ? chain.checks : stored.checks,
     kind: stored.kind && stored.kind !== "unknown" ? stored.kind : chain.kind,
     source: stored.source === "store" ? "store+chain" : "record+chain",
     note: recordedText

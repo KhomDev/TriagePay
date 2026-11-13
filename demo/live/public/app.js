@@ -135,11 +135,7 @@
   function paintAttemptLeft() {
     var left = $("attempt-left");
     if (!left) return;
-    if (state.testnetRemaining == null) {
-      left.classList.add("is-skeleton");
-      left.setAttribute("aria-busy", "true");
-      return;
-    }
+    if (state.testnetRemaining == null) return;
     left.classList.remove("is-skeleton");
     left.removeAttribute("aria-busy");
     clear(left);
