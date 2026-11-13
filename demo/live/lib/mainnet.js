@@ -6,8 +6,6 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fetchIndexerPage } from "./facts.js";
-import { cacheGet, cacheSet } from "./region-cache.js";
-import { formatAmountShort } from "./format.js";
 import { DemoError } from "./http.js";
 import { clientIp } from "./limits.js";
 import { functionCall, rpc, signCall } from "./near.js";
@@ -319,77 +317,4 @@ export async function runMainnetLaunch(request, env = process.env) {
   };
 }
 
-const TESTNET_INDEX = {
-  network: "testnet",
-  rpcUrl: "https://test.rpc.fastnear.com",
-  indexerAccountsBase: "https://api-testnet.nearblocks.io/v3/accounts/",
-  agent: "tpd-e947e7-agent.testnet",
-};
-
-export async function scoreboard() {
-  const cached = await cacheGet("scoreboard");
-  if (cached) return cached;
-  const sides = [
-    { ...TESTNET_INDEX },
-    { network: "mainnet", rpcUrl: MAINNET.rpcUrl, indexerAccountsBase: MAINNET.indexerAccountsBase, agent: MAINNET.accounts.agent },
-  ];
-  let paid = 0;
-  let refused = 0;
-  const signers = new Set();
-  let protectedYocto = 0n;
-  let decoded = 0;
-  let truncated = false;
-  const notes = [];
-  for (const side of sides) {
-    const seen = new Set();
-    const rows = [];
-    let cursor = null;
-    let ok = false;
-    for (let pageNo = 0; pageNo < 2; pageNo += 1) {
-      const page = await fetchIndexerPage(side.indexerAccountsBase, side.agent, { limit: 25, next: cursor });
-      if (!page.ok) break;
-      ok = true;
-      for (const row of page.rows || []) {
-        if (!row.txHash || seen.has(row.txHash)) continue;
-        seen.add(row.txHash);
-        rows.push(row);
-      }
-      if (!page.next) break;
-      truncated = true;
-      cursor = page.next;
-    }
-    if (!ok) {
-      notes.push(`${side.network} index did not answer`);
-      continue;
-    }
-    const tally = tallyPays(rows);
-    paid += tally.paid;
-    refused += tally.refused;
-    for (const signer of tally.signers) signers.add(signer);
-    const refusedRows = rows.filter((row) => (row.methods || []).includes("pay") && row.txHash && !row.success).slice(0, 4);
-    for (const row of refusedRows) {
-      try {
-        const pay = await fetchPayTransaction(side.rpcUrl, row.txHash, [side.agent]);
-        if (pay && pay.amount) {
-          protectedYocto += BigInt(pay.amount);
-          decoded += 1;
-        }
-      } catch {
-        // This call stays in the refused count. Its amount is not added.
-      }
-    }
-  }
-  const value = {
-    paid,
-    refused,
-    agents: signers.size,
-    protectedDisplay: decoded ? formatAmountShort(protectedYocto, 24, "wNEAR") : null,
-    protectedDecoded: decoded,
-    truncated,
-    source: "Live from NearBlocks",
-    sourceUrl: "https://nearblocks.io",
-    note: notes.length ? notes.join(". ") : "",
-  };
-  await cacheSet("scoreboard", value, 60);
-  return value;
-}
+export { scoreboard } from "./scoreboard.js";

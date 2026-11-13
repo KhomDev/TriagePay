@@ -19,6 +19,16 @@ test("the judge path and the hackathon marks are on the page", () => {
   assert.equal(/vercel\.live/.test(html), false);
   assert.equal(/CFutaZM9/.test(html), false);
   assert.match(html, /id="attempt-left"/);
+  assert.match(html, /is-skeleton/);
+  assert.match(html, /The contract has not decided yet/);
+  assert.equal(/The three proofs/.test(html), false);
+  assert.match(html, /1000-yocto mainnet pair/);
+  assert.match(html, /6F3jNamjerT69EMnxaQVy7WRdZuscj7t53V1oceTU4Yj/);
+  assert.match(html, /5BCGjxC4CkPSy8iv876cP65xxs2LRWwcWKFqmcVJEyEw/);
+  assert.match(html, /Earlier proof, paid call/);
+  assert.match(script, /scoreboard\.json/);
+  assert.match(script, /as of /);
+  assert.match(script, /triagepay-board-floor/);
   assert.match(script, /There is no transaction link/);
   assert.match(html, /Judge in 60 seconds/);
   assert.match(html, /Why it's different/);

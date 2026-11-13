@@ -279,18 +279,7 @@ export async function getDashboard() {
     const scaled = (spentToday * 10000n) / dailyMax;
     percent = Math.max(0, Math.min(100, Number(scaled) / 100));
   }
-  let attemptSnap = { attemptsToday: null, attemptsRemaining: null };
-  try {
-    const decision = await chainDecision(config, Date.now());
-    if (decision) {
-      attemptSnap = {
-        attemptsToday: decision.attemptsToday,
-        attemptsRemaining: Math.max(0, config.maxAttemptsPerDay - decision.attemptsToday),
-      };
-    }
-  } catch {
-    // The rest of the dashboard still renders.
-  }
+  const board = await scoreboard().catch(() => null);
   return {
     ...health,
     wallet: config.accounts.wallet,
@@ -335,16 +324,9 @@ export async function getDashboard() {
       }
       : review,
     mainnet: await mainnetPublic(),
-    scoreboard: await scoreboard().catch(() => ({
-      paid: null,
-      refused: null,
-      agents: null,
-      protectedDisplay: null,
-      source: "Live from NearBlocks",
-      sourceUrl: "https://nearblocks.io",
-    })),
-    attemptsToday: attemptSnap.attemptsToday,
-    attemptsRemaining: attemptSnap.attemptsRemaining,
+    scoreboard: board,
+    attemptsToday: board ? board.attemptsToday : null,
+    attemptsRemaining: board ? board.attemptsRemaining : null,
     cooldownRemainingSeconds: assessCooldown({
       nowMs: Date.now(),
       timestampsMs: (indexed || []).map((row) => row.atMs).filter((value) => Number.isFinite(value)),

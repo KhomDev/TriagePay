@@ -3,7 +3,8 @@
   "use strict";
 
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var state = { scenarios: [], busy: false, review: null, queueScenario: null, ready: false, killSwitch: false, recentRows: null, drainRows: null, network: "testnet", mainnetSigning: false, mainnetProofs: [], mainnetRemaining: null, testnetRemaining: null, maxAttempts: 300 };
+  var FLOOR_KEY = "triagepay-board-floor";
+  var state = { scenarios: [], busy: false, review: null, queueScenario: null, ready: false, killSwitch: false, recentRows: null, drainRows: null, network: "testnet", mainnetSigning: false, mainnetProofs: [], mainnetRemaining: null, testnetRemaining: null, maxAttempts: 300, floor: { paid: null, refused: null, agents: null, protectedYocto: null, protectedDisplay: null, asOf: null } };
 
   function $(id) { return document.getElementById(id); }
 
@@ -75,18 +76,92 @@
     return el("a", { href: base + id, rel: "noopener", target: "_blank" }, id);
   }
 
-  function paintNumbers(board) {
-    if (!$("num-paid")) return;
+  function yoctoOf(value) {
+    try { return BigInt(value || "0"); } catch (err) { return 0n; }
+  }
+
+  function asOfLabel(iso) {
+    if (!iso) return "";
+    var when = new Date(iso);
+    if (isNaN(when.getTime())) return "";
+    var hh = String(when.getUTCHours()).padStart(2, "0");
+    var mm = String(when.getUTCMinutes()).padStart(2, "0");
+    return "as of " + hh + ":" + mm + " UTC";
+  }
+
+  function loadFloor() {
+    try {
+      var saved = JSON.parse(sessionStorage.getItem(FLOOR_KEY) || "null");
+      if (saved && typeof saved === "object") state.floor = saved;
+    } catch (err) {}
+  }
+
+  function rememberFloor() {
+    try { sessionStorage.setItem(FLOOR_KEY, JSON.stringify(state.floor)); } catch (err) {}
+  }
+
+  function raiseBoard(board) {
     if (!board) return;
-    $("num-paid").textContent = board.paid == null ? "—" : String(board.paid);
-    $("num-refused").textContent = board.refused == null ? "—" : String(board.refused);
-    $("num-protected").textContent = board.protectedDisplay || "—";
-    $("num-agents").textContent = board.agents == null ? "—" : String(board.agents);
+    var floor = state.floor;
+    if (board.paid != null) floor.paid = floor.paid == null ? Number(board.paid) : Math.max(floor.paid, Number(board.paid));
+    if (board.refused != null) floor.refused = floor.refused == null ? Number(board.refused) : Math.max(floor.refused, Number(board.refused));
+    if (board.agents != null) floor.agents = floor.agents == null ? Number(board.agents) : Math.max(floor.agents, Number(board.agents));
+    if (board.protectedYocto != null && (floor.protectedYocto == null || yoctoOf(board.protectedYocto) >= yoctoOf(floor.protectedYocto))) {
+      floor.protectedYocto = String(board.protectedYocto);
+      if (board.protectedDisplay) floor.protectedDisplay = board.protectedDisplay;
+    }
+    if (board.asOf && (!floor.asOf || String(board.asOf) > String(floor.asOf))) floor.asOf = board.asOf;
+    rememberFloor();
+    paintNumbers(floor, board);
+  }
+
+  function paintNumbers(floor, board) {
+    if (!$("num-paid")) return;
+    var shown = floor || board;
+    if (!shown || shown.paid == null) return;
+    $("num-paid").textContent = String(shown.paid);
+    $("num-refused").textContent = shown.refused == null ? "—" : String(shown.refused);
+    $("num-protected").textContent = shown.protectedDisplay || (board && board.protectedDisplay) || "—";
+    $("num-agents").textContent = shown.agents == null ? "—" : String(shown.agents);
     var source = $("num-source");
     if (source) {
       clear(source);
-      source.appendChild(el("a", { href: board.sourceUrl || "https://nearblocks.io", rel: "noopener", target: "_blank" }, "Live from NearBlocks"));
+      source.appendChild(el("a", { href: (board && board.sourceUrl) || "https://nearblocks.io", rel: "noopener", target: "_blank" }, "Live from NearBlocks"));
+      var stamp = asOfLabel(shown.asOf || (board && board.asOf));
+      if (stamp) source.appendChild(document.createTextNode(" · " + stamp));
     }
+  }
+
+  function paintAttemptLeft() {
+    var left = $("attempt-left");
+    if (!left) return;
+    if (state.testnetRemaining == null) {
+      left.classList.add("is-skeleton");
+      left.setAttribute("aria-busy", "true");
+      return;
+    }
+    left.classList.remove("is-skeleton");
+    left.removeAttribute("aria-busy");
+    clear(left);
+    left.appendChild(document.createTextNode(state.testnetRemaining + " testnet attempts left today"));
+  }
+
+  function noteRemaining(value) {
+    if (value == null || !isFinite(Number(value))) return;
+    var next = Number(value);
+    if (state.testnetRemaining == null || next < state.testnetRemaining) state.testnetRemaining = next;
+    paintAttemptLeft();
+  }
+
+  function loadStaticBoard() {
+    return fetch("/scoreboard.json", { cache: "no-store" }).then(function (res) {
+      if (!res.ok) return null;
+      return res.json();
+    }).then(function (board) {
+      if (!board) return;
+      raiseBoard(board);
+      noteRemaining(board.attemptsRemaining);
+    }).catch(function () {});
   }
 
   function paintMainnetProofs() {
@@ -530,15 +605,9 @@
     state.mainnetSigning = Boolean(data.mainnet && data.mainnet.signing);
     state.mainnetProofs = (data.mainnet && data.mainnet.proofs) || [];
     state.mainnetRemaining = data.mainnet && data.mainnet.remaining != null ? data.mainnet.remaining : null;
-    state.testnetRemaining = data.attemptsRemaining == null ? null : data.attemptsRemaining;
-    state.maxAttempts = data.maxAttemptsPerDay;
-    var left = $("attempt-left");
-    if (left) {
-      left.textContent = state.testnetRemaining == null
-        ? ""
-        : state.testnetRemaining + " testnet attempts left today";
-    }
-    paintNumbers(data.scoreboard);
+    state.maxAttempts = data.maxAttemptsPerDay || state.maxAttempts;
+    noteRemaining(data.attemptsRemaining);
+    raiseBoard(data.scoreboard);
     paintMainnetProofs();
     paintSpend(data);
     paintRisks(data.risks);
@@ -697,6 +766,8 @@
   }
 
   function slam(word) {
+    var wait = $("verdict-wait");
+    if (wait) wait.hidden = true;
     var stamp = $("stamp");
     if (!stamp) return;
     stamp.hidden = false;
@@ -737,6 +808,13 @@
     clear($("live-verdict"));
     $("flow").classList.add("is-live");
     $("agent-trace").textContent = "Reading the finding.";
+    var waiting = $("verdict-wait");
+    if (waiting) waiting.hidden = false;
+    var stamp = $("stamp");
+    if (stamp) {
+      stamp.hidden = true;
+      stamp.textContent = "";
+    }
     $("sign-line").textContent = "Waiting to sign.";
     setStatus(state.network === "mainnet" ? "Signing on NEAR mainnet…" : "Signing the deterministic attack…");
     setSteps(["step-agent"], false);
@@ -983,6 +1061,10 @@
   if (policyApply) policyApply.addEventListener("click", function () { onPolicy(null, "apply"); });
   $("btn-kill").addEventListener("click", onKill);
 
+  loadFloor();
+  paintAttemptLeft();
+  if (state.floor.paid != null) paintNumbers(state.floor, state.floor);
+  loadStaticBoard();
   refresh().then(function () { return refreshDrain(); });
   setInterval(function () {
     if (state.busy || document.visibilityState === "hidden") return;

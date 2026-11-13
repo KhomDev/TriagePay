@@ -3,6 +3,7 @@ import { renderReceiptPng, renderSitePng, sanitizeReceiptQuery } from "../lib/og
 
 export async function GET(request) {
   const params = new URL(request.url).searchParams;
+  params.delete("route");
   if ([...params.keys()].length === 0) {
     const png = await renderSitePng();
     return new Response(png, {

@@ -1,0 +1,36 @@
+name: Scoreboard snapshot
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    name: Write scoreboard.json
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install demo dependencies
+        working-directory: demo/live
+        run: npm ci
+      - name: Rebuild the snapshot
+        working-directory: demo/live
+        run: node scripts/write-scoreboard.js
+      - name: Commit the snapshot
+        run: |
+          git add demo/live/public/scoreboard.json
+          if git diff --cached --quiet; then
+            echo "Scoreboard unchanged."
+            exit 0
+          fi
+          git config user.name "triagepay-scoreboard"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update the scoreboard snapshot [skip ci]"
+          git push

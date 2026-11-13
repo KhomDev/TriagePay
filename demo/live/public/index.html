@@ -66,7 +66,7 @@
         <label class="live-opt" for="opt-live"><input id="opt-live" type="checkbox"> Live model</label>
         <a class="text-btn ghost" href="#drain">Try to drain it</a>
       </div>
-      <p id="attempt-left" class="hint"></p>
+      <p id="attempt-left" class="hint is-skeleton" aria-busy="true"><span class="skel"></span></p>
       <div id="mainnet-proofs" class="hint" hidden></div>
       <div id="live-verdict" class="live-verdict" aria-live="assertive"></div>
       <p id="mainnet-left" class="hint" hidden></p>
@@ -97,6 +97,7 @@
         <li id="step-verdict" class="step verdict-step">
           <span class="dot"></span>
           <span class="kicker">04 · Contract</span>
+          <p id="verdict-wait" class="trace">The contract has not decided yet.</p>
           <p id="stamp" class="stamp" hidden></p>
         </li>
       </ol>
@@ -282,10 +283,12 @@
       <li><a href="https://testnet.nearblocks.io/txns/8y6sEwL8i5sP2aMKo5HS3WGZtZ8NMDP9MUdywYAmVnN4" rel="noopener" target="_blank">Testnet refusal, ERR_PAYEE_NOT_ALLOWED</a></li>
       <li><a href="https://testnet.nearblocks.io/txns/4oxycWdvo9M4YWoq9mg2y4FXL7AZYQY6McvcPJQYJejq" rel="noopener" target="_blank">Testnet payment inside the cap</a></li>
       <li><a href="https://testnet.nearblocks.io/txns/8nvs4X4jWrzEzsbUj2ziS5qEdTTi6wvRwfUTBxftdcJi" rel="noopener" target="_blank">Testnet hold above the threshold</a></li>
-      <li><a href="https://nearblocks.io/txns/2RH77VLsLHovF3m4kzR76jk71X8tYKAyugxQ9YJMXLJJ" rel="noopener" target="_blank">Mainnet paid call, 2026-11-12</a></li>
-      <li><a href="https://nearblocks.io/txns/HskzPv94J1JY16K5WdUG8wfGznnhnMMKcXgE1acks63F" rel="noopener" target="_blank">Mainnet refusal, 2026-11-12</a></li>
+      <li><a href="https://nearblocks.io/txns/6F3jNamjerT69EMnxaQVy7WRdZuscj7t53V1oceTU4Yj" rel="noopener" target="_blank">Mainnet paid call, 1000 yocto</a></li>
+      <li><a href="https://nearblocks.io/txns/5BCGjxC4CkPSy8iv876cP65xxs2LRWwcWKFqmcVJEyEw" rel="noopener" target="_blank">Mainnet refusal, 1000 yocto</a></li>
+      <li><a href="https://nearblocks.io/txns/2RH77VLsLHovF3m4kzR76jk71X8tYKAyugxQ9YJMXLJJ" rel="noopener" target="_blank">Earlier proof, paid call, 2026-11-12</a></li>
+      <li><a href="https://nearblocks.io/txns/HskzPv94J1JY16K5WdUG8wfGznnhnMMKcXgE1acks63F" rel="noopener" target="_blank">Earlier proof, refusal, 2026-11-12</a></li>
     </ul>
-    <p class="hint">The three proofs in Judge in 60 seconds are the transactions I can point to today.</p>
+    <p class="hint">Judge in 60 seconds points at the 1000-yocto mainnet pair. The 2026-11-12 links are an earlier proof.</p>
   </details>
 
   <details class="panel" id="sdk">

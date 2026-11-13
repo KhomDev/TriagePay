@@ -4,7 +4,7 @@
   "functions": {
     "api/**/*.js": {
       "maxDuration": 60,
-      "includeFiles": "config.json,lib/fonts/**,node_modules/satori/layout.wasm,node_modules/@resvg/resvg-wasm/index_bg.wasm"
+      "includeFiles": "config.json,public/scoreboard.json,lib/fonts/**,node_modules/satori/layout.wasm,node_modules/@resvg/resvg-wasm/index_bg.wasm"
     }
   },
   "rewrites": [
@@ -24,6 +24,12 @@
     { "source": "/agent/:account", "destination": "/api/live?route=passport-page&account=:account" }
   ],
   "headers": [
+    {
+      "source": "/scoreboard.json",
+      "headers": [
+        { "key": "cache-control", "value": "public, max-age=60" }
+      ]
+    },
     {
       "source": "/(.*)",
       "headers": [
