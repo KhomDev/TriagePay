@@ -13,6 +13,15 @@
 //!   arrives after its window rolled over changes nothing;
 //! - every refusal carries a stable error code string.
 
+#![warn(clippy::pedantic)]
+#![allow(
+    clippy::doc_markdown,
+    clippy::missing_errors_doc,
+    clippy::module_name_repetitions,
+    clippy::must_use_candidate,
+    clippy::similar_names
+)]
+
 pub mod error;
 pub mod policy;
 pub mod window;

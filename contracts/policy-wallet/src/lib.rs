@@ -17,8 +17,23 @@
 //! token balances are all zero; that deletes the wallet account and returns
 //! its NEAR, including the storage stake, to a beneficiary.
 
+#![warn(clippy::pedantic)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::doc_markdown,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::module_name_repetitions,
+    clippy::must_use_candidate,
+    clippy::needless_pass_by_value,
+    clippy::similar_names,
+    clippy::too_many_lines
+)]
+
 pub mod events;
 
+#[cfg(test)]
+mod properties;
 #[cfg(test)]
 mod tests;
 
@@ -128,7 +143,7 @@ impl StoredAgent {
         AgentPolicy::from_parts(
             self.per_call_max,
             self.daily_max,
-            self.payees.iter().map(|p| p.to_string()).collect(),
+            self.payees.iter().map(ToString::to_string).collect(),
             self.active,
             self.spent_in_window,
             self.window_index,
@@ -420,7 +435,7 @@ impl PolicyWallet {
             .unwrap_or_else(|e| fail(e));
         stored.store_spend(&policy);
         let payment_id = self.alloc_payment_id();
-        PromiseOrValue::Promise(self.schedule_transfer(ScheduledTransfer {
+        PromiseOrValue::Promise(Self::schedule_transfer(ScheduledTransfer {
             agent_id,
             token,
             receiver_id,
@@ -507,7 +522,7 @@ impl PolicyWallet {
         let mut payees = payees;
         payees.sort();
         payees.dedup();
-        let names: Vec<String> = payees.iter().map(|p| p.to_string()).collect();
+        let names: Vec<String> = payees.iter().map(ToString::to_string).collect();
         let policy = match self.agents.get(&agent_id) {
             Some(existing) => {
                 let mut policy = existing.policy();
@@ -628,7 +643,7 @@ impl PolicyWallet {
             fail(PolicyError::AgentInactive);
         }
         self.take_pending(payment_id.0);
-        self.schedule_transfer(ScheduledTransfer {
+        Self::schedule_transfer(ScheduledTransfer {
             agent_id: pending.agent_id,
             token: pending.token,
             receiver_id: pending.receiver_id,
@@ -853,8 +868,7 @@ impl PolicyWallet {
         U128(
             self.agents
                 .get(&agent_id)
-                .map(|stored| stored.policy().spent_at(now))
-                .unwrap_or(0),
+                .map_or(0, |stored| stored.policy().spent_at(now)),
         )
     }
 
@@ -928,7 +942,7 @@ impl PolicyWallet {
         pending
     }
 
-    fn schedule_transfer(&self, transfer: ScheduledTransfer) -> Promise {
+    fn schedule_transfer(transfer: ScheduledTransfer) -> Promise {
         let ScheduledTransfer {
             agent_id,
             token,

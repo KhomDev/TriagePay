@@ -3,6 +3,10 @@
 
 import { policyPayCall } from "./policy.js";
 
+/**
+ * A tool definition whose `execute` path can only build `pay` on `wallet`.
+ * `sign(call)` returns the transaction hash. Nothing else is callable.
+ */
 export function nearAiPaymentTool({ wallet, token, sign }) {
   if (typeof sign !== "function") throw new Error("sign(call) must return a transaction hash");
   return {

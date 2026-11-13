@@ -13,6 +13,7 @@ export const MAINNET_SIGNER = "v1.signer";
 /** Circle's published USDC on Base Sepolia. Not called from this package. */
 export const BASE_SEPOLIA_USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 
+/** ABI-encoded `transfer(address,uint256)` calldata. `amount` is a uint256. */
 export function erc20TransferCalldata(to, amount) {
   const addr = String(to || "").toLowerCase().replace(/^0x/, "");
   if (!/^[0-9a-f]{40}$/.test(addr)) throw new Error("recipient must be a 20-byte hex address");

@@ -90,7 +90,7 @@ impl Ctx {
             self.build(),
             near_sdk::test_vm_config(),
             RuntimeFeesConfig::test(),
-            Default::default(),
+            std::collections::HashMap::default(),
             results
         );
     }
@@ -1099,4 +1099,232 @@ fn the_queue_stops_at_eight_and_does_not_reserve_the_ninth() {
     assert_eq!(w.get_pending().len(), MAX_PENDING);
     assert_eq!(w.get_spent(agent()), U128(MAX_PENDING as u128));
     settle(w.pay(usdc(), acc("overflow.near"), U128(1), None));
+}
+
+#[test]
+#[should_panic(expected = "ERR_NOT_PENDING")]
+fn reject_missing_payment_panics() {
+    let mut w = setup();
+    as_owner().set();
+    w.reject_payment(U64(3));
+}
+
+#[test]
+#[should_panic(expected = "ERR_NOT_OWNER")]
+fn agent_with_one_yocto_cannot_approve() {
+    let mut w = setup();
+    as_agent().deposit(1).set();
+    w.approve_payment(U64(0)).detach();
+}
+
+#[test]
+#[should_panic(expected = "ERR_NOT_OWNER")]
+fn agent_with_one_yocto_cannot_reject() {
+    let mut w = setup();
+    as_agent().deposit(1).set();
+    w.reject_payment(U64(0));
+}
+
+#[test]
+#[should_panic(expected = "ERR_NOT_OWNER")]
+fn agent_with_one_yocto_cannot_set_review() {
+    let mut w = setup();
+    as_agent().deposit(1).set();
+    w.set_review_policy(U128(1), true);
+}
+
+#[test]
+#[should_panic(expected = "exactly 1 yoctoNEAR")]
+fn owner_approve_without_deposit_is_refused() {
+    let mut w = setup();
+    Ctx::new(owner()).set();
+    w.approve_payment(U64(0)).detach();
+}
+
+#[test]
+#[should_panic(expected = "exactly 1 yoctoNEAR")]
+fn owner_reject_with_two_yocto_is_refused() {
+    let mut w = setup();
+    Ctx::new(owner()).deposit(2).set();
+    w.reject_payment(U64(0));
+}
+
+#[test]
+#[should_panic(expected = "ERR_SELF_ACCOUNT")]
+fn new_rejects_wallet_as_token() {
+    as_self().set();
+    PolicyWallet::new(owner(), vec![wallet()]);
+}
+
+#[test]
+fn queued_payment_cannot_name_the_wallet_as_payee() {
+    let mut w = setup();
+    enable_review(&mut w, 0);
+    as_agent().set();
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        settle(w.pay(usdc(), wallet(), U128(1), None));
+    }));
+    let message = caught.expect_err("the wallet cannot be a payee");
+    let text = message
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| message.downcast_ref::<&str>().copied())
+        .unwrap_or("");
+    assert!(text.contains("ERR_SELF_ACCOUNT"), "{text}");
+    assert!(w.get_pending().is_empty());
+    assert_eq!(w.get_spent(agent()), U128(0));
+}
+
+#[test]
+fn approve_while_paused_keeps_the_hold_and_the_budget() {
+    let mut w = setup();
+    enable_review(&mut w, 0);
+    as_agent().set();
+    settle(w.pay(usdc(), acc("stranger.near"), U128(10), None));
+    as_owner().set();
+    w.pause();
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        w.approve_payment(U64(0)).detach();
+    }));
+    assert!(caught.is_err());
+    assert_eq!(w.get_pending().len(), 1);
+    assert_eq!(w.get_spent(agent()), U128(10));
+}
+
+#[test]
+#[should_panic(expected = "ERR_INSUFFICIENT_GAS")]
+fn approve_with_too_little_gas() {
+    let mut w = setup();
+    enable_review(&mut w, 0);
+    as_agent().set();
+    settle(w.pay(usdc(), acc("stranger.near"), U128(10), None));
+    as_owner().gas(10).set();
+    w.approve_payment(U64(0)).detach();
+}
+
+#[test]
+fn second_approve_is_not_pending_and_the_spend_stays() {
+    let mut w = setup();
+    enable_review(&mut w, 0);
+    as_agent().set();
+    settle(w.pay(usdc(), acc("stranger.near"), U128(10), None));
+    as_owner().set();
+    w.approve_payment(U64(0)).detach();
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        w.approve_payment(U64(0)).detach();
+    }));
+    assert!(caught.is_err());
+    assert!(w.get_pending().is_empty());
+    assert_eq!(w.get_spent(agent()), U128(10));
+}
+
+#[test]
+fn set_agent_restores_a_revoked_agent_without_resetting_the_day() {
+    let mut w = setup();
+    as_agent().set();
+    pay(&mut w, 1_000);
+    as_owner().set();
+    w.revoke_agent(agent());
+    w.set_agent(agent(), U128(PER_CALL), U128(DAILY), vec![gateway()]);
+    let view = w.get_agent(agent()).unwrap();
+    assert!(view.active);
+    assert_eq!(view.spent_in_window, U128(1_000));
+    as_agent().set();
+    pay(&mut w, 1_000);
+    assert_eq!(w.get_spent(agent()), U128(2_000));
+}
+
+#[test]
+fn reject_on_the_next_day_before_rollover_is_stored_restores_the_old_window() {
+    let mut w = setup();
+    enable_review(&mut w, 0);
+    as_agent().set();
+    settle(w.pay(usdc(), acc("stranger.near"), U128(4_000), None));
+    as_owner().at(T0 + NANOS_PER_DAY).set();
+    w.reject_payment(U64(0));
+    assert!(w.get_pending().is_empty());
+    // The view is already the new day. The stored window had not rolled, so
+    // the release subtracts from that old window and the new day is empty.
+    assert!(events()
+        .iter()
+        .any(|event| event.contains(r#""release":"restored""#)));
+    as_agent().at(T0 + NANOS_PER_DAY).set();
+    assert_eq!(w.get_spent(agent()), U128(0));
+    pay(&mut w, PER_CALL);
+    assert_eq!(w.get_spent(agent()), U128(PER_CALL));
+}
+
+#[test]
+fn reject_after_the_window_has_rolled_does_not_touch_the_new_day() {
+    let mut w = setup();
+    enable_review(&mut w, 0);
+    as_agent().set();
+    settle(w.pay(usdc(), acc("stranger.near"), U128(4_000), None));
+    as_agent().at(T0 + NANOS_PER_DAY).set();
+    pay(&mut w, 1_000);
+    assert_eq!(w.get_spent(agent()), U128(1_000));
+    as_owner().at(T0 + NANOS_PER_DAY).set();
+    w.reject_payment(U64(0));
+    assert!(w.get_pending().is_empty());
+    assert_eq!(w.get_spent(agent()), U128(1_000));
+    assert!(events()
+        .iter()
+        .any(|event| event.contains(r#""release":"window_expired""#)));
+}
+
+#[test]
+fn failed_transfer_after_approval_releases_the_hold() {
+    let mut w = setup();
+    enable_review(&mut w, 0);
+    as_agent().set();
+    settle(w.pay(usdc(), acc("stranger.near"), U128(4_000), None));
+    as_owner().set();
+    w.approve_payment(U64(0)).detach();
+    as_self().set_with_result(PromiseResult::Failed);
+    let settled = w.on_pay_complete(
+        agent(),
+        usdc(),
+        acc("stranger.near"),
+        U128(4_000),
+        U64(0),
+        U64(DAY0),
+    );
+    assert!(!settled);
+    assert_eq!(w.get_spent(agent()), U128(0));
+    assert!(events()
+        .iter()
+        .any(|event| event.contains(r#""event":"pay_failed""#)
+            && event.contains(r#""release":"restored""#)));
+}
+
+/// Open design issue from the 2026-11-13 mainnet campaign
+/// (https://github.com/KhomDev/TriagePay/pull/7, finding 1).
+///
+/// Unapproved holds reserve the daily budget, and eight of them fill the
+/// queue. A later legitimate payment can then fail with `ERR_DAILY_LIMIT`
+/// or `ERR_REVIEW_QUEUE_FULL` even though nothing has settled. Funds stay
+/// where they are. This test states the availability property that is not
+/// true today, so it is ignored until that design changes. It is not a
+/// contract fix.
+#[test]
+#[ignore = "open design issue, PR #7 finding 1: holds reserve the day and can fill the queue"]
+fn unapproved_holds_should_not_block_an_allowlisted_payment() {
+    let mut w = setup();
+    enable_review(&mut w, 1_000);
+    as_agent().set();
+    for index in 0..MAX_PENDING {
+        let payee = acc(&format!("junk{index}.near"));
+        // 20_000 each: eight holds reserve 160_000 of the 200_000 day.
+        settle(w.pay(usdc(), payee, U128(20_000), None));
+    }
+    // Above the threshold, so a legitimate payee needs a free queue slot,
+    // and under the per-call cap. The day's unsettled holds are what block it.
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        settle(w.pay(usdc(), gateway(), U128(30_000), None));
+    }));
+    assert!(
+        caught.is_ok(),
+        "an allowlisted payment was blocked by unapproved holds"
+    );
+    assert_eq!(w.get_spent(agent()), U128(30_000));
 }

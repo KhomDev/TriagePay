@@ -18,3 +18,4 @@ policy-core = { workspace = true }
 
 [dev-dependencies]
 near-sdk = { version = "=5.29.1", features = ["unit-testing"] }
+proptest = "1.7"

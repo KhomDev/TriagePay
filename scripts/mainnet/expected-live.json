@@ -1,0 +1,92 @@
+{
+  "mainnetRpc": "https://free.rpc.fastnear.com",
+  "testnetRpc": "https://test.rpc.fastnear.com",
+  "healthUrl": "https://triagepay-demo.vercel.app/api/health",
+  "health": {
+    "ok": true,
+    "wallet": "tpd-e947e7-wallet.testnet"
+  },
+  "wallets": [
+    {
+      "network": "mainnet",
+      "accountId": "tp-wallet.hlpok1lad.tg",
+      "codeHash": "45HbvWoxBiUoJssERUU6xr8EqAudAHcjS4kYG9NiDagC",
+      "source": "ef7472c review-queue build",
+      "walletKeys": "none",
+      "config": {
+        "owner": "hlpok1lad.tg",
+        "paused": false,
+        "tokens": ["wrap.near"]
+      },
+      "agent": {
+        "accountId": "tp-agent2.hlpok1lad.tg",
+        "perCallMax": "1000000",
+        "dailyMax": "4000000",
+        "payees": ["gateway.hlpok1lad.tg"],
+        "active": true,
+        "keys": "pay-only",
+        "publicKey": "ed25519:69i3HGAR51MzFSvGLjQqnZhk6Dpo39VGnaNU9LJscCdn"
+      },
+      "review": {
+        "approvalThreshold": "500000",
+        "reviewUnknownPayees": true,
+        "maxPending": 8
+      }
+    },
+    {
+      "network": "testnet",
+      "accountId": "tpd-e947e7-wallet.testnet",
+      "codeHash": "6aaVftHnCQMpV6p7AqsmQro3qiKsfUqfD1C5a4HJhDaD",
+      "config": {
+        "owner": "tpd-e947e7-owner.testnet",
+        "paused": false,
+        "tokens": ["wrap.testnet"]
+      },
+      "agent": {
+        "accountId": "tpd-e947e7-agent.testnet",
+        "perCallMax": "1000000000000000000000",
+        "dailyMax": "20000000000000000000000",
+        "payees": ["tpd-e947e7-payee.testnet"],
+        "active": true
+      },
+      "review": {
+        "approvalThreshold": "100000000000000000000",
+        "reviewUnknownPayees": false
+      }
+    }
+  ],
+  "proofs": [
+    {
+      "network": "mainnet",
+      "label": "paid",
+      "hash": "2RH77VLsLHovF3m4kzR76jk71X8tYKAyugxQ9YJMXLJJ",
+      "signerId": "tp-agent2.hlpok1lad.tg",
+      "outcome": "success",
+      "events": ["pay_requested", "pay_settled"]
+    },
+    {
+      "network": "mainnet",
+      "label": "refused",
+      "hash": "HskzPv94J1JY16K5WdUG8wfGznnhnMMKcXgE1acks63F",
+      "signerId": "tp-agent2.hlpok1lad.tg",
+      "outcome": "failure",
+      "errorCode": "ERR_PAYEE_NOT_ALLOWED"
+    },
+    {
+      "network": "mainnet",
+      "label": "revoke",
+      "hash": "CFutaZM9XMLBBcfm2jwH2JnQQJA8ReNGyTRhH1PZLzFh",
+      "signerId": "hlpok1lad.tg",
+      "outcome": "success",
+      "events": ["agent_revoked"]
+    },
+    {
+      "network": "mainnet",
+      "label": "inactive",
+      "hash": "C1BnCCrEMYfxhirf283GfGr2sfeBMaZ88fimxQwoKt2d",
+      "signerId": "tp-agent2.hlpok1lad.tg",
+      "outcome": "failure",
+      "errorCode": "ERR_AGENT_INACTIVE"
+    }
+  ]
+}

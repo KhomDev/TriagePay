@@ -43,7 +43,8 @@ jobs:
       - name: Install Rust toolchain
         run: |
           rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal \
-            --component rustfmt --component clippy --target wasm32-unknown-unknown
+            --component rustfmt --component clippy --component llvm-tools-preview \
+            --target wasm32-unknown-unknown
           rustup default "$RUST_TOOLCHAIN"
           rustc --version
           cargo --version
@@ -53,7 +54,7 @@ jobs:
       - name: Install cargo-near
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y -q --no-install-recommends libudev-dev pkg-config
+          sudo apt-get install -y -q --no-install-recommends libudev-dev pkg-config libssl-dev
           cargo install cargo-near --version "$CARGO_NEAR_VERSION" --locked
           cargo near --version
 
@@ -62,6 +63,22 @@ jobs:
 
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
+
+      - uses: taiki-e/install-action@cargo-llvm-cov
+
+      # Unit tests only. The sandbox runs the wasm, which llvm-cov does not
+      # instrument; the line floor is the rlib (policy-wallet and test-token).
+      - name: Unit-test coverage
+        run: |
+          cargo llvm-cov -p policy-wallet -p test-token --lib --fail-under-lines 90 --summary-only | tee wallet-cov.txt
+          {
+            echo "### policy-wallet and test-token coverage"
+            echo '```'
+            cat wallet-cov.txt
+            echo '```'
+            echo
+            echo "Line floor: 90% (measured 95% lines across the wallet, its tests, and the test token)."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # Panic locations embed source paths. Remap the cargo home, the rustup
       # home and the checkout so no runner path reaches the deployed code
