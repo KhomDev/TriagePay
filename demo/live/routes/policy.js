@@ -22,7 +22,7 @@ export async function POST(request) {
     if (action === "apply" && !applyAllowed()) {
       throw new DemoError(
         "apply_disabled",
-        "Applying a policy is off on this public demo. Set TRIAGEPAY_POLICY_APPLY=1 on a server you control. This preview is not a transaction.",
+        "Applying a policy is off on this public demo. This preview does not sign a transaction.",
         403,
       );
     }
@@ -31,7 +31,7 @@ export async function POST(request) {
     const proposed = await proposePolicy({
       text,
       context: ctx,
-      apiKey: process.env.NEARAI_API_KEY || "",
+      apiKey: body.fast ? "" : (process.env.NEARAI_API_KEY || ""),
       env: process.env,
     });
     if (!chainReady(config)) {

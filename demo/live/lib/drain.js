@@ -20,11 +20,14 @@ export function cleanPrompt(text) {
 }
 
 export function redactPrompt(text) {
-  return redact(cleanPrompt(text))
+  const clean = redact(cleanPrompt(text))
     .replace(/\b[0-9a-f]{64}\b/gi, "[redacted-hex]")
     .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 180);
+    .trim();
+  if (clean.length <= 180) return clean;
+  const cut = clean.slice(0, 180);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > 40 ? cut.slice(0, space) : cut).trim()}…`;
 }
 
 function drainLimit(env = process.env) {
@@ -166,7 +169,7 @@ export async function drainStatus(env = process.env) {
         refusals: Number(refusals || 0),
         drained: String(drained || "0"),
         feed: parseRows(rows),
-        note: "The counters and the feed are in the shared store. Drained counts only payments the chain settled.",
+        note: "Try to make the agent pay an attacker. The contract is what stops it.",
       };
     } catch {
       // Fall through to this process.
@@ -179,8 +182,6 @@ export async function drainStatus(env = process.env) {
     refusals: Number((await local.get("triagepay:drain:refusals")) || rows.filter((row) => row.outcome === "refused").length),
     drained: String((await local.get("triagepay:drain:drained")) || "0"),
     feed: rows,
-    note: store
-      ? "The shared store did not answer. This feed is only what this instance has seen."
-      : "No shared store is set. This feed is only what this instance has seen. A transaction link is the chain record.",
+    note: "Try to make the agent pay an attacker. The contract is what stops it.",
   };
 }

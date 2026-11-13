@@ -27,7 +27,8 @@ export async function GET(request) {
   if (fields.tried) imageParams.set("tried", fields.tried);
   const image = `${origin}/api/og?${imageParams.toString()}`;
   const title = `TriagePay ${fields.headline}`;
-  const description = `${fields.headline} ${fields.rule}. ${fields.amount || "an amount"} to ${fields.payee || "a payee"}. ${SHARE_TAIL}`;
+  const movement = fields.amount && fields.payee ? `${fields.amount} to ${fields.payee}` : (fields.amount || fields.payee || "");
+  const description = `${[fields.headline, fields.rule && fields.rule !== fields.headline ? fields.rule : ""].filter(Boolean).join(" ")}${movement ? `. ${movement}` : ""}. ${SHARE_TAIL}`;
   const html = `<!doctype html>
 <html lang="en">
 <head>

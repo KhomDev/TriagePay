@@ -25,8 +25,8 @@ export async function GET() {
     onChainRegistry: false,
     payee,
     note: fromChain
-      ? "These are pay calls to the trap account, read from the agent's transactions and the RPC. Each link is the refusal on NEAR. The deployed wallet does not keep a separate attacker registry."
-      : local.note,
+      ? "Refused payments to accounts that are not on the allowlist."
+      : "No refused attacker payment is on the chain index yet.",
     feed,
   });
 }

@@ -11,6 +11,10 @@ import { RULE_TEXT } from "./receipt.js";
 const resolved = new Map();
 const inflight = new Map();
 
+export function cachedPay(hash) {
+  return resolved.get(hash) || null;
+}
+
 export function resetTxCacheForTests() {
   resolved.clear();
   inflight.clear();
@@ -108,10 +112,11 @@ export function replayFromChain(config, hash, pay) {
     ruleText,
     explorerUrl: (config.explorerTxBase || "") + hash,
     checks: [
-      pay.payee ? { name: "Payee", result: pay.payee } : null,
-      amountDisplay ? { name: "Amount", result: amountDisplay } : null,
-      { name: "Wallet", result: code ? `${code}${ruleText ? `. ${ruleText}` : ""}` : (pay.held ? "held for the owner" : pay.outcome) },
-    ].filter(Boolean),
+      { name: "Reads the finding", result: story.injection },
+      { name: "Injection", result: pay.payee || "The payee is in the transaction." },
+      { name: "Signs pay", result: amountDisplay || "The amount is in the transaction." },
+      { name: "Contract", result: code || (pay.held ? "Held for the owner" : kind === "settled" ? "Settled" : "Refused") },
+    ],
     source: "chain",
     note: payeeNote,
   };
@@ -186,25 +191,46 @@ export function isTrapRefusal(pay, honeypot) {
   return true;
 }
 
+export function isAttackerRefusal(pay, allowlist) {
+  if (!pay || !pay.payee) return false;
+  if (pay.outcome === "success" && !pay.errorCode && !pay.held) return false;
+  const payee = String(pay.payee).toLowerCase();
+  const allowed = (allowlist || []).map((item) => String(item).toLowerCase());
+  return !allowed.includes(payee);
+}
+
 export async function honeypotHitsFromChain(config, honeypot) {
-  if (!honeypot || !config.accounts.agent) return [];
+  if (!config.accounts.agent) return [];
   const page = await fetchIndexerPage(config.indexerAccountsBase, config.accounts.agent, { limit: 25 });
   const pays = (page.rows || []).filter((row) => (row.methods || []).includes("pay") && row.txHash);
   const signers = [config.accounts.agent, config.accounts.owner];
   await Promise.all(pays.map((row) => fetchPayTransaction(config.rpcUrl, row.txHash, signers).catch(() => null)));
+  const allowlist = config.policy && config.policy.payees ? config.policy.payees : [];
   const feed = [];
   for (const row of pays) {
     const pay = resolved.get(row.txHash);
-    if (!isTrapRefusal(pay, honeypot)) continue;
+    if (!pay) continue;
+    const trap = honeypot && isTrapRefusal(pay, honeypot);
+    if (!trap && !isAttackerRefusal(pay, allowlist)) continue;
     const story = narrativeForPay(config, pay);
+    let amountDisplay = null;
+    if (pay.amount) {
+      try {
+        amountDisplay = formatAtomic(pay.amount, config.policy.decimals);
+      } catch {
+        amountDisplay = null;
+      }
+    }
     feed.push({
       atMs: row.atMs || null,
       payee: pay.payee,
+      amount: amountDisplay,
       outcome: pay.held ? "held" : "refused",
       errorCode: pay.errorCode,
       txHash: row.txHash,
       explorerUrl: (config.explorerTxBase || "") + row.txHash,
       prompt: story.injection,
+      trap: Boolean(trap),
       source: "chain",
     });
   }

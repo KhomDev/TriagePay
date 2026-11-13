@@ -3,6 +3,8 @@ import { fromError, json, readJson, sse } from "../lib/http.js";
 import { runDrainAttempt } from "../lib/live-run.js";
 import { formatAtomic } from "../lib/format.js";
 import { loadConfig } from "../lib/config.js";
+import { honeypotAccount } from "../lib/honeypot.js";
+import { honeypotHitsFromChain } from "../lib/txread.js";
 
 function present(status) {
   let drainedDisplay = status.drained;
@@ -16,7 +18,22 @@ function present(status) {
 
 export async function GET() {
   try {
-    return json(200, present(await drainStatus()));
+    const status = await drainStatus();
+    if (!status.feed.length) {
+      try {
+        const config = loadConfig();
+        const hits = await honeypotHitsFromChain(config, honeypotAccount(config));
+        if (hits.length) {
+          status.feed = hits;
+          status.attempts = Math.max(status.attempts || 0, hits.length);
+          status.refusals = Math.max(status.refusals || 0, hits.filter((row) => row.outcome === "refused").length);
+          status.note = "Counted from refused payments on the chain.";
+        }
+      } catch {
+        // The in-memory feed stands.
+      }
+    }
+    return json(200, present(status));
   } catch (error) {
     return fromError(error);
   }

@@ -38,10 +38,12 @@ const HEADLINES = {
 };
 
 export function buildReceipt({ kind, code, tried, amount, payee, txHash, explorerUrl }) {
-  const rule = code || (kind ? kind.toUpperCase() : "RULE");
   const headline = HEADLINES[kind] || "RECEIPT";
-  const ruleText = RULE_TEXT[rule] || "The wallet applied its spend policy.";
-  const shareText = `${headline} ${rule}. ${amount || "an amount"} to ${payee || "a payee"}. ${SHARE_TAIL}`;
+  const rule = code && code !== headline ? code : "";
+  const ruleText = RULE_TEXT[code] || RULE_TEXT[headline] || "The wallet applied its spend policy.";
+  const movement = amount && payee ? `${amount} to ${payee}` : (amount || payee || "");
+  const head = [headline, rule].filter(Boolean).join(" ");
+  const shareText = `${[head, movement].filter(Boolean).join(". ")}. ${SHARE_TAIL}`;
   return {
     kind,
     headline,

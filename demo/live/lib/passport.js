@@ -32,10 +32,12 @@ export function buildPassport({
     else if (methods.includes("pay")) label = row.success ? "paid" : "refused";
     return {
       txHash: row.txHash,
-      atMs: row.atMs || null,
+      atMs: row.atMs || extra.atMs || null,
       label,
       success: Boolean(row.success),
       errorCode: extra.errorCode || null,
+      payee: extra.payee || null,
+      amount: extra.amount || extra.amountDisplay || null,
       explorerUrl: explorerTx ? explorerTx + row.txHash : null,
     };
   });

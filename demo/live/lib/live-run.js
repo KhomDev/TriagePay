@@ -239,8 +239,10 @@ export async function runTrackedPayment(request, { attack, agent, onEvent, drain
       outcome: chain.outcome,
       explorerUrl: chain.explorerUrl,
       checks: [
-        { name: "Payee", result: again.code || again.effect },
-        { name: "Wallet", result: chain.held ? "held for the owner" : (chain.errorCode || chain.outcome || "submitted") },
+        { name: "Reads the finding", result: attack.injection || attack.narrative || "The agent read the finding." },
+        { name: "Injection", result: payee },
+        { name: "Signs pay", result: shown },
+        { name: "Contract", result: chain.held ? "Held for the owner" : (chain.errorCode || (chain.outcome === "success" ? "Settled" : "Refused")) },
       ],
     });
     return {

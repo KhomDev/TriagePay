@@ -170,7 +170,6 @@ button.secondary, .text-btn.ghost {
 }
 button:hover { transform: translateY(-1px); }
 button[disabled] { opacity: 0.45; cursor: not-allowed; transform: none; }
-#btn-launch[disabled] { opacity: 1; }
 #btn-launch {
   min-height: 64px;
   padding: 0 28px;
@@ -259,11 +258,20 @@ button[disabled] { opacity: 0.45; cursor: not-allowed; transform: none; }
 .trace {
   margin: 10px 0 0;
   font-size: 0.92rem;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
+.live-verdict { min-height: 0; margin: 4px 0 8px; }
+.live-verdict .verdict-word { margin: 0; }
+button.is-busy::after {
+  content: "";
+  width: 14px;
+  height: 14px;
+  margin-left: 10px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 .rail { position: relative; }
 .packet {
   position: absolute;
@@ -387,7 +395,8 @@ summary { cursor: pointer; font-family: var(--display); font-weight: 700; font-s
 .theatre-line { min-height: 3.2em; font-size: 1.15rem; max-width: 62ch; }
 .theatre-checks { margin: 12px 0; padding-left: 1.1rem; }
 .passport h1 { font-size: clamp(1.8rem, 4vw, 2.8rem); max-width: none; }
-.passport-dl { display: grid; grid-template-columns: 11rem 1fr; gap: 6px 12px; }
+.passport-dl { display: grid; grid-template-columns: minmax(8rem, 12rem) minmax(0, 1fr); gap: 6px 12px; }
+.passport-dl dd { margin: 0; white-space: nowrap; }
 .honeypot { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--line); }
 .sheet { padding-top: 12px; }
 .sr-only {
@@ -406,7 +415,8 @@ details.panel[open] > summary { margin-bottom: 12px; }
 main { padding-bottom: 24px; }
 
 @media (max-width: 900px) {
-  .pipeline, .stats, .challenge-head, .split, .judge ol, .diff ol { grid-template-columns: 1fr; }
+  .pipeline, .stats, .challenge-head, .split, .judge ol, .diff ol, .passport-dl { grid-template-columns: 1fr; }
+  .passport-dl dd { white-space: normal; }
   .rail { height: 18px; }
   .packet { top: 0; left: 50%; }
   .stats article { border-right: 0; border-bottom: 1px solid var(--line); }
@@ -427,7 +437,7 @@ main { padding-bottom: 24px; }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  .pipeline.is-live .packet, .stamp.is-in, button:hover { animation: none; transform: none; }
+  .pipeline.is-live .packet, .stamp.is-in, button:hover, button.is-busy::after { animation: none; transform: none; }
   .step.is-on .dot, .step.is-bad .dot { box-shadow: none; }
   .gauge > span { transition: none; }
 }

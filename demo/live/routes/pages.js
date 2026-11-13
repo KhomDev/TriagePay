@@ -51,7 +51,7 @@ export function replayPage(request) {
   const tx = new URL(request.url).searchParams.get("tx") || "";
   return page({
     title: tx ? `Replay ${tx.slice(0, 8)}` : "Replay",
-    description: "A ten-second replay of a wallet refusal or hold. The transaction link is the chain record.",
+    description: "A short replay of a wallet refusal or hold. The transaction link is the chain record.",
     image: `${origin}/api/site-og`,
     script: "/replay.js",
   });

@@ -271,13 +271,13 @@ export async function getDashboard() {
     paused: Boolean(walletConfig && walletConfig.paused),
     spend: {
       spentToday: spentToday.toString(),
-      spentDisplay: formatAtomic(spentToday, decimals),
+      spentDisplay: formatAmount(spentToday, decimals, tokenSymbol(config.accounts.token)),
       dailyMax: dailyMax.toString(),
-      dailyDisplay: formatAtomic(dailyMax, decimals),
+      dailyDisplay: formatAmount(dailyMax, decimals, tokenSymbol(config.accounts.token)),
       remaining: remaining.toString(),
-      remainingDisplay: formatAtomic(remaining < 0n ? 0n : remaining, decimals),
+      remainingDisplay: formatAmount(remaining < 0n ? 0n : remaining, decimals, tokenSymbol(config.accounts.token)),
       perCallMax: perCall.toString(),
-      perCallDisplay: formatAtomic(perCall, decimals),
+      perCallDisplay: formatAmount(perCall, decimals, tokenSymbol(config.accounts.token)),
       percent,
       active: Boolean(agent && agent.active),
       payees: (agent && agent.payees) || config.policy.payees,
@@ -294,8 +294,20 @@ export async function getDashboard() {
           decimals,
           tokenSymbol(config.accounts.token),
         ),
+        pending: (review.pending || []).map((row) => ({
+          ...row,
+          amountDisplay: row && row.amount != null
+            ? formatAmount(String(row.amount), decimals, tokenSymbol(config.accounts.token))
+            : null,
+        })),
       }
       : review,
+    cooldownRemainingSeconds: assessCooldown({
+      nowMs: Date.now(),
+      timestampsMs: (indexed || []).map((row) => row.atMs).filter((value) => Number.isFinite(value)),
+      cooldownMs: config.cooldownSeconds * 1000,
+      maxPerDay: config.maxAttemptsPerDay,
+    }).retryAfterSeconds,
     recent: await enrichRecent(config, mergeRecent(indexed, recall(), config.explorerTxBase)),
   };
 }
@@ -453,7 +465,7 @@ async function assertReviewWillHold(config, attack) {
   if (attack.id === "review-payee" && !review.reviewUnknownPayees) {
     throw new DemoError(
       "review_not_enabled",
-      "Owner review of unknown payees is off, so this payment would be refused instead of queued. Enable it with set_review_policy.",
+      "Unknown payees are refused on this wallet, not queued. Queue a payment above the threshold instead. That one is held for approval.",
       409,
     );
   }
