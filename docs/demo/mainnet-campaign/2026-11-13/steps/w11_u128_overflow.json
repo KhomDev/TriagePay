@@ -1,0 +1,29 @@
+{
+  "id": "w11_u128_overflow",
+  "phase": "wallet",
+  "test": "agent pays 2^128 (does not fit u128)",
+  "signer": "tp-agent2.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "pay",
+  "args": {
+    "amount": "340282366920938463463374607431768211456"
+  },
+  "expected": "failure: argument deserialization",
+  "actual": "failure: Smart contract panicked: Failed to deserialize input from JSON. Error: `number too large to fit in target type at line 1",
+  "pass": true,
+  "at": "2026-11-13T02:54:26.653Z",
+  "tx_hash": "HcwCsUqQ8hg5Ho5iJiTc8qY8c6THyZreaKgWjtiHuxjm",
+  "explorer": "https://nearblocks.io/txns/HcwCsUqQ8hg5Ho5iJiTc8qY8c6THyZreaKgWjtiHuxjm",
+  "outcome": "failure",
+  "error_code": null,
+  "error_message": "Smart contract panicked: Failed to deserialize input from JSON. Error: `number too large to fit in target type at line 1 column 108`",
+  "return_value": null,
+  "events": [],
+  "logs": [],
+  "gas_burnt_tgas": 1.689,
+  "tokens_burnt_near": "0.000147",
+  "tokens_burnt_yocto": "146628030178800000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

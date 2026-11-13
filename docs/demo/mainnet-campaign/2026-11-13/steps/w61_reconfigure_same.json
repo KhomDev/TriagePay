@@ -1,0 +1,47 @@
+{
+  "id": "w61_reconfigure_same",
+  "phase": "wallet",
+  "test": "owner re-sends the same policy to try to reset the day",
+  "signer": "hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "set_agent",
+  "args": {
+    "agent_id": "tp-agent2.hlpok1lad.tg",
+    "per_call_max": "1000000",
+    "daily_max": "4000000",
+    "payees": [
+      "gateway.hlpok1lad.tg"
+    ]
+  },
+  "expected": "success",
+  "actual": "success",
+  "pass": true,
+  "at": "2026-11-13T02:57:42.979Z",
+  "tx_hash": "AgKZMLX5gzPLCLVV4XgQgUjxkxcW3GZXcPFY2boWPFm",
+  "explorer": "https://nearblocks.io/txns/AgKZMLX5gzPLCLVV4XgQgUjxkxcW3GZXcPFY2boWPFm",
+  "outcome": "success",
+  "error_code": null,
+  "error_message": null,
+  "return_value": null,
+  "events": [
+    {
+      "standard": "aps_policy_wallet",
+      "event": "agent_set",
+      "data": {
+        "agent_id": "tp-agent2.hlpok1lad.tg",
+        "per_call_max": "1000000",
+        "daily_max": "4000000",
+        "payees": [
+          "gateway.hlpok1lad.tg"
+        ]
+      }
+    }
+  ],
+  "logs": [],
+  "gas_burnt_tgas": 2.143,
+  "tokens_burnt_near": "0.000192",
+  "tokens_burnt_yocto": "192014001883600000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

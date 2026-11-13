@@ -55,9 +55,26 @@ cargo near build non-reproducible-wasm --locked --no-abi \
 
 The three placeholders are the absolute paths of the build host's cargo
 home, rustup home and repository checkout (in Git Bash on Windows, convert
-them with `cygpath -w`). The remapping is required for any wasm that is
-deployed; see "Host paths in the wasm" below. cargo-near force-appends
-`--cfg near` to these flags.
+them with `cygpath -w`). Use `CARGO_HOME` and `RUSTUP_HOME`, not
+`$HOME/.cargo`: on this image those are `/usr/local/cargo` and
+`/usr/local/rustup`. The factory's embedded wallet also remaps those two
+absolute paths and the `contracts/` directory. The remapping is required
+for any wasm that is deployed; see "Host paths in the wasm" below.
+cargo-near force-appends `--cfg near` to these flags.
+
+The wallet bytes inside the factory are `contracts/wallet-factory/res/policy_wallet.wasm.zlib`.
+Inflated, that is 221,884 bytes, sha256
+`17acbefc65151683d5a37771b785ec0e5a9fa6debfbdc566084370a714e25b7e`.
+The cargo registry folder `index.crates.io-<hash>` differs between machines
+and is the same length, so a remap of only the cargo home still produces
+two hashes. The build remaps that folder to `/cargo/registry/src` last,
+because rustc keeps the last matching prefix. After that remap the size
+matches and the hash does not: this host produced
+`17acbefc65151683d5a37771b785ec0e5a9fa6debfbdc566084370a714e25b7e`, and
+GitHub Actions produced
+`48562c554fe8ec0d29a4aa10222eceec53d36954d10f9c7cea0f124a5992f41e`, both
+221,884 bytes. The committed blob is the one from this host. CI rejects a
+rebuild that still contains a host path or the registry folder name.
 
 `--no-abi` is required on Windows: the ABI step builds a host `cdylib` with
 `near-sdk/__abi-generate`, and the MSVC linker fails on the unresolved NEAR

@@ -1,0 +1,32 @@
+{
+  "id": "w37_mallory_pays",
+  "phase": "wallet",
+  "test": "mallory calls pay herself (she is not an agent)",
+  "signer": "tp-mallory.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "pay",
+  "args": {
+    "token": "wrap.near",
+    "receiver_id": "tp-mallory.hlpok1lad.tg",
+    "amount": "1",
+    "memo": null
+  },
+  "expected": "ERR_AGENT_INACTIVE",
+  "actual": "ERR_AGENT_INACTIVE",
+  "pass": true,
+  "at": "2026-11-13T02:59:49.204Z",
+  "tx_hash": "4hi679HJR18UrNTq5t9x9vTSvkzrYZBhmbm6Gi7uHbPn",
+  "explorer": "https://nearblocks.io/txns/4hi679HJR18UrNTq5t9x9vTSvkzrYZBhmbm6Gi7uHbPn",
+  "outcome": "failure",
+  "error_code": "ERR_AGENT_INACTIVE",
+  "error_message": "Smart contract panicked: ERR_AGENT_INACTIVE: agent is unknown or revoked",
+  "return_value": null,
+  "events": [],
+  "logs": [],
+  "gas_burnt_tgas": 1.811,
+  "tokens_burnt_near": "0.000159",
+  "tokens_burnt_yocto": "158804273843600000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

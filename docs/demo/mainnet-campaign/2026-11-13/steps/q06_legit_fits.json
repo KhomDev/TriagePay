@@ -1,0 +1,68 @@
+{
+  "id": "q06_legit_fits",
+  "phase": "review_pressure",
+  "test": "legitimate 400,000 to gateway still fits: settles",
+  "signer": "tp-agent2.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "pay",
+  "args": {
+    "token": "wrap.near",
+    "receiver_id": "gateway.hlpok1lad.tg",
+    "amount": "400000",
+    "memo": null
+  },
+  "expected": "success",
+  "actual": "success",
+  "pass": true,
+  "at": "2026-11-13T03:25:44.710Z",
+  "tx_hash": "BjbzAGrghDbPBJU4Y4pKxpNxdudwZCzqMZpidhbovcYg",
+  "explorer": "https://nearblocks.io/txns/BjbzAGrghDbPBJU4Y4pKxpNxdudwZCzqMZpidhbovcYg",
+  "outcome": "success",
+  "error_code": null,
+  "error_message": null,
+  "return_value": "true",
+  "events": [
+    {
+      "standard": "aps_policy_wallet",
+      "event": "pay_requested",
+      "data": {
+        "payment_id": "6",
+        "agent_id": "tp-agent2.hlpok1lad.tg",
+        "token": "wrap.near",
+        "receiver_id": "gateway.hlpok1lad.tg",
+        "amount": "400000",
+        "window_index": "20770"
+      }
+    },
+    {
+      "standard": "aps_policy_wallet",
+      "event": "pay_settled",
+      "data": {
+        "payment_id": "6",
+        "agent_id": "tp-agent2.hlpok1lad.tg",
+        "token": "wrap.near",
+        "receiver_id": "gateway.hlpok1lad.tg",
+        "amount": "400000"
+      }
+    }
+  ],
+  "logs": [
+    "Transfer 400000 from tp-wallet.hlpok1lad.tg to gateway.hlpok1lad.tg"
+  ],
+  "gas_burnt_tgas": 6.66,
+  "tokens_burnt_near": "0.000599",
+  "tokens_burnt_yocto": "599140345753700000000",
+  "balances_before": {
+    "tp-wallet.hlpok1lad.tg": "999999999999998700000",
+    "gateway.hlpok1lad.tg": "36300000"
+  },
+  "balances_after": {
+    "tp-wallet.hlpok1lad.tg": "999999999999998300000",
+    "gateway.hlpok1lad.tg": "36700000"
+  },
+  "note": null,
+  "balance_change": {
+    "tp-wallet.hlpok1lad.tg": "-400000",
+    "gateway.hlpok1lad.tg": "400000"
+  }
+}

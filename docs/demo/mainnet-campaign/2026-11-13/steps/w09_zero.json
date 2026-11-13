@@ -1,0 +1,42 @@
+{
+  "id": "w09_zero",
+  "phase": "wallet",
+  "test": "agent pays 0",
+  "signer": "tp-agent2.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "pay",
+  "args": {
+    "token": "wrap.near",
+    "receiver_id": "gateway.hlpok1lad.tg",
+    "amount": "0",
+    "memo": null
+  },
+  "expected": "ERR_ZERO_AMOUNT",
+  "actual": "ERR_ZERO_AMOUNT",
+  "pass": true,
+  "at": "2026-11-13T02:54:16.256Z",
+  "tx_hash": "H39ruaJJuWvV5ioVUgiaw4ZNwX6uBeJ4UaYUPyyaKj2X",
+  "explorer": "https://nearblocks.io/txns/H39ruaJJuWvV5ioVUgiaw4ZNwX6uBeJ4UaYUPyyaKj2X",
+  "outcome": "failure",
+  "error_code": "ERR_ZERO_AMOUNT",
+  "error_message": "Smart contract panicked: ERR_ZERO_AMOUNT: amount must be greater than zero",
+  "return_value": null,
+  "events": [],
+  "logs": [],
+  "gas_burnt_tgas": 1.827,
+  "tokens_burnt_near": "0.00016",
+  "tokens_burnt_yocto": "160451934568000000000",
+  "balances_before": {
+    "tp-wallet.hlpok1lad.tg": "999999999999998000000",
+    "gateway.hlpok1lad.tg": "2000000"
+  },
+  "balances_after": {
+    "tp-wallet.hlpok1lad.tg": "999999999999998000000",
+    "gateway.hlpok1lad.tg": "2000000"
+  },
+  "note": null,
+  "balance_change": {
+    "tp-wallet.hlpok1lad.tg": "0",
+    "gateway.hlpok1lad.tg": "0"
+  }
+}

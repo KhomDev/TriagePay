@@ -1,0 +1,49 @@
+{
+  "id": "w42_add_payee",
+  "phase": "wallet",
+  "test": "owner adds tp-mallory to the payee list",
+  "signer": "hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "set_agent",
+  "args": {
+    "agent_id": "tp-agent2.hlpok1lad.tg",
+    "per_call_max": "1000000",
+    "daily_max": "4000000",
+    "payees": [
+      "gateway.hlpok1lad.tg",
+      "tp-mallory.hlpok1lad.tg"
+    ]
+  },
+  "expected": "success",
+  "actual": "success",
+  "pass": true,
+  "at": "2026-11-13T02:56:03.098Z",
+  "tx_hash": "8DAwj3R5TBaxqsk33Sr6ozHev8ztz6C59k1m9BRrJ3hN",
+  "explorer": "https://nearblocks.io/txns/8DAwj3R5TBaxqsk33Sr6ozHev8ztz6C59k1m9BRrJ3hN",
+  "outcome": "success",
+  "error_code": null,
+  "error_message": null,
+  "return_value": null,
+  "events": [
+    {
+      "standard": "aps_policy_wallet",
+      "event": "agent_set",
+      "data": {
+        "agent_id": "tp-agent2.hlpok1lad.tg",
+        "per_call_max": "1000000",
+        "daily_max": "4000000",
+        "payees": [
+          "gateway.hlpok1lad.tg",
+          "tp-mallory.hlpok1lad.tg"
+        ]
+      }
+    }
+  ],
+  "logs": [],
+  "gas_burnt_tgas": 2.16,
+  "tokens_burnt_near": "0.000194",
+  "tokens_burnt_yocto": "193700311147600000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

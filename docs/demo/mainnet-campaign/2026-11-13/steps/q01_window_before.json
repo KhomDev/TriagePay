@@ -1,0 +1,21 @@
+{
+  "id": "q01_window_before",
+  "phase": "info",
+  "test": "agent window before the pressure test",
+  "expected": "-",
+  "actual": "recorded",
+  "pass": null,
+  "at": "2026-11-13T03:25:23.186Z",
+  "data": {
+    "per_call_max": "1000000",
+    "daily_max": "4000000",
+    "payees": [
+      "gateway.hlpok1lad.tg"
+    ],
+    "active": true,
+    "spent_in_window": "1300000",
+    "remaining": "2700000",
+    "window_index": "20770",
+    "resets_at_ns": "1794614400000000000"
+  }
+}

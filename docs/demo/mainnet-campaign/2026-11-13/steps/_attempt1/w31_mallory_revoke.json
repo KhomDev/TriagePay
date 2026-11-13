@@ -1,0 +1,25 @@
+{
+  "id": "w31_mallory_revoke",
+  "phase": "wallet",
+  "test": "mallory revokes the real agent",
+  "signer": "tp-mallory.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "revoke_agent",
+  "args": {
+    "agent_id": "tp-agent2.hlpok1lad.tg"
+  },
+  "expected": "ERR_NOT_OWNER",
+  "actual": "rejected before chain: NotEnoughBalanceError",
+  "pass": false,
+  "at": "2026-11-13T02:55:37.756Z",
+  "tx_hash": null,
+  "outcome": "rejected_before_chain",
+  "error_code": null,
+  "error_type": "NotEnoughBalanceError",
+  "error_message": "Not enough balance for tp-mallory.hlpok1lad.tg (balance: 30000000000000000000000, cost: 30919208660969500000001)",
+  "maybe_hash": null,
+  "tokens_burnt_near": "0",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

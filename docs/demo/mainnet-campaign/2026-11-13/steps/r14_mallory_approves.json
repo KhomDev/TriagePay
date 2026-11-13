@@ -1,0 +1,29 @@
+{
+  "id": "r14_mallory_approves",
+  "phase": "review",
+  "test": "mallory approves the held payment",
+  "signer": "tp-mallory.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "approve_payment",
+  "args": {
+    "payment_id": "1"
+  },
+  "expected": "ERR_NOT_OWNER",
+  "actual": "ERR_NOT_OWNER",
+  "pass": true,
+  "at": "2026-11-13T03:23:14.967Z",
+  "tx_hash": "7B8MpN2Lx7icJBLUoTTWx4U4Lck47chNtq56qCZCX81s",
+  "explorer": "https://nearblocks.io/txns/7B8MpN2Lx7icJBLUoTTWx4U4Lck47chNtq56qCZCX81s",
+  "outcome": "failure",
+  "error_code": "ERR_NOT_OWNER",
+  "error_message": "Smart contract panicked: ERR_NOT_OWNER: only the owner can call this method",
+  "return_value": null,
+  "events": [],
+  "logs": [],
+  "gas_burnt_tgas": 1.986,
+  "tokens_burnt_near": "0.000154",
+  "tokens_burnt_yocto": "154006640480300000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

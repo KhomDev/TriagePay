@@ -9,6 +9,7 @@ import { keccak256 } from "./keccak.js";
 
 const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
+/** Decode a Bitcoin-alphabet base58 string into bytes. */
 export function base58Decode(text) {
   let n = 0n;
   for (const ch of String(text)) {
@@ -51,6 +52,7 @@ function lengthPrefix(len, offset) {
   return Buffer.concat([Buffer.from([offset + 55 + bytes.length]), bytes]);
 }
 
+/** RLP-encode a byte string, a bigint, or a list of those. */
 export function rlpEncode(item) {
   if (Array.isArray(item)) {
     const body = Buffer.concat(item.map(rlpEncode));

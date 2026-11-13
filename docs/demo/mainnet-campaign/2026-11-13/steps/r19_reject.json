@@ -1,0 +1,39 @@
+{
+  "id": "r19_reject",
+  "phase": "review",
+  "test": "owner rejects payment 2: nothing moves, the reservation returns",
+  "signer": "hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "reject_payment",
+  "args": {
+    "payment_id": "2"
+  },
+  "expected": "success",
+  "actual": "success",
+  "pass": true,
+  "at": "2026-11-13T03:23:36.657Z",
+  "tx_hash": "8vU2BbPSKze5GL4sRLPBqg3SsQPGTvpA8n7RWXcHNdt6",
+  "explorer": "https://nearblocks.io/txns/8vU2BbPSKze5GL4sRLPBqg3SsQPGTvpA8n7RWXcHNdt6",
+  "outcome": "success",
+  "error_code": null,
+  "error_message": null,
+  "return_value": null,
+  "events": [
+    {
+      "standard": "aps_policy_wallet",
+      "event": "payment_rejected",
+      "data": {
+        "payment_id": "2",
+        "agent_id": "tp-agent2.hlpok1lad.tg",
+        "release": "restored"
+      }
+    }
+  ],
+  "logs": [],
+  "gas_burnt_tgas": 2.293,
+  "tokens_burnt_near": "0.000207",
+  "tokens_burnt_yocto": "207027127837500000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

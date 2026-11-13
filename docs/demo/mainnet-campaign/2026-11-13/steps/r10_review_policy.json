@@ -1,0 +1,30 @@
+{
+  "id": "r10_review_policy",
+  "phase": "review",
+  "test": "owner turns review on: threshold 500,000, unknown payees held",
+  "signer": "hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "set_review_policy",
+  "args": {
+    "approval_threshold": "500000",
+    "review_unknown_payees": true
+  },
+  "expected": "success",
+  "actual": "success",
+  "pass": true,
+  "at": "2026-11-13T03:22:57.821Z",
+  "tx_hash": "FYKEUsZRXyv2Ttsrb22ugkKxKnBCioyVkkRpCnnar9fh",
+  "explorer": "https://nearblocks.io/txns/FYKEUsZRXyv2Ttsrb22ugkKxKnBCioyVkkRpCnnar9fh",
+  "outcome": "success",
+  "error_code": null,
+  "error_message": null,
+  "return_value": null,
+  "events": [],
+  "logs": [],
+  "gas_burnt_tgas": 1.85,
+  "tokens_burnt_near": "0.000163",
+  "tokens_burnt_yocto": "162766969131700000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

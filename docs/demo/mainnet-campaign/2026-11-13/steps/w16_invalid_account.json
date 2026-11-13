@@ -1,0 +1,29 @@
+{
+  "id": "w16_invalid_account",
+  "phase": "wallet",
+  "test": "agent pays an invalid account id (\"Mallory!!\")",
+  "signer": "tp-agent2.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "pay",
+  "args": {
+    "receiver_id": "Mallory!!"
+  },
+  "expected": "failure: argument deserialization",
+  "actual": "failure: Smart contract panicked: Failed to deserialize input from JSON. Error: `invalid value: \\",
+  "pass": true,
+  "at": "2026-11-13T02:54:52.436Z",
+  "tx_hash": "7c6tppTECoJ4MzQTbd7aJA5tRTU3sA2iRhSmqoJ5SvyC",
+  "explorer": "https://nearblocks.io/txns/7c6tppTECoJ4MzQTbd7aJA5tRTU3sA2iRhSmqoJ5SvyC",
+  "outcome": "failure",
+  "error_code": null,
+  "error_message": "Smart contract panicked: Failed to deserialize input from JSON. Error: `invalid value: \\",
+  "return_value": null,
+  "events": [],
+  "logs": [],
+  "gas_burnt_tgas": 1.695,
+  "tokens_burnt_near": "0.000147",
+  "tokens_burnt_yocto": "147197922485700000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

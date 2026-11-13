@@ -4,6 +4,7 @@
 
 import { describeAttack, explain, listScenarios, shouldSubmit } from "./attacks.js";
 import { chainReady, loadConfig, loadKeys, signingReady } from "./config.js";
+import { MAINNET_CONTRACTS } from "./mainnet.js";
 import { assessCooldown, cooldownMessage } from "./cooldown.js";
 import { cacheGet, cacheSet } from "./region-cache.js";
 import { payeeFacts, fetchIndexerTxns, fetchDayStamps } from "./facts.js";
@@ -226,6 +227,7 @@ export async function getHealth() {
   return {
     ok: true,
     network: config.network,
+    mainnet: MAINNET_CONTRACTS,
     configured: chainReady(config),
     signing: signingReady(keys),
     keyError,

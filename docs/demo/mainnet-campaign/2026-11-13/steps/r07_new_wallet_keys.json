@@ -1,0 +1,32 @@
+{
+  "id": "r07_new_wallet_keys",
+  "phase": "info",
+  "test": "the redeployed wallet's access keys (must be 0) and config",
+  "expected": "-",
+  "actual": "recorded",
+  "pass": null,
+  "at": "2026-11-13T03:22:42.101Z",
+  "data": {
+    "keys": 0,
+    "config": {
+      "owner": "hlpok1lad.tg",
+      "paused": false,
+      "tokens": [
+        "wrap.near"
+      ],
+      "next_payment_id": "0",
+      "event_standard": "aps_policy_wallet",
+      "event_version": "1.0.0"
+    },
+    "review": {
+      "approval_threshold": "0",
+      "review_unknown_payees": false,
+      "pending_count": 0,
+      "max_pending": 8
+    },
+    "wrap_storage": {
+      "total": "1250000000000000000000",
+      "available": "0"
+    }
+  }
+}

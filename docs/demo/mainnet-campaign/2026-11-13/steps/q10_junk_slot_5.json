@@ -1,0 +1,55 @@
+{
+  "id": "q10_junk_slot_5",
+  "phase": "review_pressure",
+  "test": "hijacked agent queues junk payment 5 of 8 (1 yocto-wNEAR to tp-mallory)",
+  "signer": "tp-agent2.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "pay",
+  "args": {
+    "token": "wrap.near",
+    "receiver_id": "tp-mallory.hlpok1lad.tg",
+    "amount": "1",
+    "memo": null
+  },
+  "expected": "held (payment_queued)",
+  "actual": "success",
+  "pass": true,
+  "at": "2026-11-13T03:26:05.530Z",
+  "tx_hash": "5e8pos8txBb7hXcNwg6HMBXsHPSqsPHsDwiNUdRv6fWf",
+  "explorer": "https://nearblocks.io/txns/5e8pos8txBb7hXcNwg6HMBXsHPSqsPHsDwiNUdRv6fWf",
+  "outcome": "success",
+  "error_code": null,
+  "error_message": null,
+  "return_value": "\"9\"",
+  "events": [
+    {
+      "standard": "aps_policy_wallet",
+      "event": "payment_queued",
+      "data": {
+        "payment_id": "9",
+        "agent_id": "tp-agent2.hlpok1lad.tg",
+        "token": "wrap.near",
+        "receiver_id": "tp-mallory.hlpok1lad.tg",
+        "amount": "1",
+        "reason": "new_payee"
+      }
+    }
+  ],
+  "logs": [],
+  "gas_burnt_tgas": 2.358,
+  "tokens_burnt_near": "0.000214",
+  "tokens_burnt_yocto": "213505956214400000000",
+  "balances_before": {
+    "tp-wallet.hlpok1lad.tg": "999999999999998300000",
+    "tp-mallory.hlpok1lad.tg": "1000000"
+  },
+  "balances_after": {
+    "tp-wallet.hlpok1lad.tg": "999999999999998300000",
+    "tp-mallory.hlpok1lad.tg": "1000000"
+  },
+  "note": null,
+  "balance_change": {
+    "tp-wallet.hlpok1lad.tg": "0",
+    "tp-mallory.hlpok1lad.tg": "0"
+  }
+}

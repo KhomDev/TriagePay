@@ -1,0 +1,21 @@
+{
+  "id": "q25_window_after_cleanup",
+  "phase": "info",
+  "test": "agent window after the owner rejected the junk",
+  "expected": "-",
+  "actual": "recorded",
+  "pass": null,
+  "at": "2026-11-13T03:27:13.943Z",
+  "data": {
+    "per_call_max": "1000000",
+    "daily_max": "4000000",
+    "payees": [
+      "gateway.hlpok1lad.tg"
+    ],
+    "active": true,
+    "spent_in_window": "1900000",
+    "remaining": "2100000",
+    "window_index": "20770",
+    "resets_at_ns": "1794614400000000000"
+  }
+}

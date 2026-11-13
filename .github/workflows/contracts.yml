@@ -43,7 +43,8 @@ jobs:
       - name: Install Rust toolchain
         run: |
           rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal \
-            --component rustfmt --component clippy --target wasm32-unknown-unknown
+            --component rustfmt --component clippy --component llvm-tools-preview \
+            --target wasm32-unknown-unknown
           rustup default "$RUST_TOOLCHAIN"
           rustc --version
           cargo --version
@@ -53,7 +54,7 @@ jobs:
       - name: Install cargo-near
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y -q --no-install-recommends libudev-dev pkg-config
+          sudo apt-get install -y -q --no-install-recommends libudev-dev pkg-config libssl-dev binaryen
           cargo install cargo-near --version "$CARGO_NEAR_VERSION" --locked
           cargo near --version
 
@@ -63,12 +64,28 @@ jobs:
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
 
+      - uses: taiki-e/install-action@cargo-llvm-cov
+
+      # Unit tests only. The sandbox runs the wasm, which llvm-cov does not
+      # instrument; the line floor is the rlib (policy-wallet and test-token).
+      - name: Unit-test coverage
+        run: |
+          cargo llvm-cov -p policy-wallet -p test-token --lib --fail-under-lines 90 --summary-only | tee wallet-cov.txt
+          {
+            echo "### policy-wallet and test-token coverage"
+            echo '```'
+            cat wallet-cov.txt
+            echo '```'
+            echo
+            echo "Line floor: 90% (measured 95% lines across the wallet, its tests, and the test token)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       # Panic locations embed source paths. Remap the cargo home, the rustup
       # home and the checkout so no runner path reaches the deployed code
       # (docs/contracts/build.md, "Host paths in the wasm").
       - name: Path remapping flags
         run: |
-          echo "WASM_RUSTFLAGS=--remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo --remap-path-prefix=${RUSTUP_HOME:-$HOME/.rustup}=/rustup --remap-path-prefix=$GITHUB_WORKSPACE=/src" >> "$GITHUB_ENV"
+          echo "WASM_RUSTFLAGS=--remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo --remap-path-prefix=${RUSTUP_HOME:-$HOME/.rustup}=/rustup --remap-path-prefix=/usr/local/cargo=/cargo --remap-path-prefix=/usr/local/rustup=/rustup --remap-path-prefix=$GITHUB_WORKSPACE=/src" >> "$GITHUB_ENV"
 
       - name: Build policy-wallet wasm
         working-directory: contracts/policy-wallet
@@ -88,6 +105,58 @@ jobs:
               exit 1
             fi
           done
+
+      - name: Use wasm-opt 108
+        run: |
+          if ! wasm-opt --version 2>/dev/null | grep -q "version 108"; then
+            curl -fsSL -o /tmp/binaryen.tgz https://github.com/WebAssembly/binaryen/releases/download/version_108/binaryen-version_108-x86_64-linux.tar.gz
+            tar -xzf /tmp/binaryen.tgz -C /tmp
+            echo "/tmp/binaryen-version_108/bin" >> "$GITHUB_PATH"
+          fi
+
+      # Rebuild the wallet and reject a host path. The byte hash is not
+      # identical across machines after path remapping; see docs/contracts/build.md.
+      # Remap the cargo home,
+      # the rustup home, /usr/local/cargo, /usr/local/rustup, and this
+      # contracts directory. Remapping the repository root instead changes
+      # the panic paths and the hash.
+      - name: Check the embedded wallet wasm
+        run: |
+          REG_FLAGS=""
+          for dir in "${CARGO_HOME:-$HOME/.cargo}"/registry/src/index.crates.io-*; do
+            if [ -d "$dir" ]; then
+              REG_FLAGS="$REG_FLAGS --remap-path-prefix=${dir}=/cargo/registry/src"
+            fi
+          done
+          # The registry remap must be last: rustc keeps the last matching prefix.
+          RUSTFLAGS="--cfg near --remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo --remap-path-prefix=${RUSTUP_HOME:-$HOME/.rustup}=/rustup --remap-path-prefix=/usr/local/cargo=/cargo --remap-path-prefix=/usr/local/rustup=/rustup --remap-path-prefix=$PWD=/src ${REG_FLAGS}" \
+            cargo build -p policy-wallet --target wasm32-unknown-unknown --release --locked
+          wasm-opt --version
+          wasm-opt -Oz --strip-debug --strip-producers --enable-bulk-memory \
+            --enable-nontrapping-float-to-int --enable-sign-ext \
+            target/wasm32-unknown-unknown/release/policy_wallet.wasm -o /tmp/policy_wallet.wasm
+          python3 - <<'PY'
+          import hashlib, pathlib, zlib
+          wasm = pathlib.Path("/tmp/policy_wallet.wasm").read_bytes()
+          digest = hashlib.sha256(wasm).hexdigest()
+          # Same flags on two machines still disagree in non-path bytes
+          # (221,884 bytes both times: GitHub 48562c55…, the build host
+          # 17acbefc…). Fail only when a host path survives.
+          for needle in (b"/usr/local/cargo", b"/usr/local/rustup", b"/home/", b"/Users/", b"index.crates.io-"):
+              if needle in wasm:
+                  raise SystemExit(f"host path {needle!r} in rebuilt wallet wasm")
+          blob = zlib.decompress(pathlib.Path("wallet-factory/res/policy_wallet.wasm.zlib").read_bytes())
+          print(f"rebuilt {len(wasm)} {digest}")
+          print(f"committed {len(blob)} {hashlib.sha256(blob).hexdigest()}")
+          if abs(len(wasm) - len(blob)) > 2000:
+              raise SystemExit("rebuilt wallet size drifted from the committed blob")
+          PY
+
+      # The factory sandbox reads the wasm32 release artifacts. The embedded
+      # wallet bytes are the committed zlib; wallet-factory's unit test checks
+      # they inflate to WALLET_CODE_LEN and WALLET_CODE_SHA256.
+      - name: Build factory and test-token wasm for the sandbox
+        run: RUSTFLAGS="--cfg near $WASM_RUSTFLAGS" cargo build -p wallet-factory -p test-token --target wasm32-unknown-unknown --release --locked
 
       # The sandbox tests are ignored only on Windows, so on Linux this runs
       # them; the near-workspaces build script fetches the sandbox binary.

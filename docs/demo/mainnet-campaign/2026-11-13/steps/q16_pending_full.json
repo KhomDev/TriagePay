@@ -1,0 +1,91 @@
+{
+  "id": "q16_pending_full",
+  "phase": "info",
+  "test": "the owner's queue, full of junk",
+  "expected": "-",
+  "actual": "recorded",
+  "pass": null,
+  "at": "2026-11-13T03:26:33.547Z",
+  "data": [
+    {
+      "payment_id": "4",
+      "agent_id": "tp-agent2.hlpok1lad.tg",
+      "token": "wrap.near",
+      "receiver_id": "tp-mallory.hlpok1lad.tg",
+      "amount": "1000000",
+      "memo": null,
+      "reason": "new_payee",
+      "window_index": "20770"
+    },
+    {
+      "payment_id": "5",
+      "agent_id": "tp-agent2.hlpok1lad.tg",
+      "token": "wrap.near",
+      "receiver_id": "tp-mallory.hlpok1lad.tg",
+      "amount": "1000000",
+      "memo": null,
+      "reason": "new_payee",
+      "window_index": "20770"
+    },
+    {
+      "payment_id": "7",
+      "agent_id": "tp-agent2.hlpok1lad.tg",
+      "token": "wrap.near",
+      "receiver_id": "tp-mallory.hlpok1lad.tg",
+      "amount": "1",
+      "memo": null,
+      "reason": "new_payee",
+      "window_index": "20770"
+    },
+    {
+      "payment_id": "8",
+      "agent_id": "tp-agent2.hlpok1lad.tg",
+      "token": "wrap.near",
+      "receiver_id": "tp-mallory.hlpok1lad.tg",
+      "amount": "1",
+      "memo": null,
+      "reason": "new_payee",
+      "window_index": "20770"
+    },
+    {
+      "payment_id": "9",
+      "agent_id": "tp-agent2.hlpok1lad.tg",
+      "token": "wrap.near",
+      "receiver_id": "tp-mallory.hlpok1lad.tg",
+      "amount": "1",
+      "memo": null,
+      "reason": "new_payee",
+      "window_index": "20770"
+    },
+    {
+      "payment_id": "10",
+      "agent_id": "tp-agent2.hlpok1lad.tg",
+      "token": "wrap.near",
+      "receiver_id": "tp-mallory.hlpok1lad.tg",
+      "amount": "1",
+      "memo": null,
+      "reason": "new_payee",
+      "window_index": "20770"
+    },
+    {
+      "payment_id": "11",
+      "agent_id": "tp-agent2.hlpok1lad.tg",
+      "token": "wrap.near",
+      "receiver_id": "tp-mallory.hlpok1lad.tg",
+      "amount": "1",
+      "memo": null,
+      "reason": "new_payee",
+      "window_index": "20770"
+    },
+    {
+      "payment_id": "12",
+      "agent_id": "tp-agent2.hlpok1lad.tg",
+      "token": "wrap.near",
+      "receiver_id": "tp-mallory.hlpok1lad.tg",
+      "amount": "1",
+      "memo": null,
+      "reason": "new_payee",
+      "window_index": "20770"
+    }
+  ]
+}

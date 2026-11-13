@@ -1,0 +1,30 @@
+{
+  "id": "w29_mallory_set_agent",
+  "phase": "wallet",
+  "test": "mallory makes herself an agent with huge limits",
+  "signer": "tp-mallory.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "set_agent",
+  "args": {
+    "agent_id": "tp-mallory.hlpok1lad.tg",
+    "per_call_max": "1000000000000000000000",
+    "daily_max": "1000000000000000000000",
+    "payees": [
+      "tp-mallory.hlpok1lad.tg"
+    ]
+  },
+  "expected": "ERR_NOT_OWNER",
+  "actual": "rejected before chain: NotEnoughBalanceError",
+  "pass": false,
+  "at": "2026-11-13T02:55:34.876Z",
+  "tx_hash": null,
+  "outcome": "rejected_before_chain",
+  "error_code": null,
+  "error_type": "NotEnoughBalanceError",
+  "error_message": "Not enough balance for tp-mallory.hlpok1lad.tg (balance: 30000000000000000000000, cost: 30919993143185500000001)",
+  "maybe_hash": null,
+  "tokens_burnt_near": "0",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

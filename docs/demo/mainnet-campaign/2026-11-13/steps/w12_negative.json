@@ -1,0 +1,29 @@
+{
+  "id": "w12_negative",
+  "phase": "wallet",
+  "test": "agent pays -1",
+  "signer": "tp-agent2.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "pay",
+  "args": {
+    "amount": "-1"
+  },
+  "expected": "failure: argument deserialization",
+  "actual": "failure: Smart contract panicked: Failed to deserialize input from JSON. Error: `invalid digit found in string at line 1 column 7",
+  "pass": true,
+  "at": "2026-11-13T02:54:31.979Z",
+  "tx_hash": "2ZY9aNkmx3GLKZi1EyoLixJndDU3JmsYoXqhQfFNzCuT",
+  "explorer": "https://nearblocks.io/txns/2ZY9aNkmx3GLKZi1EyoLixJndDU3JmsYoXqhQfFNzCuT",
+  "outcome": "failure",
+  "error_code": null,
+  "error_message": "Smart contract panicked: Failed to deserialize input from JSON. Error: `invalid digit found in string at line 1 column 71`",
+  "return_value": null,
+  "events": [],
+  "logs": [],
+  "gas_burnt_tgas": 1.676,
+  "tokens_burnt_near": "0.000145",
+  "tokens_burnt_yocto": "145362960531300000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

@@ -39,9 +39,13 @@ export function parsePolicyText(text, context) {
   const call = source.match(/(?:max(?:imum)?|cap|limit)\s+(\d+(?:\.\d+)?)\s*(?:wnear|near)\s+(?:per|each|a)\s+call/i);
   const ask = source.match(/ask me above\s+(\d+(?:\.\d+)?)/i);
   const named = source.match(/only pay\s+([a-z0-9][a-z0-9._-]*\.(?:near|testnet|tg))/i);
-  if (day) out.dailyMaxAtomic = decimalToAtomic(day[1], decimals);
-  if (call) out.perCallMaxAtomic = decimalToAtomic(call[1], decimals);
-  if (ask) out.approvalThresholdAtomic = decimalToAtomic(ask[1], decimals);
+  const atomic = (text) => {
+    const value = decimalToAtomic(text, decimals);
+    return value != null && ATOMIC.test(value) ? value : null;
+  };
+  if (day) out.dailyMaxAtomic = atomic(day[1]);
+  if (call) out.perCallMaxAtomic = atomic(call[1]);
+  if (ask) out.approvalThresholdAtomic = atomic(ask[1]);
   if (/only pay the triage api/i.test(source) && context.triagePayee && isNearAccount(context.triagePayee)) {
     out.payees = [context.triagePayee.toLowerCase()];
     notes.push("I read \"the triage API\" as the demo payee.");

@@ -1,0 +1,29 @@
+{
+  "id": "w31_mallory_revoke",
+  "phase": "wallet",
+  "test": "mallory revokes the real agent",
+  "signer": "tp-mallory.hlpok1lad.tg",
+  "receiver": "tp-wallet.hlpok1lad.tg",
+  "method": "revoke_agent",
+  "args": {
+    "agent_id": "tp-agent2.hlpok1lad.tg"
+  },
+  "expected": "ERR_NOT_OWNER",
+  "actual": "ERR_NOT_OWNER",
+  "pass": true,
+  "at": "2026-11-13T02:59:17.436Z",
+  "tx_hash": "DuaLgf2YT8BawiNNPAkGosfYZgZkqLUVjSzfwezgHWTw",
+  "explorer": "https://nearblocks.io/txns/DuaLgf2YT8BawiNNPAkGosfYZgZkqLUVjSzfwezgHWTw",
+  "outcome": "failure",
+  "error_code": "ERR_NOT_OWNER",
+  "error_message": "Smart contract panicked: ERR_NOT_OWNER: only the owner can call this method",
+  "return_value": null,
+  "events": [],
+  "logs": [],
+  "gas_burnt_tgas": 1.962,
+  "tokens_burnt_near": "0.000152",
+  "tokens_burnt_yocto": "151565593239600000000",
+  "balances_before": null,
+  "balances_after": null,
+  "note": null
+}

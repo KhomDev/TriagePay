@@ -232,10 +232,9 @@ impl AgentPolicy {
     }
 
     /// Same checks and reservation as [`check_and_reserve`], except the
-    /// payee allowlist. The wallet uses this when the owner has asked to
-    /// hold an unknown payee for approval. The amount still counts against
-    /// the per-call and daily limits, and a failure still leaves the policy
-    /// unchanged.
+    /// payee allowlist. The wallet uses this when the owner approves a
+    /// held payment to a payee that is still not allowlisted. A failure
+    /// leaves the policy unchanged.
     pub fn check_and_reserve_unlisted(
         &mut self,
         gate: WalletGate,
@@ -243,6 +242,34 @@ impl AgentPolicy {
         now_ns: u64,
     ) -> Result<Reservation, PolicyError> {
         self.reserve(gate, "", amount, now_ns, true)
+    }
+
+    /// The same checks as [`check_and_reserve`], without reserving.
+    ///
+    /// A hold uses this. The daily window is not reduced, so a queued
+    /// payment cannot crowd out a payment the owner has already allowed.
+    /// [`check_and_reserve`] is what consumes the cap, and the wallet calls
+    /// it again when the owner approves.
+    pub fn check(
+        &self,
+        gate: WalletGate,
+        payee: &str,
+        amount: u128,
+        now_ns: u64,
+    ) -> Result<(), PolicyError> {
+        self.validate(gate, payee, amount, now_ns, false)
+            .map(|_| ())
+    }
+
+    /// [`check`] without the payee allowlist. Used when a new payee is held
+    /// for the owner instead of refused.
+    pub fn check_unlisted(
+        &self,
+        gate: WalletGate,
+        amount: u128,
+        now_ns: u64,
+    ) -> Result<(), PolicyError> {
+        self.validate(gate, "", amount, now_ns, true).map(|_| ())
     }
 
     fn reserve(
@@ -253,6 +280,23 @@ impl AgentPolicy {
         now_ns: u64,
         skip_allowlist: bool,
     ) -> Result<Reservation, PolicyError> {
+        let (window, total) = self.validate(gate, payee, amount, now_ns, skip_allowlist)?;
+        self.window_index = window;
+        self.spent_in_window = total;
+        Ok(Reservation {
+            amount,
+            window_index: window,
+        })
+    }
+
+    fn validate(
+        &self,
+        gate: WalletGate,
+        payee: &str,
+        amount: u128,
+        now_ns: u64,
+        skip_allowlist: bool,
+    ) -> Result<(u64, u128), PolicyError> {
         if gate.paused {
             return Err(PolicyError::Paused);
         }
@@ -277,12 +321,7 @@ impl AgentPolicy {
         if total > self.daily_max {
             return Err(PolicyError::DailyLimit);
         }
-        self.window_index = window;
-        self.spent_in_window = total;
-        Ok(Reservation {
-            amount,
-            window_index: window,
-        })
+        Ok((window, total))
     }
 
     /// Return a reservation, for example after the downstream transfer
@@ -384,6 +423,29 @@ mod tests {
         assert!(!p.is_payee_allowed("stranger.near"));
         assert_eq!(
             p.check_and_reserve_unlisted(OPEN, 50_001, DAY5),
+            Err(PolicyError::PerCallLimit)
+        );
+        assert_eq!(p.spent_in_window(), 50_000);
+    }
+
+    #[test]
+    fn check_does_not_consume_the_daily_cap() {
+        let mut p = policy();
+        let before = p.clone();
+        p.check_unlisted(OPEN, 50_000, DAY5).unwrap();
+        p.check(OPEN, "gateway.near", 50_000, DAY5).unwrap();
+        assert_eq!(p, before);
+        assert_eq!(p.remaining_at(DAY5), 200_000);
+        // Four holds that would have filled the day still leave the budget.
+        for _ in 0..4 {
+            p.check(OPEN, "gateway.near", 50_000, DAY5).unwrap();
+        }
+        assert_eq!(p.spent_in_window(), 0);
+        p.check_and_reserve(OPEN, "gateway.near", 50_000, DAY5)
+            .unwrap();
+        assert_eq!(p.spent_in_window(), 50_000);
+        assert_eq!(
+            p.check(OPEN, "gateway.near", 200_000, DAY5),
             Err(PolicyError::PerCallLimit)
         );
         assert_eq!(p.spent_in_window(), 50_000);
@@ -621,6 +683,8 @@ mod tests {
             (PolicyError::InvalidPolicy, "ERR_INVALID_POLICY"),
             (PolicyError::Overflow, "ERR_OVERFLOW"),
             (PolicyError::ReleaseMismatch, "ERR_RELEASE_MISMATCH"),
+            (PolicyError::AgentOpenHolds, "ERR_AGENT_OPEN_HOLDS"),
+            (PolicyError::AgentDailyHolds, "ERR_AGENT_DAILY_HOLDS"),
         ];
         for (err, code) in all {
             assert_eq!(err.code(), code);

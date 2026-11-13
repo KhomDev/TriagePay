@@ -14,14 +14,26 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
+          components: rustfmt, clippy, llvm-tools-preview
       - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@cargo-llvm-cov
       - name: Format check
         run: cargo fmt --all -- --check
       - name: Clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: Tests
         run: cargo test --workspace --all-targets
+      - name: policy-core coverage
+        run: |
+          cargo llvm-cov -p policy-core --all-targets --fail-under-lines 95 --summary-only | tee policy-core-cov.txt
+          {
+            echo "### policy-core coverage"
+            echo '```'
+            cat policy-core-cov.txt
+            echo '```'
+            echo
+            echo "Line floor: 95%."
+          } >> "$GITHUB_STEP_SUMMARY"
   rust-audit:
     name: Rust dependency advisories
     runs-on: ubuntu-latest
@@ -91,7 +103,30 @@ jobs:
           node-version: "22"
       - name: Risk check, attacks, cooldown
         working-directory: demo/live
-        run: npm ci && npm test
+        run: |
+          npm ci
+          npx c8 --include=lib/policy-nl.js --check-coverage --lines 90 --reporter=text --reporter=text-summary node --test test/*.test.js | tee policy-nl-cov.txt
+          {
+            echo "### policy sentence parser coverage"
+            echo '```'
+            cat policy-nl-cov.txt
+            echo '```'
+            echo
+            echo "Line floor for lib/policy-nl.js: 90%."
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Policy-wallet SDK
         working-directory: packages/triagepay-sdk
-        run: npm test
+        run: |
+          npm ci
+          npm run lint
+          npm run coverage | tee sdk-cov.txt
+          {
+            echo "### triagepay-sdk coverage"
+            echo '```'
+            cat sdk-cov.txt
+            echo '```'
+            echo
+            echo "Line, statement, and function floor: 90%."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Mainnet watch script
+        run: node --test scripts/mainnet/live-check.test.mjs scripts/mainnet/budget.test.mjs examples/examples.test.mjs

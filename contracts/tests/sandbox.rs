@@ -15,6 +15,10 @@
 //!
 //! `POLICY_WALLET_WASM` and `TEST_TOKEN_WASM` override the artifact paths.
 
+use aps_core::Amount;
+use aps_near::rpc::{parse_tx_outcome, TxOutcome};
+use aps_near::{check_outcome, Verification};
+use aps_payment::{AssetId, DepositIntent, IntentId, IntentStatus};
 use near_workspaces::network::Sandbox;
 use near_workspaces::operations::Function;
 use near_workspaces::result::ExecutionFinalResult;
@@ -151,8 +155,8 @@ async fn setup_with(per_call: u128, daily: u128) -> Result<Env, Box<dyn std::err
     let gateway = sub(&root, "gateway", 5).await?;
     let token = deploy_token(&root, "token", &owner, SUPPLY).await?;
 
-    // Deploy and initialize in one batch signed by the wallet account, as
-    // the mainnet plan does (`new` is #[private]).
+    // Deploy and initialize in one batch signed by the wallet account.
+    // `new` accepts this account or its parent, and nobody else.
     let wallet = sub(&root, "wallet", 20).await?;
     wallet
         .batch(wallet.id())
@@ -678,21 +682,54 @@ async fn owner_withdraws_tokens() -> TestResult {
 
 #[tokio::test]
 #[cfg_attr(windows, ignore = "near-sandbox has no Windows build")]
-async fn init_and_callbacks_are_private() -> TestResult {
+async fn init_allows_the_account_or_its_parent_only() -> TestResult {
     let env = setup().await?;
-    // A fresh, uninitialized deployment: only the wallet account may init.
+    let code = wasm("policy_wallet", "POLICY_WALLET_WASM");
+    let init_args = json!({"owner": env.owner.id(), "tokens": [env.token.id()]});
+
+    // A stranger is not the account and not its parent.
     let fresh = sub(&env.root, "fresh", 10).await?;
-    fresh
-        .deploy(&wasm("policy_wallet", "POLICY_WALLET_WASM"))
-        .await?
-        .into_result()?;
+    fresh.deploy(&code).await?.into_result()?;
     let res = env
         .owner
         .call(fresh.id(), "new")
-        .args_json(json!({"owner": env.owner.id(), "tokens": [env.token.id()]}))
+        .args_json(init_args.clone())
         .transact()
         .await?;
-    assert_refused(&res, "Method new is private");
+    assert_refused(&res, "ERR_INIT_NOT_ALLOWED");
+
+    // The account itself may init, in the same batch as the deploy.
+    let self_init = sub(&env.root, "selfinit", 10).await?;
+    let res = self_init
+        .batch(self_init.id())
+        .deploy(&code)
+        .call(Function::new("new").args_json(init_args.clone()))
+        .transact()
+        .await?;
+    assert!(res.is_success(), "{:?}", res.failures());
+    let config: Value = env
+        .worker
+        .view(self_init.id(), "get_config")
+        .await?
+        .json()?;
+    assert_eq!(config["owner"], json!(env.owner.id()));
+
+    // The parent may init. That is the factory's predecessor in the create batch.
+    let by_parent = sub(&env.root, "byparent", 10).await?;
+    by_parent.deploy(&code).await?.into_result()?;
+    let res = env
+        .root
+        .call(by_parent.id(), "new")
+        .args_json(init_args)
+        .transact()
+        .await?;
+    assert!(res.is_success(), "{:?}", res.failures());
+    let config: Value = env
+        .worker
+        .view(by_parent.id(), "get_config")
+        .await?
+        .json()?;
+    assert_eq!(config["owner"], json!(env.owner.id()));
     // The agent cannot forge a failed-transfer callback to refund itself.
     let res = env
         .agent_full
@@ -804,5 +841,321 @@ async fn close_after_withdrawing_everything_deletes_the_wallet() -> TestResult {
         gained >= held && gained - held < tolerance,
         "beneficiary gained {gained}, wallet held {held}"
     );
+    Ok(())
+}
+
+// ----- review queue, restore, and the receipt verifier ---------------------------
+
+async fn pay_memo(
+    env: &Env,
+    receiver: &AccountId,
+    amount: u128,
+    memo: &str,
+) -> Result<ExecutionFinalResult, Box<dyn std::error::Error>> {
+    Ok(env
+        .agent
+        .call(env.wallet.id(), "pay")
+        .args_json(json!({
+            "token": env.token.id(),
+            "receiver_id": receiver,
+            "amount": amount.to_string(),
+            "memo": memo,
+        }))
+        .gas(PAY_GAS)
+        .transact()
+        .await?)
+}
+
+#[tokio::test]
+#[cfg_attr(windows, ignore = "near-sandbox has no Windows build")]
+async fn hold_then_approve_moves_funds_once() -> TestResult {
+    let env = setup().await?;
+    let stranger = sub(&env.root, "stranger", 5).await?;
+    register(&env.token, &env.owner, stranger.id()).await?;
+    env.owner_call(
+        "set_review_policy",
+        json!({"approval_threshold": "0", "review_unknown_payees": true}),
+    )
+    .await?
+    .into_result()?;
+    let wallet0 = env.balance(env.wallet.id()).await?;
+    let res = pay_memo(&env, stranger.id(), 1_000, "hold-approve").await?;
+    assert!(res.is_success(), "{:?}", res.failures());
+    assert!(has_event(&res, "payment_queued"));
+    assert!(!has_event(&res, "pay_settled"));
+    assert_eq!(env.balance(env.wallet.id()).await?, wallet0);
+    assert_eq!(env.balance(stranger.id()).await?, 0);
+    assert_eq!(env.spent().await?, 0);
+    let pending: Vec<Value> = env
+        .worker
+        .view(env.wallet.id(), "get_pending")
+        .await?
+        .json()?;
+    assert_eq!(pending.len(), 1);
+    let res = env
+        .owner_call(
+            "approve_payment",
+            json!({"payment_id": pending[0]["payment_id"]}),
+        )
+        .await?;
+    assert!(
+        res.is_success() && has_event(&res, "pay_settled"),
+        "{:?}",
+        res.failures()
+    );
+    assert_eq!(env.balance(env.wallet.id()).await?, wallet0 - 1_000);
+    assert_eq!(env.balance(stranger.id()).await?, 1_000);
+    assert_eq!(env.spent().await?, 1_000);
+    let pending: Vec<Value> = env
+        .worker
+        .view(env.wallet.id(), "get_pending")
+        .await?
+        .json()?;
+    assert!(pending.is_empty());
+    let again = env
+        .owner_call("approve_payment", json!({"payment_id": "0"}))
+        .await?;
+    assert_refused(&again, "ERR_NOT_PENDING");
+    assert_eq!(env.balance(stranger.id()).await?, 1_000);
+    Ok(())
+}
+
+#[tokio::test]
+#[cfg_attr(windows, ignore = "near-sandbox has no Windows build")]
+async fn hold_then_reject_moves_nothing_and_restores_the_budget() -> TestResult {
+    let env = setup().await?;
+    env.owner_call(
+        "set_review_policy",
+        json!({"approval_threshold": "1000", "review_unknown_payees": false}),
+    )
+    .await?
+    .into_result()?;
+    let before = env.snapshot().await?;
+    let res = pay_memo(&env, env.gateway.id(), 1_001, "hold-reject").await?;
+    assert!(
+        res.is_success() && has_event(&res, "payment_queued"),
+        "{:?}",
+        res.failures()
+    );
+    assert!(!has_event(&res, "pay_settled"));
+    assert_eq!(env.balance(env.wallet.id()).await?, before.0);
+    assert_eq!(env.balance(env.gateway.id()).await?, before.1);
+    assert_eq!(env.spent().await?, 0);
+    let res = env
+        .owner_call("reject_payment", json!({"payment_id": "0"}))
+        .await?;
+    assert!(
+        res.is_success() && has_event(&res, "payment_rejected"),
+        "{:?}",
+        res.failures()
+    );
+    assert_eq!(env.snapshot().await?, before);
+    let pending: Vec<Value> = env
+        .worker
+        .view(env.wallet.id(), "get_pending")
+        .await?
+        .json()?;
+    assert!(pending.is_empty());
+    Ok(())
+}
+
+#[tokio::test]
+#[cfg_attr(windows, ignore = "near-sandbox has no Windows build")]
+async fn revoke_then_restore_keeps_the_daily_total() -> TestResult {
+    let env = setup().await?;
+    assert!(env.pay(PER_CALL).await?.is_success());
+    env.owner_call("revoke_agent", json!({"agent_id": env.agent.id()}))
+        .await?
+        .into_result()?;
+    assert_refused(&env.pay(1).await?, "ERR_AGENT_INACTIVE");
+    env.owner_call(
+        "set_agent",
+        json!({
+            "agent_id": env.agent.id(),
+            "per_call_max": PER_CALL.to_string(),
+            "daily_max": DAILY.to_string(),
+            "payees": [env.gateway.id()],
+        }),
+    )
+    .await?
+    .into_result()?;
+    let view = env.agent_view().await?;
+    assert_eq!(view["active"], true);
+    assert_eq!(view["spent_in_window"], PER_CALL.to_string());
+    let gateway0 = env.balance(env.gateway.id()).await?;
+    assert!(env.pay(PER_CALL).await?.is_success());
+    assert_eq!(env.balance(env.gateway.id()).await?, gateway0 + PER_CALL);
+    assert_eq!(env.spent().await?, PER_CALL * 2);
+    Ok(())
+}
+
+#[tokio::test]
+#[cfg_attr(windows, ignore = "near-sandbox has no Windows build")]
+async fn pay_only_key_cannot_call_review_methods() -> TestResult {
+    let env = setup().await?;
+    let before = env.snapshot().await?;
+    assert_not_success(
+        env.agent
+            .call(env.wallet.id(), "set_review_policy")
+            .args_json(json!({"approval_threshold": "1", "review_unknown_payees": true}))
+            .transact()
+            .await,
+    );
+    assert_not_success(
+        env.agent
+            .call(env.wallet.id(), "approve_payment")
+            .args_json(json!({"payment_id": "0"}))
+            .transact()
+            .await,
+    );
+    assert_not_success(
+        env.agent
+            .call(env.wallet.id(), "reject_payment")
+            .args_json(json!({"payment_id": "0"}))
+            .transact()
+            .await,
+    );
+    assert_eq!(env.snapshot().await?, before);
+    let review: Value = env
+        .worker
+        .view(env.wallet.id(), "get_review_policy")
+        .await?
+        .json()?;
+    assert_eq!(review["approval_threshold"], "0");
+    assert_eq!(review["review_unknown_payees"], false);
+    Ok(())
+}
+
+/// The sandbox node answers `EXPERIMENTAL_tx_status`. The adapter's first
+/// choice, `tx_status`, is a later method and this node rejects it.
+fn sandbox_tx_outcome(url: &str, tx_hash: &str, signer_id: &str) -> TxOutcome {
+    let body = json!({
+        "jsonrpc": "2.0",
+        "id": "sandbox",
+        "method": "EXPERIMENTAL_tx_status",
+        "params": {
+            "tx_hash": tx_hash,
+            "sender_account_id": signer_id,
+            "wait_until": "FINAL",
+        },
+    });
+    let response = ureq::post(url)
+        .set("Content-Type", "application/json")
+        .send_string(&body.to_string())
+        .unwrap_or_else(|err| panic!("sandbox rpc: {err}"))
+        .into_string()
+        .expect("sandbox rpc body");
+    let parsed: Value = serde_json::from_str(&response).expect("sandbox rpc json");
+    if let Some(err) = parsed.get("error") {
+        panic!("sandbox rpc error: {err}");
+    }
+    parse_tx_outcome(tx_hash, &parsed["result"]).expect("sandbox transaction status")
+}
+
+#[tokio::test]
+#[cfg_attr(windows, ignore = "near-sandbox has no Windows build")]
+async fn x402_verifier_accepts_the_token_event_and_ignores_a_moved_log() -> TestResult {
+    let env = setup().await?;
+    let memo = "intent-sandbox-1";
+    let amount = 7_000u128;
+    let res = pay_memo(&env, env.gateway.id(), amount, memo).await?;
+    assert!(
+        res.is_success() && has_event(&res, "pay_settled"),
+        "{:?}",
+        res.failures()
+    );
+    let tx_hash = res.outcome().transaction_hash.to_string();
+    let outcome = sandbox_tx_outcome(
+        env.worker.rpc_addr().trim(),
+        &tx_hash,
+        env.agent.id().as_str(),
+    );
+    let intent = DepositIntent {
+        intent_id: IntentId::new(memo.to_string()),
+        deposit_address: env.gateway.id().to_string(),
+        asset_id: AssetId::new(env.token.id().as_str()),
+        amount: Amount::from_atomic(amount),
+        expires_at_unix: 10_000,
+        status: IntentStatus::Pending,
+    };
+    let check = check_outcome(&intent, &outcome);
+    match &check.verification {
+        Verification::Confirmed { amount_atomic, .. } => {
+            assert_eq!(amount_atomic, &amount.to_string());
+        }
+        other => panic!("expected a confirmed receipt, got {other:?}"),
+    }
+    let evidence = check.evidence.expect("confirmed payments carry evidence");
+    assert_eq!(evidence.predecessor_id, env.wallet.id().as_str());
+    assert_eq!(evidence.payer_id, env.wallet.id().as_str());
+    assert_eq!(evidence.receiver_id, env.gateway.id().as_str());
+    assert_eq!(evidence.memo, memo);
+    assert_eq!(evidence.executor_id, env.token.id().as_str());
+
+    let mut spoofed = outcome.clone();
+    let mut moved = false;
+    for receipt in &mut spoofed.receipts_outcome {
+        if receipt.executor_id == env.token.id().as_str() {
+            receipt.executor_id = env.wallet.id().to_string();
+            moved = true;
+        }
+    }
+    assert!(moved, "the token receipt was not in the status");
+    let spoof = check_outcome(&intent, &spoofed);
+    assert!(
+        matches!(spoof.verification, Verification::StructuralMismatch(_)),
+        "a log moved off the token executor must not confirm: {:?}",
+        spoof.verification
+    );
+    assert!(spoof.evidence.is_none());
+    Ok(())
+}
+
+/// A hijacked agent used to fill the review queue and the daily cap.
+/// Holds must not spend the cap, and one agent cannot take every slot.
+#[tokio::test]
+#[cfg_attr(windows, ignore = "near-sandbox has no Windows build")]
+async fn hijacked_agent_cannot_fill_the_queue_or_the_daily_budget() -> TestResult {
+    let env = setup().await?;
+    env.owner_call(
+        "set_review_policy",
+        json!({"approval_threshold": "0", "review_unknown_payees": true}),
+    )
+    .await?
+    .into_result()?;
+    let before = env.snapshot().await?;
+    for i in 0..3 {
+        let stranger = sub(&env.root, &format!("junk{i}"), 2).await?;
+        let res = env
+            .pay_with(&env.agent, env.token.id(), stranger.id(), 1)
+            .await?;
+        assert!(res.is_success(), "{:?}", res.failures());
+        assert!(has_event(&res, "payment_queued"));
+    }
+    assert_eq!(
+        env.snapshot().await?,
+        before,
+        "holds must not move balances or spend"
+    );
+    let fourth = sub(&env.root, "junk3", 2).await?;
+    assert_refused(
+        &env.pay_with(&env.agent, env.token.id(), fourth.id(), 1)
+            .await?,
+        "ERR_AGENT_OPEN_HOLDS",
+    );
+    assert_eq!(env.snapshot().await?, before);
+    let settled = env.pay(PER_CALL).await?;
+    assert!(settled.is_success(), "{:?}", settled.failures());
+    assert_eq!(env.spent().await?, PER_CALL);
+    let res = env.owner_call("reject_all", json!({})).await?;
+    assert!(res.is_success(), "{:?}", res.failures());
+    assert!(has_event(&res, "payment_rejected"));
+    assert_eq!(env.spent().await?, PER_CALL);
+    let pending: Vec<Value> = env
+        .worker
+        .view(env.wallet.id(), "get_pending")
+        .await?
+        .json()?;
+    assert!(pending.is_empty());
     Ok(())
 }
