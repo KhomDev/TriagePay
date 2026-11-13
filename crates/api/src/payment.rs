@@ -84,8 +84,54 @@ impl Provider {
         }
     }
 
+    /// First half of an observation, under the provider lock: either the
+    /// final answer, or what to read from the chain. The chain read itself
+    /// must run with the lock released (see [`observe_unlocked`]).
+    pub fn begin_observe(&mut self, intent_id: &IntentId) -> Result<ObserveStep, ProviderError> {
+        match self {
+            Provider::Mock(mock) => mock.observe(intent_id).map(ObserveStep::Done),
+            Provider::Near(near) => match near.prepare_fetch(intent_id)? {
+                aps_near::FetchStep::Ready(observation) => Ok(ObserveStep::Done(observation)),
+                aps_near::FetchStep::Verify { rpc, intent, hint } => {
+                    Ok(ObserveStep::Fetch { rpc, intent, hint })
+                }
+            },
+        }
+    }
+
+    /// First half of a foreign-proof probe, under the provider lock.
+    pub fn begin_probe(
+        &mut self,
+        intent_id: &IntentId,
+        hint: aps_near::TxHint,
+    ) -> Result<Option<ObserveStep>, ProviderError> {
+        let Provider::Near(near) = self else {
+            return Ok(None);
+        };
+        match near.prepare_probe(intent_id, hint)? {
+            aps_near::FetchStep::Verify { rpc, intent, hint } => {
+                Ok(Some(ObserveStep::Fetch { rpc, intent, hint }))
+            }
+            aps_near::FetchStep::Ready(_) => Ok(None),
+        }
+    }
+
+    /// Second half: apply a chain read made with the lock released.
+    pub fn finish_check(
+        &mut self,
+        intent_id: &IntentId,
+        check: aps_near::ReceiptCheck,
+    ) -> Result<Observation, ProviderError> {
+        match self {
+            Provider::Mock(mock) => mock.observe(intent_id),
+            Provider::Near(near) => near.apply_check(intent_id, check),
+        }
+    }
+
     /// Observe an intent. For the NEAR provider the chain fetch runs on
-    /// the blocking thread pool; observations are idempotent.
+    /// the blocking thread pool; observations are idempotent. This holds
+    /// `&mut self` across the read: route handlers use
+    /// [`observe_unlocked`] instead, which releases the provider lock.
     pub async fn observe(&mut self, intent_id: &IntentId) -> Result<Observation, ProviderError> {
         match self {
             Provider::Mock(mock) => mock.observe(intent_id),
@@ -346,6 +392,7 @@ pub async fn create_intent(
 ) -> Result<(StatusCode, Json<IntentJson>), ApiError> {
     let Json(request) = body.map_err(crate::handlers::rejected_json)?;
     let amount = crate::dto::parse_amount_atomic(&request.amount_atomic)?;
+    state.claim_account(&request.account_id)?;
     let scenario = match request.mock_scenario {
         None => None,
         Some(scenario) => Some(MockScenario::try_from(scenario)?),
@@ -471,6 +518,76 @@ pub(crate) struct FundingResult {
     pub intent: DepositIntent,
 }
 
+/// What [`Provider::begin_observe`] asks for next.
+pub enum ObserveStep {
+    /// The observation is final; no chain read is needed.
+    Done(Observation),
+    /// Read this transaction from the chain, then apply the result.
+    Fetch {
+        rpc: aps_near::rpc::NearRpc,
+        intent: DepositIntent,
+        hint: aps_near::TxHint,
+    },
+}
+
+/// Read a transaction from the chain on the blocking pool. Runs with no
+/// lock held.
+async fn chain_check(
+    rpc: aps_near::rpc::NearRpc,
+    intent: DepositIntent,
+    hint: aps_near::TxHint,
+) -> Result<aps_near::ReceiptCheck, ProviderError> {
+    tokio::task::spawn_blocking(move || aps_near::verify_tx_receipts(rpc, &intent, &hint))
+        .await
+        .map_err(|err| ProviderError::Validation(format!("verification task failed: {err}")))?
+}
+
+/// Submit an optional hint and observe an intent, holding the provider
+/// lock only for the in-memory steps. The JSON-RPC read runs with the
+/// lock released, so one slow or bogus hint cannot stall every other
+/// payment route for the RPC timeout. Applying a check is idempotent, so
+/// two concurrent observations of one intent converge.
+pub(crate) async fn observe_unlocked(
+    state: &AppState,
+    intent_id: &IntentId,
+    hint: Option<aps_near::TxHint>,
+) -> Result<Observation, ProviderError> {
+    let step = {
+        let mut provider = state.payment().lock().await;
+        provider.sync_clock(unix_now());
+        if let Some(hint) = hint {
+            provider.submit_hint(intent_id, hint).await?;
+        }
+        provider.begin_observe(intent_id)?
+    };
+    match step {
+        ObserveStep::Done(observation) => Ok(observation),
+        ObserveStep::Fetch { rpc, intent, hint } => {
+            let check = chain_check(rpc, intent, hint).await?;
+            let mut provider = state.payment().lock().await;
+            provider.sync_clock(unix_now());
+            provider.finish_check(intent_id, check)
+        }
+    }
+}
+
+/// Probe a transaction that is not the intent's funding proof and record
+/// any matching transfer as an orphan, with the chain read outside the
+/// provider lock. Best effort.
+pub(crate) async fn probe_unlocked(state: &AppState, intent_id: &IntentId, hint: aps_near::TxHint) {
+    let step = {
+        let mut provider = state.payment().lock().await;
+        provider.sync_clock(unix_now());
+        provider.begin_probe(intent_id, hint)
+    };
+    if let Ok(Some(ObserveStep::Fetch { rpc, intent, hint })) = step {
+        if let Ok(check) = chain_check(rpc, intent, hint).await {
+            let mut provider = state.payment().lock().await;
+            let _ = provider.finish_check(intent_id, check);
+        }
+    }
+}
+
 /// The one funding path: submit the hint (NEAR), observe the provider,
 /// reconcile purely, and - only on an exact match - deposit the intent
 /// amount into the account under the idempotency key `intent:<id>`.
@@ -482,15 +599,7 @@ pub(crate) async fn observe_and_fund(
     account_id: &str,
     hint: Option<aps_near::TxHint>,
 ) -> Result<FundingResult, ProviderError> {
-    let now = unix_now();
-    let observation = {
-        let mut provider = state.payment().lock().await;
-        provider.sync_clock(now);
-        if let Some(hint) = hint {
-            provider.submit_hint(intent_id, hint).await?;
-        }
-        provider.observe(intent_id).await?
-    };
+    let observation = observe_unlocked(state, intent_id, hint).await?;
     let intent = state
         .with_payment(|provider| provider.intent(intent_id))
         .await?

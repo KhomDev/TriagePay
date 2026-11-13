@@ -163,6 +163,21 @@ async fn mismatched_payment_never_funds() {
         "4000000"
     );
 
+    // Red-team P-03: a second poll replays the mismatch; it never turns
+    // into a funding confirmation.
+    let again = body_json(
+        send(
+            app.clone(),
+            "POST",
+            format!("/payment/intents/{intent_id}/observations"),
+            None,
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(again["reconciled"].as_str().unwrap(), "mismatch");
+    assert!(!again["funded"].as_bool().unwrap());
+
     // The account was never created: no funding path ever ran.
     let missing = send(app, "GET", "/accounts/acct-2".to_string(), None).await;
     assert_eq!(missing.status(), StatusCode::NOT_FOUND);

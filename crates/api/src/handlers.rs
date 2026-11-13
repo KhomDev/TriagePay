@@ -30,6 +30,7 @@ pub async fn get_account(
     State(state): State<AppState>,
     Path(account_id): Path<String>,
 ) -> Result<Json<BalancesJson>, ApiError> {
+    state.check_account(&account_id)?;
     let ledger = state.read_ledger().await;
     let balances = ledger.balances(&account_id)?;
     Ok(Json(BalancesJson::from(balances)))
@@ -52,6 +53,7 @@ pub async fn deposit(
     }
     let Json(request) = body.map_err(rejected_json)?;
     let amount = parse_amount_atomic(&request.amount_atomic)?;
+    state.claim_account(&account_id)?;
     let mut ledger = state.write_ledger().await;
     let receipt = ledger.deposit(
         state.caller(),
@@ -68,11 +70,19 @@ pub async fn deposit(
 }
 
 /// Map axum's JSON rejection to the standard 400 error shape.
+///
+/// The message names only the kind of failure. serde's own text quotes
+/// unknown field names, which are attacker-chosen, so it never reaches the
+/// response body (the same rule the scanner errors follow).
 pub(crate) fn rejected_json(rejection: JsonRejection) -> ApiError {
-    ApiError::validation(format!(
-        "request body must be strict JSON: {}",
-        rejection.body_text()
-    ))
+    let kind = match &rejection {
+        JsonRejection::MissingJsonContentType(_) => "the content type must be application/json",
+        JsonRejection::JsonSyntaxError(_) => "the body is not valid JSON",
+        JsonRejection::JsonDataError(_) => "a field is missing, unknown, or of the wrong type",
+        JsonRejection::BytesRejection(_) => "the body could not be read",
+        _ => "the body was rejected",
+    };
+    ApiError::validation(format!("request body must be strict JSON: {kind}"))
 }
 
 /// Resolve a wire job id to the canonical core `JobId`, 404 if unknown.
@@ -84,6 +94,12 @@ pub(crate) fn known_job(state: &AppState, wire_id: &str) -> Result<JobId, ApiErr
 
 /// `POST /reservations` — lock available credit for a job.
 ///
+/// The server prices the reservation from its price book: the SKU must be
+/// the one this server's scan route runs, and `amount_atomic`, when sent,
+/// must equal that price (the mock provider also accepts another non-zero
+/// amount as a development override). The account must belong to the
+/// caller, and the job is bound to the caller that reserved it.
+///
 /// 201 when the reservation is new, 200 when the idempotency key replays
 /// the recorded receipt. No funds move on replay.
 pub async fn create_reservation(
@@ -91,7 +107,13 @@ pub async fn create_reservation(
     body: Result<Json<ReservationRequest>, JsonRejection>,
 ) -> Result<(StatusCode, Json<ReservationJson>), ApiError> {
     let Json(request) = body.map_err(rejected_json)?;
-    let amount = parse_amount_atomic(&request.amount_atomic)?;
+    let requested = request
+        .amount_atomic
+        .as_deref()
+        .map(parse_amount_atomic)
+        .transpose()?;
+    let amount = state.reservation_price(&request.sku, requested)?;
+    state.check_account(&request.account_id)?;
     let mut ledger = state.write_ledger().await;
     let reservation = ledger.reserve(
         state.caller(),

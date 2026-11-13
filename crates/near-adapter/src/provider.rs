@@ -37,6 +37,13 @@ pub const ENV_ASSET_CONTRACT: &str = "NEAR_ASSET_CONTRACT";
 /// Per-call RPC timeout in seconds.
 pub const ENV_RPC_TIMEOUT_SECS: &str = "NEAR_RPC_TIMEOUT_SECS";
 
+/// How long after its expiry an intent with no chain evidence is kept, so
+/// that a transfer which landed in time but is presented late can still be
+/// recorded as an orphan for an operator refund. After this window an
+/// intent that only ever received unverified hints is forgotten: a hint is
+/// a free client assertion and must not pin state forever.
+pub const ORPHAN_GRACE_SECS: u64 = 3600;
+
 /// Configuration for the NEAR adapter. Every value is a public on-chain
 /// identifier or a public endpoint; keys are never part of this struct.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -210,6 +217,7 @@ pub struct NearProvider {
     next_intent: u64,
     next_refund: u64,
     unix_now: u64,
+    orphan_grace_secs: u64,
 }
 
 impl NearProvider {
@@ -225,7 +233,15 @@ impl NearProvider {
             next_intent: 0,
             next_refund: 0,
             unix_now: 0,
+            orphan_grace_secs: ORPHAN_GRACE_SECS,
         })
+    }
+
+    /// Override how long an expired intent without chain evidence is kept
+    /// (default [`ORPHAN_GRACE_SECS`]). Tests use a short window.
+    pub fn with_orphan_grace_secs(mut self, secs: u64) -> Self {
+        self.orphan_grace_secs = secs;
+        self
     }
 
     /// The configuration in use (public values only).
@@ -358,19 +374,27 @@ impl NearProvider {
         self.apply_verification(intent_id, check.verification)
     }
 
-    /// Forget the listed intents that expired without anyone trying to pay
-    /// them: no hint, no orphan, no observation other than the expiry.
-    /// Returns the ids that were dropped. An intent someone presented a
-    /// transaction for is always kept, so its record stays available for
-    /// an operator refund. This bounds the memory that unpaid requirement
-    /// requests can hold to the requests of one validity window.
+    /// Forget the listed intents that expired without chain evidence of a
+    /// payment: no verified transfer, no orphan, no confirmation. Returns
+    /// the ids that were dropped. An intent with a recorded transfer is
+    /// always kept, so its record stays available for an operator refund.
+    ///
+    /// A submitted hint alone does not keep an intent: anyone can submit
+    /// any string. Every intent is kept for [`ORPHAN_GRACE_SECS`] after its
+    /// expiry, so a transfer that landed in time and is presented late is
+    /// still read and recorded. This bounds the memory that unpaid or
+    /// falsely hinted requirement requests can hold to the requests of one
+    /// validity window plus the grace window.
     pub fn forget_unpaid(&mut self, ids: &[IntentId]) -> Vec<IntentId> {
         let now = self.unix_now;
         let mut dropped = Vec::new();
         for id in ids {
             let stale = self.intents.get(id).is_some_and(|entry| {
-                now >= entry.intent.expires_at_unix
-                    && entry.hint.is_none()
+                now >= entry
+                    .intent
+                    .expires_at_unix
+                    .saturating_add(self.orphan_grace_secs)
+                    && entry.evidence.is_none()
                     && entry.orphans.is_empty()
                     && !matches!(entry.observation, Some(Observation::Confirmed { .. }))
             });
@@ -905,6 +929,52 @@ mod tests {
             aps_payment::reconcile(&intent, &exact),
             aps_payment::ReconcileOutcome::Fund { .. }
         ));
+    }
+
+    /// Red-team RT-07: an unverified hint does not pin an expired intent
+    /// forever. It is kept through the grace window (a late, real transfer
+    /// can still be recorded) and forgotten after it; an intent with a
+    /// recorded orphan transfer is always kept.
+    #[test]
+    fn a_bare_hint_keeps_an_intent_only_for_the_grace_window() {
+        let mut provider = NearProvider::new(config())
+            .unwrap()
+            .with_orphan_grace_secs(60);
+        provider.sync_clock(100);
+        let hinted = provider.create_intent(request(1_000_000, 200)).unwrap();
+        let orphaned = provider.create_intent(request(1_000_000, 200)).unwrap();
+        provider
+            .submit_hint(
+                &hinted.intent_id,
+                TxHint {
+                    signer_id: "x".to_string(),
+                    tx_hash: "bogus".to_string(),
+                },
+            )
+            .unwrap();
+        provider
+            .intents
+            .get_mut(&orphaned.intent_id)
+            .unwrap()
+            .add_orphans([OrphanTransfer {
+                tx_hash: "late".to_string(),
+                receipt_id: "r".to_string(),
+                payer_id: "payer.near".to_string(),
+                amount_atomic: "1000000".to_string(),
+                reason: "late".to_string(),
+            }]);
+        let ids = vec![hinted.intent_id.clone(), orphaned.intent_id.clone()];
+
+        provider.sync_clock(230);
+        assert!(
+            provider.forget_unpaid(&ids).is_empty(),
+            "inside the grace window"
+        );
+
+        provider.sync_clock(261);
+        assert_eq!(provider.forget_unpaid(&ids), vec![hinted.intent_id.clone()]);
+        assert!(provider.intent(&hinted.intent_id).is_none());
+        assert!(provider.intent(&orphaned.intent_id).is_some());
     }
 
     #[test]

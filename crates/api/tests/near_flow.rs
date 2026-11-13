@@ -351,3 +351,80 @@ async fn near_mock_scenarios_and_foreign_assets_are_rejected() {
     .await;
     assert_eq!(status, 400, "{error}");
 }
+
+/// Red-team RT-01: with a provider that settles real payments, the server
+/// prices a reservation from its price book. A caller-chosen amount below
+/// the price is refused, an unsold SKU is refused, and an omitted amount
+/// reserves exactly the book price.
+#[tokio::test]
+async fn near_reservations_are_priced_by_the_server() {
+    let (url, cell) = stub_server();
+    let app = near_app(&url);
+    let (status, intent) = post(
+        app.clone(),
+        "/payment/intents",
+        Some(json!({
+            "account_id": "acct-priced",
+            "asset_id": ASSET,
+            "amount_atomic": "2000000",
+            "expires_in_secs": 3600,
+        })),
+    )
+    .await;
+    assert_eq!(status, 201, "{intent}");
+    let intent_id = intent["intent_id"].as_str().expect("intent id").to_string();
+    store_tx(&cell, &intent_id, "2000000");
+    let (status, observation) = post(
+        app.clone(),
+        &format!("/payment/intents/{intent_id}/observations"),
+        Some(json!({"signer_id": SIGNER, "tx_hash": "txhash"})),
+    )
+    .await;
+    assert_eq!(status, 200, "{observation}");
+    assert_eq!(observation["funded"], true);
+
+    // One atomic unit for a full scan: refused, nothing reserved.
+    let (status, error) = post(
+        app.clone(),
+        "/reservations",
+        Some(json!({
+            "account_id": "acct-priced",
+            "sku": "scan.v1",
+            "amount_atomic": "1",
+            "idempotency_key": "cheap",
+        })),
+    )
+    .await;
+    assert_eq!(status, 400, "{error}");
+    assert_eq!(error["error"]["code"], "validation_error");
+
+    // A SKU the scan route does not run: refused.
+    let (status, error) = post(
+        app.clone(),
+        "/reservations",
+        Some(json!({
+            "account_id": "acct-priced",
+            "sku": "triage.v2",
+            "idempotency_key": "other-sku",
+        })),
+    )
+    .await;
+    assert_eq!(status, 400, "{error}");
+
+    let balances = balances_of(app.clone(), "acct-priced").await;
+    assert_eq!(balances["reserved"]["atomic"], "0");
+
+    // No amount: the book price is reserved.
+    let (status, reservation) = post(
+        app.clone(),
+        "/reservations",
+        Some(json!({
+            "account_id": "acct-priced",
+            "sku": "scan.v1",
+            "idempotency_key": "priced",
+        })),
+    )
+    .await;
+    assert_eq!(status, 201, "{reservation}");
+    assert_eq!(reservation["reserved"]["atomic"], "1000000");
+}

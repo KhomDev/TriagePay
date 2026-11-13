@@ -55,7 +55,16 @@ pub struct AppState {
     /// reserve is answered unknown_job at 404, matching the ledger's
     /// own view. A public FromStr for JobId in the core would let
     /// this field disappear.
-    job_ids: Arc<RwLock<HashMap<String, JobId>>>,
+    ///
+    /// Each entry also records the caller that reserved the job: a job is
+    /// visible only to that caller, so a job id learned by someone else
+    /// answers 404 exactly like an id that was never issued.
+    job_ids: Arc<RwLock<HashMap<String, (JobId, String)>>>,
+    /// Account id to the caller that first funded it. Reservations and
+    /// balance reads are refused for an account another caller owns.
+    account_owners: Arc<RwLock<HashMap<String, String>>>,
+    /// The server-side price of every SKU a reservation may name.
+    price_book: Arc<aps_core::PriceBook>,
     caller: String,
     /// Which payment provider is active: "mock" or "near". Stored
     /// un-locked so kind checks never contend on the provider mutex.
@@ -97,8 +106,12 @@ impl AppState {
         launcher: scanbridge::ScanLauncher,
     ) -> Self {
         let (network, asset, _) = provider.x402_identity();
-        let price = aps_core::PriceBook::default_book()
-            .price(aps_core::SCAN_SKU)
+        let price_book = aps_core::PriceBook::default_book();
+        // The paid route runs the launcher's SKU, so it is priced at that
+        // SKU's book price (not always scan.v1's).
+        let price = price_book
+            .price(launcher.sku())
+            .or_else(|| price_book.price(aps_core::SCAN_SKU))
             .unwrap_or(aps_core::Amount::from_atomic(1_000_000));
         let x402 = x402::X402State::new(x402::X402Config {
             network,
@@ -111,6 +124,8 @@ impl AppState {
             x402: Arc::new(x402),
             ledger: Arc::new(tokio::sync::RwLock::new(Ledger::new())),
             job_ids: Arc::new(RwLock::new(HashMap::new())),
+            account_owners: Arc::new(RwLock::new(HashMap::new())),
+            price_book: Arc::new(price_book),
             caller: caller.into(),
             provider_kind: provider.kind(),
             scan: Arc::new(launcher),
@@ -168,6 +183,69 @@ impl AppState {
     /// the scanner produced.
     pub(crate) fn dev_routes_enabled(&self) -> bool {
         self.provider_kind == "mock"
+    }
+
+    /// The server-side price of a reservation for `sku`.
+    ///
+    /// Only the SKU the scan route actually runs can be reserved, and it
+    /// is charged at its price-book price. A caller-supplied amount is
+    /// accepted only when it equals that price, or, with the mock provider
+    /// (where credit itself is free), as a development override.
+    pub(crate) fn reservation_price(
+        &self,
+        sku: &str,
+        requested: Option<aps_core::Amount>,
+    ) -> Result<aps_core::Amount, ApiError> {
+        let runs = self.scan.sku();
+        if sku != runs {
+            return Err(ApiError::validation(format!(
+                "sku {sku:?} is not sold here; this server runs {runs:?}"
+            )));
+        }
+        let price = self
+            .price_book
+            .price(sku)
+            .ok_or_else(|| ApiError::internal("the scan sku has no price"))?;
+        match requested {
+            None => Ok(price),
+            Some(amount) if amount == price => Ok(price),
+            Some(amount) if self.dev_routes_enabled() && !amount.is_zero() => Ok(amount),
+            Some(amount) => Err(ApiError::validation(format!(
+                "amount_atomic {} does not match the price of {sku} ({}); omit it to pay the price",
+                amount.atomic(),
+                price.atomic()
+            ))),
+        }
+    }
+
+    /// Record that the current caller funds `account_id`, or refuse when
+    /// another caller already does.
+    pub(crate) fn claim_account(&self, account_id: &str) -> Result<(), ApiError> {
+        let mut owners = self
+            .account_owners
+            .write()
+            .map_err(|_| ApiError::internal("account registry is unavailable"))?;
+        match owners.get(account_id) {
+            Some(owner) if owner != &self.caller => Err(ApiError::unknown_account(account_id)),
+            Some(_) => Ok(()),
+            None => {
+                owners.insert(account_id.to_string(), self.caller.clone());
+                Ok(())
+            }
+        }
+    }
+
+    /// Refuse an account another caller owns, answering exactly like an
+    /// account that was never funded.
+    pub(crate) fn check_account(&self, account_id: &str) -> Result<(), ApiError> {
+        let owners = self
+            .account_owners
+            .read()
+            .map_err(|_| ApiError::internal("account registry is unavailable"))?;
+        match owners.get(account_id) {
+            Some(owner) if owner != &self.caller => Err(ApiError::unknown_account(account_id)),
+            _ => Ok(()),
+        }
     }
 
     /// The scanner subprocess launcher.
@@ -240,18 +318,20 @@ impl AppState {
         self.job_ids
             .write()
             .map_err(|_| ApiError::internal("job registry is unavailable"))?
-            .insert(job_id.to_string(), job_id.clone());
+            .insert(job_id.to_string(), (job_id.clone(), self.caller.clone()));
         Ok(())
     }
 
-    /// Look up the canonical JobId for a wire job id string.
+    /// Look up the canonical JobId for a wire job id string. A job that
+    /// another caller reserved is not found.
     pub(crate) fn resolve_job(&self, wire_id: &str) -> Result<Option<JobId>, ApiError> {
         Ok(self
             .job_ids
             .read()
             .map_err(|_| ApiError::internal("job registry is unavailable"))?
             .get(wire_id)
-            .cloned())
+            .filter(|(_, owner)| owner == &self.caller)
+            .map(|(job, _)| job.clone()))
     }
 }
 
@@ -297,4 +377,65 @@ pub fn router(state: AppState) -> axum::Router {
         .route("/x402/verify", post(x402::verify))
         .route("/x402/settle", post(x402::settle))
         .with_state(state)
+}
+
+#[cfg(test)]
+mod binding_tests {
+    use super::*;
+
+    /// Red-team RT-01: a job and an account are visible only to the caller
+    /// that created them; another caller sharing the same ledger gets the
+    /// same 404 as for an id that was never issued.
+    #[tokio::test]
+    async fn jobs_and_accounts_are_bound_to_their_caller() {
+        let owner = AppState::with_caller("alice");
+        owner.claim_account("acct-a").expect("first funder owns it");
+        let job = {
+            let mut ledger = owner.write_ledger().await;
+            ledger
+                .deposit("alice", "acct-a", aps_core::Amount::from_atomic(5), "d")
+                .expect("deposit");
+            let reservation = ledger
+                .reserve(
+                    "alice",
+                    "acct-a",
+                    "scan.v1",
+                    aps_core::Amount::from_atomic(5),
+                    "r",
+                )
+                .expect("reserve");
+            owner.register_job(&reservation.job_id).expect("register");
+            reservation.job_id
+        };
+        assert_eq!(
+            owner.resolve_job(job.as_str()).expect("registry"),
+            Some(job.clone())
+        );
+
+        let mut other = owner.clone();
+        other.caller = "mallory".to_string();
+        assert_eq!(other.resolve_job(job.as_str()).expect("registry"), None);
+        assert!(other.check_account("acct-a").is_err());
+        assert!(other.claim_account("acct-a").is_err());
+        assert!(owner.check_account("acct-a").is_ok());
+    }
+
+    /// Red-team RT-01: the reservation price comes from the price book.
+    #[test]
+    fn reservation_price_ignores_a_cheaper_caller_amount_outside_dev() {
+        let state = AppState::new();
+        // The default state uses the mock provider: an explicit amount is
+        // a development override, a zero amount is still refused.
+        assert_eq!(
+            state
+                .reservation_price("scan.v1", None)
+                .expect("priced")
+                .atomic(),
+            1_000_000
+        );
+        assert!(state
+            .reservation_price("scan.v1", Some(aps_core::Amount::ZERO))
+            .is_err());
+        assert!(state.reservation_price("scan.v9", None).is_err());
+    }
 }

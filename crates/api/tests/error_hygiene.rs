@@ -458,3 +458,25 @@ async fn zero_report_hash_settlement_is_rejected() {
     assert_eq!(atomic_of(&final_balances, "reserved"), ONE_UNIT);
     assert_eq!(atomic_of(&final_balances, "settled_total"), "0");
 }
+
+/// Red-team P-05: the serde-backed routes never reflect an unknown field
+/// name into the 400 body.
+#[tokio::test]
+async fn unknown_field_names_are_not_reflected_by_typed_routes() {
+    let app = app();
+    let routes = [
+        "/reservations",
+        "/accounts/acct/deposits",
+        "/payment/intents",
+        "/jobs/job_0000000000000001/refunds",
+    ];
+    for route in routes {
+        let raw = format!(r#"{{"{CANARY}": 1}}"#);
+        let (status, body) = post_raw(&app, route, &raw).await;
+        assert!(status.is_client_error(), "{route}: {status} {body}");
+        assert!(
+            !body.to_string().contains(CANARY),
+            "{route} reflected the field name: {body}"
+        );
+    }
+}

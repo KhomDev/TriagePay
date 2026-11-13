@@ -97,7 +97,11 @@ fn near_state(url: &str) -> AppState {
     };
     AppState::with_provider(
         "dev-agent",
-        Provider::Near(NearProvider::new(config).expect("provider")),
+        Provider::Near(
+            NearProvider::new(config)
+                .expect("provider")
+                .with_orphan_grace_secs(0),
+        ),
     )
 }
 

@@ -110,8 +110,11 @@ pub struct ReservationRequest {
     pub account_id: String,
     /// What the credit pays for, e.g. a scan SKU from the price book.
     pub sku: String,
-    /// Atomic units to lock, as a decimal string.
-    pub amount_atomic: String,
+    /// Optional. Atomic units to lock, as a decimal string. The server
+    /// charges the SKU's price-book price; a value that differs is a 400
+    /// (except with the mock provider, as a development override).
+    #[serde(default)]
+    pub amount_atomic: Option<String>,
     /// Caller-scoped idempotency key.
     pub idempotency_key: String,
 }

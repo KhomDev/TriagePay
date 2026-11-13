@@ -869,9 +869,9 @@ async fn record_foreign_proof(state: &AppState, intent_id: &IntentId, proof: &Pr
         signer_id: proof.signer_id.clone(),
         tx_hash: proof.tx_hash.clone(),
     };
-    let mut provider = state.payment().lock().await;
-    // Best effort: a failed probe changes nothing about the funding.
-    let _ = provider.record_foreign_proof(intent_id, hint).await;
+    // Best effort: a failed probe changes nothing about the funding. The
+    // chain read runs with the provider lock released.
+    crate::payment::probe_unlocked(state, intent_id, hint).await;
 }
 
 /// No payment header: create a fresh deposit intent and answer 402.

@@ -152,10 +152,21 @@ impl crate::types::PaymentProvider for MockProvider {
         let now = self.clock.now();
         let entry = self.intent_mut(intent_id)?;
         if let IntentStatus::Confirmed { tx_ref } = &entry.intent.status {
+            // Replay exactly what the first observation saw. A mismatch
+            // scenario stays a mismatch on every later poll: rebuilding the
+            // observation from the intent's own terms would turn a wrong
+            // amount or asset into a perfect match on the second poll.
+            let (asset_id, amount) = match &entry.scenario {
+                MockScenario::ConfirmWrongAmount { actual } => {
+                    (entry.intent.asset_id.clone(), *actual)
+                }
+                MockScenario::ConfirmWrongAsset { asset } => (asset.clone(), entry.intent.amount),
+                _ => (entry.intent.asset_id.clone(), entry.intent.amount),
+            };
             return Ok(Observation::Confirmed {
                 tx_ref: tx_ref.clone(),
-                asset_id: entry.intent.asset_id.clone(),
-                amount: entry.intent.amount,
+                asset_id,
+                amount,
             });
         }
         if let IntentStatus::Rejected { reason } = &entry.intent.status {
