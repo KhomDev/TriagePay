@@ -33,6 +33,9 @@ function toBytes(value) {
   if (typeof value === "string") {
     const hex = value.replace(/^0x/, "");
     if (hex.length % 2) throw new Error("odd hex length");
+    // Buffer.from(_, "hex") silently stops at the first non-hex character,
+    // which would sign a truncated field. Refuse instead.
+    if (!/^[0-9a-fA-F]*$/.test(hex)) throw new Error("invalid hex string");
     return Buffer.from(hex, "hex");
   }
   if (typeof value === "bigint" || typeof value === "number") {

@@ -81,9 +81,11 @@ test("a memo is clipped to 256 utf-8 bytes and stays a prefix", () => {
 test("x402 headers round-trip and selection stays inside the near-tx-proof shape", () => {
   fc.assert(
     fc.property(
+      // JSON has no -0 (it serializes as 0), so compare against the
+      // JSON-normalized value rather than the generated one.
       fc.jsonValue().filter((value) => value !== undefined),
       (value) => {
-        assert.deepEqual(decodeHeader(encodeHeader(value)), value);
+        assert.deepEqual(decodeHeader(encodeHeader(value)), JSON.parse(JSON.stringify(value)));
       },
     ),
   );

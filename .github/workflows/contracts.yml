@@ -38,8 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install Rust toolchain
         run: |
           rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal \
@@ -64,8 +63,9 @@ jobs:
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
 
-      - uses: taiki-e/install-action@cargo-llvm-cov
-
+      - uses: taiki-e/install-action@3f7c3597aa4e6da3f315e128de702ce61e7b2877 # cargo-llvm-cov
+        with:
+          tool: cargo-llvm-cov
       # Unit tests only. The sandbox runs the wasm, which llvm-cov does not
       # instrument; the line floor is the rlib (policy-wallet and test-token).
       - name: Unit-test coverage

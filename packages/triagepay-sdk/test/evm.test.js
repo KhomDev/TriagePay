@@ -48,3 +48,9 @@ test("the EIP-1559 hash and signed transaction match the recorded request", () =
   const signed = signedEip1559(TX, sig);
   assert.equal(signed.hash, "0x21744b81fb83b61891185ab869d3a1c4bc8e0aaa8d690467ef7cf3f0b0c8f188");
 });
+
+test("red-team T5-4: RLP refuses invalid hex instead of truncating it", () => {
+  assert.throws(() => rlpEncode("0x12zz"), /invalid hex/);
+  assert.throws(() => rlpEncode("0xgg"), /invalid hex/);
+  assert.equal(rlpEncode("0x").length, 1);
+});
