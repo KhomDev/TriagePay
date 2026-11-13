@@ -1,11 +1,15 @@
 import { assessReport, fetchReport, freshNonce } from "../lib/attestation.js";
 import { fromError, json } from "../lib/http.js";
 import { loadConfig } from "../lib/config.js";
+import { assertModelBudget } from "../lib/guard.js";
 
-export async function GET() {
+export async function GET(request) {
   const nonce = freshNonce();
   const model = process.env.APS_TRIAGE_MODEL_ID || "z-ai/glm-5.3-flash";
   try {
+    // The attestation request uses the operator's key: count it first
+    // (red-team RT-05).
+    await assertModelBudget(request);
     const report = await fetchReport({
       nonce,
       model,

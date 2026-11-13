@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { restoreIfInactive } from "../lib/demo.js";
 import { fromError, json } from "../lib/http.js";
 import { scoreboard } from "../lib/scoreboard.js";
@@ -6,12 +7,18 @@ import { scoreboard } from "../lib/scoreboard.js";
 // restores before it pays, so the demo does not stay inactive.
 export async function GET(request) {
   try {
-    const secret = process.env.CRON_SECRET;
-    if (secret) {
-      const header = request.headers.get("authorization") || "";
-      if (header !== `Bearer ${secret}`) {
-        return json(401, { error: { code: "unauthorized", message: "cron secret required" } });
-      }
+    // Fail closed: without CRON_SECRET this route signs nothing (red-team
+    // L-3). Vercel sends the secret as a bearer token on scheduled runs.
+    const secret = String(process.env.CRON_SECRET || "");
+    if (!secret) {
+      return json(503, { error: { code: "cron_disabled", message: "set CRON_SECRET to enable the daily restore" } });
+    }
+    const header = request.headers.get("authorization") || "";
+    const expected = `Bearer ${secret}`;
+    const same = header.length === expected.length
+      && timingSafeEqual(Buffer.from(header), Buffer.from(expected));
+    if (!same) {
+      return json(401, { error: { code: "unauthorized", message: "cron secret required" } });
     }
     const restored = await restoreIfInactive(request);
     const board = await scoreboard().catch(() => null);

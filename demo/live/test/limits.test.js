@@ -21,11 +21,14 @@ function chain(overrides = {}) {
   };
 }
 
-test("client ip prefers x-real-ip and otherwise the first forwarded address", () => {
-  const real = new Request("http://demo.local/api/run", { headers: { "x-real-ip": "203.0.113.8", "x-forwarded-for": "198.51.100.2" } });
-  assert.equal(clientIp(real), "203.0.113.8");
-  const forwarded = new Request("http://demo.local/api/run", { headers: { "x-forwarded-for": "198.51.100.2, 10.0.0.1" } });
-  assert.equal(clientIp(forwarded), "198.51.100.2");
+test("client ip trusts platform headers only on Vercel (red-team RT-06)", () => {
+  const spoofed = new Request("http://demo.local/api/run", { headers: { "x-real-ip": "203.0.113.8", "x-forwarded-for": "198.51.100.2" } });
+  assert.equal(clientIp(spoofed, {}), "unknown");
+  assert.equal(clientIp(spoofed, { VERCEL: "1" }), "203.0.113.8");
+  const vercel = new Request("http://demo.local/api/run", { headers: { "x-vercel-forwarded-for": "192.0.2.7", "x-real-ip": "203.0.113.8" } });
+  assert.equal(clientIp(vercel, { VERCEL: "1" }), "192.0.2.7");
+  const local = new Request("http://demo.local/api/run", { headers: { "x-triagepay-peer": "127.0.0.1", "x-forwarded-for": "198.51.100.2" } });
+  assert.equal(clientIp(local, {}), "127.0.0.1");
   assert.equal(clientIp(null), "unknown");
 });
 

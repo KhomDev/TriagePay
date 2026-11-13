@@ -76,14 +76,32 @@ function rewritePath(url) {
   }
 }
 
+const MAX_BODY_BYTES = 128 * 1024;
+
 async function toRequest(req) {
   const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > MAX_BODY_BYTES) {
+      const error = new Error("request body is too large");
+      error.status = 413;
+      throw error;
+    }
+    chunks.push(chunk);
+  }
   const body = Buffer.concat(chunks);
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (key.toLowerCase() === "x-triagepay-peer") continue;
+    if (Array.isArray(value)) value.forEach((item) => headers.append(key, item));
+    else if (value != null) headers.set(key, String(value));
+  }
+  headers.set("x-triagepay-peer", req.socket.remoteAddress || "unknown");
   return new Request(url, {
     method: req.method,
-    headers: req.headers,
+    headers,
     body: req.method === "GET" || req.method === "HEAD" ? undefined : body,
   });
 }

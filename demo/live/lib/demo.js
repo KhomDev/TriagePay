@@ -12,9 +12,10 @@ import { formatAmount, formatAtomic, nsToIso, tokenSymbol } from "./format.js";
 import { DemoError } from "./http.js";
 import { recall, remember } from "./journal.js";
 import { clientIp, releaseLock, reserveAttempt } from "./limits.js";
-import { functionCall, signCall, viewCall, assertTestnet } from "./near.js";
+import { functionCall, signCall, viewCall, viewAccessKeys, assertTestnet } from "./near.js";
 import { matchPending, receiptFromRun } from "./receipt.js";
 import { classifyAmount, classifyPayee } from "./risk.js";
+import { ownerAuthorized } from "./guard.js";
 import { persistedAttempts, readBoards, signedAttemptCount } from "./board-store.js";
 import { mainnetPublic, scoreboard } from "./mainnet.js";
 import { publishAttempts } from "./scoreboard.js";
@@ -394,20 +395,64 @@ export async function signOwnerPolicy(request, { setAgent, setReview }) {
   });
 }
 
+function minBig(a, b) {
+  return BigInt(a) < BigInt(b) ? BigInt(a) : BigInt(b);
+}
+
+/**
+ * The policy a restore re-signs: the chain's current caps and payees,
+ * never looser than the committed config. Restoring re-activates the
+ * agent; it must not undo an owner's tightening (red-team RT-04).
+ */
+export function restorePolicy(config, agent) {
+  const committed = (config.policy.payees || []).map(String);
+  if (!agent) {
+    return {
+      perCallMax: String(config.policy.perCallMax),
+      dailyMax: String(config.policy.dailyMax),
+      payees: committed,
+    };
+  }
+  const allowed = new Set(committed.map((item) => item.toLowerCase()));
+  const chainPayees = Array.isArray(agent.payees) ? agent.payees.map(String) : committed;
+  const payees = chainPayees.filter((item) => allowed.has(item.toLowerCase()));
+  if (!payees.length) {
+    throw new DemoError(
+      "restore_refused",
+      "The owner changed the allowlist on chain, so this page will not restore the agent. The owner can restore it.",
+      409,
+    );
+  }
+  const perCallMax = minBig(agent.per_call_max != null ? agent.per_call_max : config.policy.perCallMax, config.policy.perCallMax);
+  const dailyMax = minBig(agent.daily_max != null ? agent.daily_max : config.policy.dailyMax, config.policy.dailyMax);
+  return {
+    perCallMax: String(perCallMax),
+    dailyMax: String(dailyMax < perCallMax ? perCallMax : dailyMax),
+    payees,
+  };
+}
+
 async function ownerCall(config, keys, action) {
-  const call = action === "revoke"
-    ? await functionCall("revoke_agent", { agent_id: config.accounts.agent }, 30, ONE_YOCTO)
-    : await functionCall(
+  let call;
+  if (action === "revoke") {
+    call = await functionCall("revoke_agent", { agent_id: config.accounts.agent }, 30, ONE_YOCTO);
+  } else {
+    const agent = await viewCall(config.rpcUrl, config.accounts.wallet, "get_agent", {
+      agent_id: config.accounts.agent,
+    });
+    const policy = restorePolicy(config, agent);
+    call = await functionCall(
       "set_agent",
       {
         agent_id: config.accounts.agent,
-        per_call_max: config.policy.perCallMax,
-        daily_max: config.policy.dailyMax,
-        payees: config.policy.payees,
+        per_call_max: policy.perCallMax,
+        daily_max: policy.dailyMax,
+        payees: policy.payees,
       },
       30,
       ONE_YOCTO,
     );
+  }
   return signCall({
     rpcUrl: config.rpcUrl,
     signerId: config.accounts.owner,
@@ -469,7 +514,52 @@ export function chainView(config, signed) {
   };
 }
 
+const YOCTO_PER_NEAR = 10n ** 24n;
+
+/** The allowance floor in yoctoNEAR (TRIAGEPAY_ALLOWANCE_FLOOR_NEAR, default 0.05). */
+export function allowanceFloor(env = process.env) {
+  const raw = String(env.TRIAGEPAY_ALLOWANCE_FLOOR_NEAR || "0.05").trim();
+  const match = /^(\d+)(?:\.(\d{1,24}))?$/.exec(raw);
+  if (!match) return 5n * 10n ** 22n;
+  const fraction = (match[2] || "").padEnd(24, "0");
+  return BigInt(match[1]) * YOCTO_PER_NEAR + BigInt(fraction || "0");
+}
+
+/**
+ * Refuse to sign with the agent key once its on-chain gas allowance is at
+ * the floor. This is read from the chain on every attempt, so it holds
+ * across serverless instances and does not depend on the indexer that the
+ * daily attempt count uses (red-team RT-06). The allowance is the demo's
+ * real, irreplaceable budget.
+ */
+export async function assertAllowanceAboveFloor(config, env = process.env) {
+  let keysOnChain;
+  try {
+    keysOnChain = await viewAccessKeys(config.rpcUrl, config.accounts.agent);
+  } catch {
+    throw new DemoError("allowance_unknown", "The agent key's allowance could not be read, so this server did not sign.", 503, { retry_after_seconds: 15 });
+  }
+  const floor = allowanceFloor(env);
+  const allowances = keysOnChain
+    .map((row) => row && row.access_key && row.access_key.permission)
+    .filter((permission) => permission && permission.FunctionCall
+      && permission.FunctionCall.receiver_id === config.accounts.wallet)
+    .map((permission) => permission.FunctionCall.allowance);
+  if (!allowances.length) return;
+  if (allowances.some((value) => value == null)) return;
+  const best = allowances.reduce((max, value) => (BigInt(value) > max ? BigInt(value) : max), 0n);
+  if (best <= floor) {
+    throw new DemoError(
+      "allowance_floor",
+      "The agent key is down to its reserved gas allowance, so this public demo stopped signing. The recorded transactions stay on the page.",
+      503,
+      { retry_after_seconds: 3600 },
+    );
+  }
+}
+
 export async function submitPay(config, keys, attack) {
+  await assertAllowanceAboveFloor(config);
   const action = await functionCall(
     "pay",
     {
@@ -723,6 +813,9 @@ export async function decideReview(action, paymentId, request) {
   const row = (review.pending || []).find((item) => String(item.payment_id) === String(paymentId));
   const payee = row ? String(row.receiver_id) : null;
   const amount = row && row.amount != null ? String(row.amount) : null;
+  if (action === "approve") {
+    assertPublicApproval(config, row, request);
+  }
   let amountDisplay = null;
   if (amount) {
     try {
@@ -782,6 +875,36 @@ export async function decideReview(action, paymentId, request) {
   } finally {
     signing = false;
     if (decision) await releaseLock(decision.store, decision.lockToken);
+  }
+}
+
+/**
+ * A public visitor may approve a held payment only when it pays the
+ * committed allowlisted payee within the committed per-call cap. Any other
+ * held payment (an unknown payee the wallet held for review) needs the
+ * owner's token. Rejecting is always allowed: it moves no funds.
+ * Red-team RT-02: otherwise the caller who queued an injected payment
+ * could also approve it with the server's owner key.
+ */
+export function assertPublicApproval(config, row, request, env = process.env) {
+  if (!row) {
+    throw new DemoError("not_pending", "That payment is not waiting for review.", 404);
+  }
+  if (ownerAuthorized(request, env)) return;
+  const allowed = new Set((config.policy.payees || []).map((item) => String(item).toLowerCase()));
+  const payee = String(row.receiver_id || "").toLowerCase();
+  let withinCap = false;
+  try {
+    withinCap = BigInt(String(row.amount)) <= BigInt(String(config.policy.perCallMax));
+  } catch {
+    withinCap = false;
+  }
+  if (!allowed.has(payee) || !withinCap) {
+    throw new DemoError(
+      "owner_only",
+      "This page approves only payments to the allowlisted payee. Reject this one here; approving it needs the wallet owner.",
+      403,
+    );
   }
 }
 

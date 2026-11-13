@@ -10,6 +10,7 @@ import {
   releaseNonce,
   verifyKillToken,
 } from "../lib/kill.js";
+import { clientIp, takeLocalIp } from "../lib/limits.js";
 import { storeFromEnv } from "../lib/store.js";
 
 function escapeHtml(value) {
@@ -84,6 +85,14 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     await readJson(request);
+    // Minting signs nothing, but each link can revoke the demo agent:
+    // bound how fast one address can mint them (red-team L-1).
+    const limited = takeLocalIp(`kill:${clientIp(request)}`, Date.now(), 6, 60_000);
+    if (!limited.allowed) {
+      throw new DemoError("ip_rate_limit", "This address has minted enough revoke links for this minute.", 429, {
+        retry_after_seconds: limited.retryAfterSeconds,
+      });
+    }
     const secret = killSecret();
     if (!secret) {
       return fail(503, "kill_switch_off", "Set KILL_SWITCH_SECRET on the server. Until then I cannot mint a revoke link.");

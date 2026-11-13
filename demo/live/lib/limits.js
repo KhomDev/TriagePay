@@ -34,13 +34,25 @@ export function takeLocalIp(ip, nowMs, limit = DEFAULT_IP_LIMIT, windowMs = DEFA
   return { allowed: true, code: null, source: "instance" };
 }
 
-export function clientIp(request) {
+/**
+ * The caller's address for rate limits (red-team RT-06).
+ *
+ * On Vercel the platform sets x-vercel-forwarded-for / x-real-ip itself
+ * and overwrites any client-sent value, so those are trusted there. The
+ * local server (server.mjs) puts the socket address in x-triagepay-peer
+ * after deleting any client copy. Nowhere else is a client-supplied
+ * forwarding header trusted: elsewhere every caller shares one bucket.
+ */
+export function clientIp(request, env = process.env) {
   if (!request || !request.headers || typeof request.headers.get !== "function") return "unknown";
-  const real = request.headers.get("x-real-ip");
-  if (real && real.trim()) return real.trim();
-  const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded && forwarded.trim()) return forwarded.split(",")[0].trim();
-  return "unknown";
+  const header = (name) => {
+    const value = request.headers.get(name);
+    return value && value.trim() ? value.split(",")[0].trim() : null;
+  };
+  if (env.VERCEL === "1") {
+    return header("x-vercel-forwarded-for") || header("x-real-ip") || "unknown";
+  }
+  return header("x-triagepay-peer") || "unknown";
 }
 
 export function ipKey(ip, bucket) {

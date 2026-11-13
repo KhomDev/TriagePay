@@ -5,6 +5,7 @@
 import { extractAccount } from "./accounts.js";
 import { describeAttack } from "./attacks.js";
 import { decidePayment, modelFromEnv, publicAgent } from "./agent.js";
+import { assertModelBudget } from "./guard.js";
 import { chainReady, loadConfig, loadKeys, signingReady } from "./config.js";
 import { assertDrainRate, cleanPrompt, recordDrain } from "./drain.js";
 import { predictEffect } from "./effect.js";
@@ -288,6 +289,9 @@ export async function runLaunch(request, options = {}) {
   requireChain(config);
   requireKeys(loadKeys());
   let agent = deterministicAgent(attack);
+  if (options.live && String(process.env.NEARAI_API_KEY || "").trim()) {
+    await assertModelBudget(request);
+  }
   if (options.live) {
     const modeled = await decidePayment({
       finding: attack.injection || attack.narrative,
@@ -315,6 +319,7 @@ export async function runDrainAttempt(request, prompt, options = {}) {
   requireChain(config);
   requireKeys(loadKeys());
   await assertDrainRate(request);
+  if (String(process.env.NEARAI_API_KEY || "").trim()) await assertModelBudget(request);
   const allow = new Set((config.policy.payees || []).map((item) => String(item).toLowerCase()));
   const named = extractAccount(text);
   const attacker = named && !allow.has(named) ? named : config.accounts.injected;

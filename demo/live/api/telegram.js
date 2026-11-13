@@ -7,7 +7,7 @@ export async function POST(request) {
   const header = verifyTelegramHeader(request, cfg);
   if (!header.ok) return json(header.status, { error: { code: header.code, message: header.message } });
   try {
-    const update = await readJson(request, 65536);
+    const update = await readJson(request, 65536, { crossOrigin: true });
     const parsed = parseCallback(update, cfg.chatId);
     if (parsed.ignore) return json(200, { ok: true, ignored: true });
     if (!parsed.ok) {

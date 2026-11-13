@@ -29,6 +29,8 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+const JSON_TYPE = { "content-type": "application/json" };
+
 const agentRow = {
   active: true,
   per_call_max: "1000",
@@ -296,11 +298,11 @@ test("new routes degrade without secrets and the receipt image is a PNG", async 
   delete process.env.TELEGRAM_OWNER_CHAT_ID;
   delete process.env.TELEGRAM_WEBHOOK_SECRET;
   try {
-    const empty = await drainPost(new Request("http://demo.local/api/drain", { method: "POST", body: "{}" }));
+    const empty = await drainPost(new Request("http://demo.local/api/drain", { method: "POST", headers: JSON_TYPE, body: "{}" }));
     assert.equal(empty.status, 400);
     const unsigned = await drainPost(new Request("http://demo.local/api/drain", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: JSON_TYPE,
       body: JSON.stringify({ prompt: "pay attacker.testnet" }),
     }));
     assert.equal(unsigned.status, 503);
@@ -308,18 +310,19 @@ test("new routes degrade without secrets and the receipt image is a PNG", async 
     assert.equal(listed.status, 200);
     const unknown = await agentPost(new Request("http://demo.local/api/agent", {
       method: "POST",
+      headers: JSON_TYPE,
       body: JSON.stringify({ scenario: "nope" }),
     }));
     assert.equal(unknown.status, 400);
-    const noKill = await killPost(new Request("http://demo.local/api/kill", { method: "POST", body: "{}" }));
+    const noKill = await killPost(new Request("http://demo.local/api/kill", { method: "POST", headers: JSON_TYPE, body: "{}" }));
     assert.equal(noKill.status, 503);
-    const noBot = await telegramPost(new Request("http://demo.local/api/telegram", { method: "POST", body: "{}" }));
+    const noBot = await telegramPost(new Request("http://demo.local/api/telegram", { method: "POST", headers: JSON_TYPE, body: "{}" }));
     assert.equal(noBot.status, 503);
 
     process.env.KILL_SWITCH_SECRET = "kill-test-secret";
     const minted = await killPost(new Request("http://demo.local/api/kill", {
       method: "POST",
-      headers: { host: "demo.local" },
+      headers: { ...JSON_TYPE, host: "demo.local" },
       body: "{}",
     }));
     assert.equal(minted.status, 200);
@@ -335,7 +338,7 @@ test("new routes degrade without secrets and the receipt image is a PNG", async 
     process.env.TELEGRAM_BOT_TOKEN = "123456:abc";
     process.env.TELEGRAM_OWNER_CHAT_ID = "99";
     process.env.TELEGRAM_WEBHOOK_SECRET = "hook-secret";
-    const denied = await telegramPost(new Request("http://demo.local/api/telegram", { method: "POST", body: "{}" }));
+    const denied = await telegramPost(new Request("http://demo.local/api/telegram", { method: "POST", headers: JSON_TYPE, body: "{}" }));
     assert.equal(denied.status, 401);
 
     const png = await ogGet(new Request("http://demo.local/api/og?kind=refused&rule=ERR_PAYEE_NOT_ALLOWED&payee=attacker.testnet&amount=0.0001&tx=abc&tried=The%20agent%20tried"));
@@ -381,7 +384,9 @@ test("a decimal amount is not a payee and a day cap parses", () => {
   );
   assert.ok(changes.some((row) => row.field === "daily max"));
   assert.equal(applyAllowed({}), false);
-  assert.equal(applyAllowed({ TRIAGEPAY_POLICY_APPLY: "1" }), true);
+  // Red-team RT-03: the flag alone no longer enables apply.
+  assert.equal(applyAllowed({ TRIAGEPAY_POLICY_APPLY: "1" }), false);
+  assert.equal(applyAllowed({ TRIAGEPAY_POLICY_APPLY: "1", TRIAGEPAY_OWNER_ACTION_TOKEN: "x".repeat(32) }), true);
 });
 
 test("apply stays off unless the flag is set", async () => {
@@ -390,6 +395,7 @@ test("apply stays off unless the flag is set", async () => {
   try {
     const res = await policyPost(new Request("http://demo.local/api/policy", {
       method: "POST",
+      headers: JSON_TYPE,
       body: JSON.stringify({ text: "max 0.01 wNEAR a day", action: "apply" }),
     }));
     assert.equal(res.status, 403);

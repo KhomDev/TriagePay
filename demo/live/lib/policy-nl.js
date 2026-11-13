@@ -2,6 +2,7 @@
 // may propose the same shape, and its output is kept only when it matches
 // the schema. Nothing here signs a transaction.
 
+import { createHash } from "node:crypto";
 import { isNearAccount } from "./accounts.js";
 import { formatAmount } from "./format.js";
 import { modelFromEnv, MODEL_URL } from "./agent.js";
@@ -127,8 +128,38 @@ export function diffPolicy(current, proposal, decimals, symbol) {
   return changes;
 }
 
+/**
+ * Applying a policy signs with the owner key. It needs the flag AND an
+ * owner-action token; the public page never has the token, so on the
+ * public demo apply is off whatever the flag says (red-team RT-03).
+ */
 export function applyAllowed(env = process.env) {
-  return String(env.TRIAGEPAY_POLICY_APPLY || "") === "1";
+  return String(env.TRIAGEPAY_POLICY_APPLY || "") === "1"
+    && String(env.TRIAGEPAY_OWNER_ACTION_TOKEN || "").trim().length >= 16;
+}
+
+/** A stable digest of the exact change set a preview showed. */
+export function changesDigest(changes, proposal) {
+  const canonical = JSON.stringify({
+    changes: (changes || []).map((row) => [row.field, String(row.from), String(row.to)]),
+    proposal: Object.keys(proposal || {}).sort().map((key) => [key, proposal[key]]),
+  });
+  return createHash("sha256").update(canonical).digest("hex");
+}
+
+/**
+ * Hard bounds a signed policy must satisfy whatever the model wrote:
+ * payees from the committed allowlist only, caps no looser than the
+ * committed ones. Returns a reason string, or null when within bounds.
+ */
+export function outOfBounds(config, next) {
+  const allowed = new Set((config.policy.payees || []).map((item) => String(item).toLowerCase()));
+  for (const payee of next.payees || []) {
+    if (!allowed.has(String(payee).toLowerCase())) return `payee ${payee} is not on the committed allowlist`;
+  }
+  if (BigInt(next.perCallMax) > BigInt(config.policy.perCallMax)) return "the per-call cap would exceed the committed ceiling";
+  if (BigInt(next.dailyMax) > BigInt(config.policy.dailyMax)) return "the daily cap would exceed the committed ceiling";
+  return null;
 }
 
 export async function proposePolicy({ text, context, apiKey, fetchImpl = fetch, env = process.env }) {

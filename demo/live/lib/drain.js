@@ -19,13 +19,20 @@ export function cleanPrompt(text) {
   return text.replace(/\u0000/g, "").trim().slice(0, 500);
 }
 
+// The Drain Me feed is public, so a visitor's prompt is shown only after
+// anything that could identify a person or carry a link is removed:
+// emails, URLs, international phone numbers, long hex and secrets (red-team L-6).
+// Account ids stay: they are the attack, and they are on chain anyway.
 export function redactPrompt(text) {
   const clean = redact(cleanPrompt(text))
+    .replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, "[redacted-email]")
+    .replace(/\b(?:https?:\/\/|www\.)\S+/gi, "[redacted-link]")
     .replace(/\b[0-9a-f]{64}\b/gi, "[redacted-hex]")
+    .replace(/\+\d[\d ().-]{7,}\d/g, "[redacted-number]")
     .replace(/\s+/g, " ")
     .trim();
-  if (clean.length <= 180) return clean;
-  const cut = clean.slice(0, 180);
+  if (clean.length <= 120) return clean;
+  const cut = clean.slice(0, 120);
   const space = cut.lastIndexOf(" ");
   return `${(space > 40 ? cut.slice(0, space) : cut).trim()}…`;
 }

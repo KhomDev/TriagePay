@@ -146,7 +146,9 @@ export async function reserveMainnetRun({ request, nowMs = Date.now(), demoRunCo
     }
     return { allowed: true, source: "store" };
   } catch {
-    return { allowed: true, source: "instance" };
+    // Fail closed on mainnet: an unreadable shared counter does not admit
+    // a run past the daily cap.
+    return { allowed: false, reason: "The shared run counter did not answer, so mainnet did not sign." };
   }
 }
 
