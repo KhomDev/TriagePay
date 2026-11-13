@@ -78,6 +78,11 @@ pub const PAYMENT_FLOW: &str = "upfront";
 pub const RESOURCE_PATH: &str = "/v2/scan";
 /// Default validity window of a requirement (and its deposit intent).
 pub const DEFAULT_MAX_TIMEOUT_SECS: u64 = 900;
+
+/// How many scans one funded proof may start. Each failed scan can cost a
+/// billed model call, so retries with the same proof are bounded; after
+/// the limit the payment is kept for an operator refund.
+pub const MAX_SCAN_ATTEMPTS: u32 = 3;
 /// Seconds a client should wait before retrying a pending settlement.
 pub const RETRY_AFTER_SECS: u64 = 3;
 /// Least seconds between two sweeps of expired, unpaid requirements.
@@ -726,6 +731,16 @@ async fn run_paid_scan(
 ) -> Result<Response, Response> {
     let x402 = state.x402();
     let network = x402.config().network.clone();
+    if record.attempts >= MAX_SCAN_ATTEMPTS {
+        return Err(ApiError::conflict(
+            "attempt_limit",
+            format!(
+                "this payment already started {MAX_SCAN_ATTEMPTS} scans that did not complete; \
+                 it is kept for an operator refund"
+            ),
+        )
+        .into_response());
+    }
     let idem = format!("x402:{intent_id}:{}", record.attempts);
     let job = {
         let mut ledger = state.write_ledger().await;

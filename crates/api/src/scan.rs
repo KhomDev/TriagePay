@@ -60,11 +60,21 @@ pub async fn scan_job(
         }
     }
 
-    let outcome = state
-        .scan_launcher()
-        .launch(raw)
-        .await
-        .map_err(bridge_error)?;
+    let outcome = match state.scan_launcher().launch(raw).await {
+        Ok(outcome) => outcome,
+        Err(err @ ScanBridgeError::Timeout { .. }) => {
+            // A hard timeout is terminal: the job is refunded at once, so a
+            // retry loop cannot re-bill a model call per attempt while it
+            // holds a scanner process.
+            let message = bridge_failure_message(&err);
+            let mut ledger = state.write_ledger().await;
+            ledger.refund(&job, "scanner timed out")?;
+            return Err(ApiError::internal(format!(
+                "{message}; the job was refunded - reserve again to retry"
+            )));
+        }
+        Err(err) => return Err(bridge_error(err)),
+    };
     let (report, content_hash) = match outcome {
         ScanOutcome::Report {
             report,

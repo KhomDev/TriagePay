@@ -21,6 +21,10 @@ MODEL_ID_ENV = "APS_TRIAGE_MODEL_ID"
 BASE_URL_ENV = "APS_NEARAI_BASE_URL"
 CASSETTES_ENV = "APS_TRIAGE_CASSETTES"
 CACHE_DIR_ENV = "APS_TRIAGE_CACHE_DIR"
+# Seconds the whole Stage B call may take, retries included. The API's
+# scanner bridge sets it below its own hard deadline, so a slow model call
+# fails closed (needs_evidence) instead of being killed with the process.
+BUDGET_ENV = "APS_TRIAGE_BUDGET_SECS"
 
 DEFAULT_MODEL_ID = "z-ai/glm-5.3-flash"
 

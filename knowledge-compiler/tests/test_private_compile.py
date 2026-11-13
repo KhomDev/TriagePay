@@ -23,6 +23,23 @@ PUBLIC_SOURCE = ROOT / "samples" / "public-v1" / "source.json"
 STAND_IN = "zz-private-alpha"
 
 
+@pytest.fixture(autouse=True)
+def private_denylist(tmp_path, monkeypatch):
+    """compile-private requires a real-term denylist (red-team RT-10)."""
+    path = tmp_path / "private-denylist.sha256"
+    path.write_text("0" * 63 + "1\n", encoding="utf-8")
+    monkeypatch.setenv(leakage.PRIVATE_DENYLIST_ENV, str(path))
+    return path
+
+
+def test_compile_private_refuses_without_the_private_denylist(tmp_path, monkeypatch):
+    monkeypatch.delenv(leakage.PRIVATE_DENYLIST_ENV, raising=False)
+    out = tmp_path / "out" / "rules-v1.private.json"
+    with pytest.raises(private.PrivateCompileError, match="APS_PRIVATE_DENYLIST"):
+        private.compile_private(write_sources(tmp_path, synthetic_private_source()), out)
+    assert not out.exists()
+
+
 def synthetic_private_source(**changes):
     document = json.loads(PUBLIC_SOURCE.read_text(encoding="utf-8"))
     document["label"] = "synthetic-private-doctrine"

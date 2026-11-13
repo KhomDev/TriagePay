@@ -13,6 +13,7 @@ response body may echo the request).
 """
 
 import json
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -76,6 +77,8 @@ class ChatClient:
         response_format: str = "json_schema",
         reasoning_effort: str = DEFAULT_REASONING_EFFORT,
         transport=urllib_transport,
+        budget_secs: float | None = None,
+        clock=time.monotonic,
     ):
         if not api_key:
             raise ValueError("an API key is required for live calls")
@@ -93,6 +96,19 @@ class ChatClient:
         # "none" sends no reasoning_effort field (the provider's default).
         self.reasoning_effort = reasoning_effort
         self._transport = transport
+        # A deadline for every call this client makes, retries included.
+        # Each request gets min(timeout, time left); none starts with less
+        # than a second left.
+        self._clock = clock
+        self._deadline = None if budget_secs is None else clock() + max(0.0, float(budget_secs))
+
+    def _request_timeout(self) -> float:
+        if self._deadline is None:
+            return self.timeout
+        left = self._deadline - self._clock()
+        if left < 1.0:
+            raise ModelTimeout("the Stage B time budget is spent")
+        return min(self.timeout, left)
 
     def __repr__(self):
         return f"ChatClient(base_url={self.base_url!r}, api_key=<redacted>)"
@@ -130,7 +146,7 @@ class ChatClient:
             "User-Agent": USER_AGENT,
         }
         status, response_headers, raw = self._transport(
-            f"{self.base_url}/chat/completions", headers, body, self.timeout
+            f"{self.base_url}/chat/completions", headers, body, self._request_timeout()
         )
         if status != 200:
             raise ModelCallError(f"model API returned HTTP {status}")

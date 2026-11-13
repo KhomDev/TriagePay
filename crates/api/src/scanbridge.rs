@@ -107,6 +107,10 @@ impl ScanLauncher {
         for (name, path) in relative_path_overrides() {
             command.env(name, path);
         }
+        // The model judge must give up before this process is killed, so
+        // a slow Stage B call fails closed (needs_evidence) and the scan
+        // still produces a report. Five seconds cover start-up and Stage A.
+        command.env(STAGE_B_BUDGET_ENV, stage_b_budget(self.timeout).to_string());
         let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -139,6 +143,15 @@ impl ScanLauncher {
         .map_err(|err| ScanBridgeError::Launch(format!("scanner did not run: {err}")))?;
         parse_output(output.status, &output.stdout, &output.stderr)
     }
+}
+
+/// Seconds the model judge may spend, retries included (read by
+/// triage_model.judge).
+pub const STAGE_B_BUDGET_ENV: &str = "APS_TRIAGE_BUDGET_SECS";
+
+/// The Stage B budget for a scanner deadline: strictly below it.
+pub fn stage_b_budget(timeout: Duration) -> u64 {
+    timeout.as_secs().saturating_sub(5).max(1)
 }
 
 /// Path variables the scanner and the model judge read.

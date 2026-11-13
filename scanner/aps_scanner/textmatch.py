@@ -133,7 +133,11 @@ def privilege_required(
     return not any_phrase_affirmed(escape_text, escape_phrases, window)
 
 
-_NUMBER = r"\d[\d,_]*(?:\.\d+)?(?:e\d+)?"
+# A number starts only where no digit run is already in progress. Without
+# the lookbehind every position of a long digit run is a fresh start and
+# the greedy run backtracks each time: O(n^2) per sentence (red-team
+# RT-09 measured ~5 s for one legal 12 000-character field).
+_NUMBER = r"(?<![\d,_.])\d[\d,_]*(?:\.\d+)?(?:e\d+)?"
 _MAGNITUDE = r"(?:\s?(?:k|m|b|thousand|million|billion|mn|bn))?"
 _CURRENCY_QUANTITY = re.compile(r"\$\s?" + _NUMBER + _MAGNITUDE + r"\b")
 _PERCENT_QUANTITY = re.compile(_NUMBER + r"\s?(?:%|percent\b|bps\b|basis points\b)")

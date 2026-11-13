@@ -132,3 +132,27 @@ def test_response_format_modes(mode, expected):
     body = ChatClient(FAKE_KEY, response_format=mode).request_body([], "m", OUTPUT_SCHEMA)
     assert body.get("response_format") == expected
     assert body["temperature"] == 0
+
+
+def test_budget_caps_each_request_and_fails_closed_when_spent():
+    """Red-team RT-08: the client never waits past its Stage B budget."""
+    from triage_model.client import ChatClient, ModelTimeout
+
+    now = [100.0]
+    seen = []
+
+    def transport(url, headers, body, timeout):
+        seen.append(timeout)
+        now[0] += timeout  # the request used its whole allowance
+        raise ModelTimeout("slow")
+
+    client = ChatClient(
+        "k", transport=transport, budget_secs=25, clock=lambda: now[0], timeout=60
+    )
+    for _ in range(2):
+        try:
+            client.complete([], model_id="m", response_schema={})
+        except ModelTimeout:
+            pass
+    assert seen == [25]  # the first call got the whole budget, never 60
+    assert len(seen) == 1  # the retry started with nothing left and did not run

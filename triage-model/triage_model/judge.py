@@ -88,6 +88,17 @@ def make_judge(backend, *, model_id: str = config.DEFAULT_MODEL_ID, cache=None):
     return bound
 
 
+def _budget(environ):
+    raw = environ.get(config.BUDGET_ENV, "").strip()
+    if not raw:
+        return None
+    try:
+        value = float(raw)
+    except ValueError:
+        return None
+    return value if value > 0 else None
+
+
 def judge_from_env(environ=None):
     """The configured judge, or None when no model is configured.
 
@@ -106,6 +117,7 @@ def judge_from_env(environ=None):
         client = ChatClient(
             environ[config.API_KEY_ENV].strip(),
             base_url=config.base_url(environ),
+            budget_secs=_budget(environ),
         )
         return make_judge(LiveBackend(client), model_id=model_id, cache=cache)
     cassettes = environ.get(config.CASSETTES_ENV, "").strip()

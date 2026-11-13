@@ -103,8 +103,24 @@ def manifest_sha256(artifact) -> str:
     return compiler.sha256_hex(compiler.canonical(manifest(artifact)))
 
 
-def compile_private(source_dir, out_path, root=None):
-    """Compile, check, and write the private artifact; return it."""
+def compile_private(source_dir, out_path, root=None, environ=None):
+    """Compile, check, and write the private artifact; return it.
+
+    The private denylist (APS_PRIVATE_DENYLIST) is mandatory here: this is
+    the one compile whose report-facing text must be checked against the
+    real terms, so it fails closed instead of falling back to the published
+    synthetic stand-ins.
+    """
+    environ = os.environ if environ is None else environ
+    try:
+        private_terms = leakage.load_private_denylist(environ)
+    except leakage.DenylistError as err:
+        raise PrivateCompileError(str(err)) from err
+    if not private_terms:
+        raise PrivateCompileError(
+            f"{leakage.PRIVATE_DENYLIST_ENV} must name a non-empty file of real-term digests; "
+            "compile-private does not fall back to the published stand-ins"
+        )
     root = repo_root() if root is None else pathlib.Path(root)
     source_dir = pathlib.Path(source_dir)
     out_path = pathlib.Path(out_path)
@@ -181,7 +197,7 @@ def main(out_arg=None, environ=None):
         print(f"compile-private: pass --out or set {OUT_ENV}", file=sys.stderr)
         return 2
     try:
-        artifact = compile_private(source, out)
+        artifact = compile_private(source, out, environ=environ)
     except ValueError as err:  # PrivateCompileError, SchemaError
         print(f"compile-private refused: {err}", file=sys.stderr)
         return 2

@@ -54,12 +54,31 @@ def _scrub_code(text: str) -> str:
     return _strip_zero_width(_replace_controls(folded))
 
 
+# Markdown emphasis and strike-through marks a payload can wrap around an
+# instruction ("**ignore** previous instructions", "i_g_n_o_r_e").
+_EMPHASIS = re.compile(r"[*_~]+")
+
+
+def _detection_view(text: str) -> str:
+    """The text the flag inspects: NFKC-folded (fullwidth and compatibility
+    forms become ASCII), every format character (Unicode Cf, not only the
+    four zero-width ones) removed, emphasis marks removed, whitespace
+    collapsed. Used only for flagging; the normalized fields are unchanged.
+    """
+    folded = unicodedata.normalize("NFKC", text)
+    visible = "".join(ch for ch in folded if unicodedata.category(ch) != "Cf")
+    return _WHITESPACE_RUN.sub(" ", _EMPHASIS.sub("", visible))
+
+
 def _contains_embedded_instructions(text: str) -> bool:
     if not text:
         return False
-    if any(pattern.search(text) for pattern in INSTRUCTION_PATTERNS):
+    if FENCED_SYSTEM_PATTERN.search(text) is not None:
         return True
-    return FENCED_SYSTEM_PATTERN.search(text) is not None
+    for view in (text, _detection_view(text)):
+        if any(pattern.search(view) for pattern in INSTRUCTION_PATTERNS):
+            return True
+    return False
 
 
 @dataclass
