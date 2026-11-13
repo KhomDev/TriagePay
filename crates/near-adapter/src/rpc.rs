@@ -180,6 +180,8 @@ impl OutcomeStatus {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReceiptOutcome {
     pub id: String,
+    /// The block the receipt executed in (empty when the node omits it).
+    pub block_hash: String,
     pub executor_id: String,
     pub status: OutcomeStatus,
     pub logs: Vec<String>,
@@ -320,6 +322,24 @@ impl NearRpc {
                 .or_else(|| result.get("latest_block_height").and_then(Value::as_u64))
                 .unwrap_or(0),
         })
+    }
+
+    /// Unix seconds of a block, by hash (`block` method, header.timestamp
+    /// in nanoseconds).
+    pub fn block_time_unix(&self, block_hash: &str) -> Result<u64, RpcError> {
+        let result = self.call("block", json!({ "block_id": block_hash }))?;
+        let header = result.get("header");
+        let nanos = header
+            .and_then(|h| h.get("timestamp"))
+            .and_then(Value::as_u64)
+            .or_else(|| {
+                header
+                    .and_then(|h| h.get("timestamp_nanosec"))
+                    .and_then(Value::as_str)
+                    .and_then(|raw| raw.parse::<u64>().ok())
+            })
+            .ok_or_else(|| RpcError::Protocol("block header has no timestamp".to_string()))?;
+        Ok(nanos / 1_000_000_000)
     }
 
     /// Height of the latest finalized block.
@@ -562,6 +582,7 @@ fn parse_receipt_outcome(value: &Value) -> ReceiptOutcome {
     let outcome = value.get("outcome").cloned().unwrap_or(Value::Null);
     ReceiptOutcome {
         id: str_field(value, "id"),
+        block_hash: str_field(value, "block_hash"),
         executor_id: str_field(&outcome, "executor_id"),
         status: parse_outcome_status(outcome.get("status")),
         logs: string_list(outcome.get("logs")),

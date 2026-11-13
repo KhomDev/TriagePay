@@ -66,6 +66,10 @@ pub struct TransferEvidence {
     pub payer_id: String,
     /// The event's `new_owner_id` (the gateway).
     pub receiver_id: String,
+    /// Unix seconds of the block the token receipt executed in, when the
+    /// node returned it. Decides expiry by when the payment landed, not by
+    /// when it was presented (red-team P-06).
+    pub block_time_unix: Option<u64>,
     /// The event's `amount`, in atomic units.
     pub amount_atomic: String,
     /// The event's `memo` (the intent id).
@@ -281,6 +285,7 @@ fn scan_receipts(intent: &DepositIntent, outcome: &TxOutcome, bodies: &[ReceiptV
                     receiver_id: event.new_owner_id.clone(),
                     amount_atomic: event.amount.clone(),
                     memo: memo.to_string(),
+                    block_time_unix: None,
                 });
             }
             several => {
@@ -428,7 +433,21 @@ pub fn verify_tx_receipts(
     hint: &TxHint,
 ) -> Result<ReceiptCheck, ProviderError> {
     match rpc.tx_status_receipts(&hint.tx_hash, &hint.signer_id) {
-        Ok(outcome) => Ok(check_outcome(intent, &outcome)),
+        Ok(outcome) => {
+            let mut check = check_outcome(intent, &outcome);
+            if let Some(evidence) = check.evidence.as_mut() {
+                // One more read: the block time of the funding receipt. A
+                // failed read leaves it unknown, and expiry falls back to
+                // presentation time (the stricter rule).
+                evidence.block_time_unix = outcome
+                    .receipts_outcome
+                    .iter()
+                    .find(|receipt| receipt.id == evidence.receipt_id)
+                    .filter(|receipt| !receipt.block_hash.is_empty())
+                    .and_then(|receipt| rpc.block_time_unix(&receipt.block_hash).ok());
+            }
+            Ok(check)
+        }
         Err(err) if err.is_not_found() || err.is_timeout() => {
             Ok(ReceiptCheck::only(Verification::NotFinalYet))
         }

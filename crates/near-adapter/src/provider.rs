@@ -335,7 +335,15 @@ impl NearProvider {
             }
             return Ok(observation);
         }
-        if self.unix_now >= entry.intent.expires_at_unix {
+        // A transfer whose block landed before the expiry funds the intent
+        // even when it is presented late: the payer was on time. Without a
+        // block time the presentation time decides (red-team P-06).
+        let landed_in_time = check
+            .evidence
+            .as_ref()
+            .and_then(|evidence| evidence.block_time_unix)
+            .is_some_and(|landed| landed < entry.intent.expires_at_unix);
+        if self.unix_now >= entry.intent.expires_at_unix && !landed_in_time {
             // The intent expired before this proof was presented. A
             // transfer that landed never funds it; it is recorded for an
             // operator-approved refund. The expiry becomes final once the
@@ -975,6 +983,55 @@ mod tests {
         assert_eq!(provider.forget_unpaid(&ids), vec![hinted.intent_id.clone()]);
         assert!(provider.intent(&hinted.intent_id).is_none());
         assert!(provider.intent(&orphaned.intent_id).is_some());
+    }
+
+    fn landed_check(tx: &str, landed: Option<u64>) -> crate::verify::ReceiptCheck {
+        crate::verify::ReceiptCheck {
+            verification: Verification::Confirmed {
+                tx_ref: tx.to_string(),
+                amount_atomic: "1000000".to_string(),
+            },
+            evidence: Some(crate::verify::TransferEvidence {
+                tx_hash: tx.to_string(),
+                receipt_id: format!("r-{tx}"),
+                executor_id: "asset.near".to_string(),
+                predecessor_id: "payer.near".to_string(),
+                payer_id: "payer.near".to_string(),
+                receiver_id: "gateway.near".to_string(),
+                block_time_unix: landed,
+                amount_atomic: "1000000".to_string(),
+                memo: String::new(),
+            }),
+            orphans: Vec::new(),
+        }
+    }
+
+    /// Red-team P-06: expiry is decided by when the transfer landed. One
+    /// that landed before the expiry funds even when presented late; one
+    /// that landed after it, or whose block time is unknown, is an orphan.
+    #[test]
+    fn a_transfer_that_landed_in_time_funds_when_presented_late() {
+        let mut provider = NearProvider::new(config()).unwrap();
+        provider.sync_clock(100);
+        let on_time = provider.create_intent(request(1_000_000, 200)).unwrap();
+        let late = provider.create_intent(request(1_000_000, 200)).unwrap();
+        let unknown = provider.create_intent(request(1_000_000, 200)).unwrap();
+        provider.sync_clock(250);
+        let funded = provider
+            .apply_check(&on_time.intent_id, landed_check("a", Some(199)))
+            .unwrap();
+        assert!(
+            matches!(funded, Observation::Confirmed { .. }),
+            "{funded:?}"
+        );
+        let expired = provider
+            .apply_check(&late.intent_id, landed_check("b", Some(201)))
+            .unwrap();
+        assert_eq!(expired, Observation::Expired);
+        let expired = provider
+            .apply_check(&unknown.intent_id, landed_check("c", None))
+            .unwrap();
+        assert_eq!(expired, Observation::Expired);
     }
 
     #[test]
