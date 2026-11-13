@@ -313,7 +313,7 @@ button[disabled] { opacity: 0.45; cursor: not-allowed; transform: none; }
 .counters dd { margin: 6px 0 0; font-family: var(--mono); font-weight: 600; font-size: 1.45rem; letter-spacing: -0.03em; color: var(--accent); }
 label { font-weight: 650; }
 .field, form { display: flex; flex-direction: column; gap: 8px; }
-textarea, select {
+textarea, select, input[type="text"] {
   width: 100%;
   color: var(--ink);
   background: #090a0e;

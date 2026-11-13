@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
 <meta name="description" content="Create a TriagePay policy wallet on NEAR mainnet. The fee is 1 NEAR. The storage is refundable.">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://1click.chaindefuser.com; base-uri 'none'; form-action 'none'">
 <title>TriagePay — create a wallet on mainnet</title>
 <link rel="icon" href="/mark.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/style.css">
@@ -32,6 +33,36 @@
       <p><a class="primary" href="/">Back to the sandbox</a></p>
     </div>
   </section>
+
+  <section class="panel" aria-labelledby="h-topup">
+    <p class="eyebrow">Top up</p>
+    <h2 id="h-topup">Deposit any listed token. The wallet receives USDC.</h2>
+    <p class="lead">This asks the NEAR Intents 1Click API for a quote that settles as Circle USDC on the policy wallet. The token list, the quote, the deposit notice, and the status check are the published <code>/v0</code> routes on <code>1click.chaindefuser.com</code>. A preview uses <code>dry: true</code> and does not create a deposit address. A live quote does.</p>
+    <p class="hint">You sign the deposit in your own wallet. This page has no wallet connection, so it cannot open MyNearWallet, Meteor, HERE, Intear, or HOT for you, and it never asks for a key. For a NEAR token it prints the <code>ft_transfer</code> to sign, with 1 yoctoNEAR attached. For any other chain it prints the deposit address and stops there: I do not invent that chain's transfer. Quotes from this page are unauthenticated, so 1Click adds its public fee. I do not send a JWT.</p>
+    <form id="topup" class="field">
+      <label for="wallet">Policy wallet that should receive the USDC</label>
+      <input id="wallet" type="text" autocomplete="off" spellcheck="false" placeholder="name.triagepay.hlpok1lad.tg">
+      <label for="refund">Your account, for the refund if the swap fails</label>
+      <input id="refund" type="text" autocomplete="off" spellcheck="false" placeholder="you.near">
+      <label for="origin">Token you will send</label>
+      <select id="origin"></select>
+      <label for="amount">Amount, in that token's whole units</label>
+      <input id="amount" type="text" inputmode="decimal" autocomplete="off" value="0.1">
+      <p>
+        <button id="load-tokens" type="button">Reload tokens</button>
+        <button id="preview" type="button">Preview quote</button>
+        <button id="deposit" type="button">Create deposit address</button>
+      </p>
+      <label for="tx">Transaction hash, after you sign</label>
+      <input id="tx" type="text" autocomplete="off" spellcheck="false" placeholder="paste the hash">
+      <p>
+        <button id="submit-tx" type="button">Tell 1Click about the deposit</button>
+        <button id="status" type="button">Check status</button>
+      </p>
+    </form>
+    <pre id="topup-out" class="trace" role="status" aria-live="polite">The token list loads from 1Click.</pre>
+  </section>
 </main>
+<script src="/intents-page.js" type="module"></script>
 </body>
 </html>

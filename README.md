@@ -46,7 +46,7 @@ These are the facts I can point to. I have not benchmarked other tools.
 - **The server checks the payment from the token contract's own events.** An x402 payment counts only when the token contract's own NEP-141 `ft_transfer` event, in a finalized receipt, pays the gateway with the server-issued memo. Logs from any other contract are ignored. This runs on testnet ([how](#how-the-server-knows-it-was-paid)).
 - **An owner review queue on chain.** A new payee or an amount above a threshold is held in the contract until the owner approves or rejects it. Run on testnet: [held](https://testnet.nearblocks.io/txns/8nvs4X4jWrzEzsbUj2ziS5qEdTTi6wvRwfUTBxftdcJi), [approved](https://testnet.nearblocks.io/txns/CwEo7ec8uk25XQbKHNmS3naUhqM9FPbRJzEAjVf223Hp), [rejected](https://testnet.nearblocks.io/txns/CcUmBvhQPBvtPJ9pg4NF225U4XfaJEmwjLEZV9gCAaWR).
 - **Live on mainnet** with real (tiny) wNEAR amounts: paid, refused, revoked ([below](#live-on-mainnet)).
-- **A reusable SDK.** `packages/triagepay-sdk` is a one-line policy-wallet payer, an x402 helper and a NEAR AI tool (12 tests).
+- **A reusable SDK.** `packages/triagepay-sdk` is a one-line policy-wallet payer, an x402 helper and a NEAR AI tool (12 tests). The two-minute setup, the MCP server, and an outside agent are in [examples](examples/README.md).
 - **A claims audit.** Every testable claim in the docs is mapped to its evidence, with what is limited or open said plainly: [docs/claims-audit.md](docs/claims-audit.md).
 
 ## Live on mainnet
@@ -92,7 +92,7 @@ APS_MAINNET_ENV=/path/outside/the/repo.env \
   node scripts/mainnet/mainnet-e2e.mjs --out-dir DIR --keys-dir /path/outside/keys
 ```
 
-`wasm-opt` is binaryen 108. The release profile is `opt-level = "z"`, `lto = true`, `strip = true`, `panic = "abort"`, `debug = false`. The page at `/app` states the same 1 NEAR fee and 2.52906 NEAR of refundable storage. The contract is beta and unaudited. The deposit ceiling on the wallet is 100 USDC and 10 wNEAR, and a raw `ft_transfer` can bypass it.
+`wasm-opt` is binaryen 108. The release profile is `opt-level = "z"`, `lto = true`, `strip = true`, `panic = "abort"`, `debug = false`. The page at `/app` states the same 1 NEAR fee and 2.52906 NEAR of refundable storage. It also requests a NEAR Intents 1Click quote that settles as USDC on the wallet. The deposit is signed in the user's own wallet; the page does not connect one. The contract is beta and unaudited. The deposit ceiling on the wallet is 100 USDC and 10 wNEAR, and a raw `ft_transfer` can bypass it.
 
 ## Hosted demo
 
