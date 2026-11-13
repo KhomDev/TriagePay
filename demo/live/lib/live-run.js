@@ -11,6 +11,7 @@ import { formatAtomic } from "./format.js";
 import { DemoError } from "./http.js";
 import { remember } from "./journal.js";
 import { matchPending, receiptFromRun } from "./receipt.js";
+import { traceOutcome } from "./trace.js";
 import { notifyHold } from "./telegram.js";
 import {
   chainView,
@@ -226,6 +227,22 @@ export async function runTrackedPayment(request, { attack, agent, onEvent, drain
         mode: shownAgent && shownAgent.mode,
       });
     }
+    await traceOutcome(config, {
+      txHash: chain.txHash,
+      injection: attack.injection || attack.narrative,
+      reasoning: shownAgent && shownAgent.reasoning,
+      agentMode: shownAgent && shownAgent.mode,
+      payee,
+      amountDisplay: shown,
+      errorCode: chain.errorCode,
+      held: chain.held,
+      outcome: chain.outcome,
+      explorerUrl: chain.explorerUrl,
+      checks: [
+        { name: "Payee", result: again.code || again.effect },
+        { name: "Wallet", result: chain.held ? "held for the owner" : (chain.errorCode || chain.outcome || "submitted") },
+      ],
+    });
     return {
       agent: shownAgent,
       scenario: proposed,
@@ -235,6 +252,7 @@ export async function runTrackedPayment(request, { attack, agent, onEvent, drain
       summary,
       telegram,
       predicted: again,
+      replayUrl: chain.txHash ? `/replay/${chain.txHash}` : null,
       attemptsToday: decision.attemptsToday,
       limitSource: decision.source,
     };

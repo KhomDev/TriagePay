@@ -17,6 +17,12 @@ import { GET as og } from "./routes/og.js";
 import { GET as share } from "./routes/share.js";
 import { POST as telegram } from "./api/telegram.js";
 import { GET as killGet, POST as killPost } from "./routes/kill.js";
+import { GET as replay } from "./routes/replay.js";
+import { GET as honeypot } from "./routes/honeypot.js";
+import { POST as policy } from "./routes/policy.js";
+import { GET as passport } from "./routes/passport.js";
+import { GET as siteOg } from "./routes/site-og.js";
+import { passportPage, replayPage } from "./routes/pages.js";
 
 const ROOT = fileURLToPath(new URL("./public/", import.meta.url));
 const PORT = Number(process.env.PORT || 8787);
@@ -44,7 +50,28 @@ const routes = {
   "POST /api/telegram": telegram,
   "GET /api/kill": killGet,
   "POST /api/kill": killPost,
+  "GET /api/replay": replay,
+  "GET /api/honeypot": honeypot,
+  "POST /api/policy": policy,
+  "GET /api/passport": passport,
+  "GET /api/site-og": siteOg,
+  "GET /api/replay-page": replayPage,
+  "GET /api/passport-page": passportPage,
 };
+
+function rewritePath(url) {
+  const replayMatch = url.pathname.match(/^\/replay\/([A-Za-z0-9]+)$/);
+  if (replayMatch) {
+    url.pathname = "/api/replay-page";
+    url.searchParams.set("tx", replayMatch[1]);
+    return;
+  }
+  const agentMatch = url.pathname.match(/^\/agent\/([a-z0-9._-]+)$/i);
+  if (agentMatch) {
+    url.pathname = "/api/passport-page";
+    url.searchParams.set("account", agentMatch[1].toLowerCase());
+  }
+}
 
 async function toRequest(req) {
   const chunks = [];
@@ -78,6 +105,7 @@ async function send(res, response) {
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
+    rewritePath(url);
     const handler = routes[`${req.method} ${url.pathname}`];
     if (handler) {
       await send(res, await handler(await toRequest(req)));

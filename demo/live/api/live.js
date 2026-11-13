@@ -8,20 +8,34 @@ import { GET as drainGet, POST as drainPost } from "../routes/drain.js";
 import { GET as killGet, POST as killPost } from "../routes/kill.js";
 import { GET as og } from "../routes/og.js";
 import { GET as share } from "../routes/share.js";
+import { GET as replay } from "../routes/replay.js";
+import { GET as honeypot } from "../routes/honeypot.js";
+import { POST as policy } from "../routes/policy.js";
+import { GET as passport, og as passportOg } from "../routes/passport.js";
+import { GET as siteOg } from "../routes/site-og.js";
+import { passportPage, replayPage } from "../routes/pages.js";
 
-const NAMES = new Set(["agent", "drain", "kill", "og", "share"]);
+const NAMES = new Set(["agent", "drain", "kill", "og", "share", "replay", "honeypot", "policy", "passport", "passport-og", "site-og", "replay-page", "passport-page"]);
 
 const GETS = {
   drain: drainGet,
   kill: killGet,
   og,
   share,
+  replay,
+  honeypot,
+  passport,
+  "passport-og": passportOg,
+  "site-og": siteOg,
+  "replay-page": replayPage,
+  "passport-page": passportPage,
 };
 
 const POSTS = {
   agent,
   drain: drainPost,
   kill: killPost,
+  policy,
 };
 
 export function routeOf(request) {

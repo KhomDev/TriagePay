@@ -241,7 +241,8 @@
       receipt.explorerUrl ? el("p", null, el("a", { href: receipt.explorerUrl, rel: "noopener", target: "_blank" }, "Transaction")) : null,
       el("div", { class: "actions" },
         el("a", { class: "text-btn ghost", href: image, target: "_blank", rel: "noopener" }, "Save card"),
-        el("a", { class: "text-btn ghost", href: intent, target: "_blank", rel: "noopener" }, "Share on X")
+        el("a", { class: "text-btn ghost", href: intent, target: "_blank", rel: "noopener" }, "Share on X"),
+        receipt.txHash ? el("a", { class: "text-btn ghost", href: "/replay/" + receipt.txHash }, "Replay") : null
       )
     );
   }
@@ -432,6 +433,94 @@
     $("btn-run").disabled = !ready || state.busy;
     $("btn-drain").disabled = !ready || state.busy;
     $("btn-kill").disabled = !data.killSwitch || state.busy;
+    paintReceiptFeed(data.recent);
+    var policyNote = clear($("policy-note"));
+    if (policyNote) {
+      policyNote.appendChild(document.createTextNode(
+        data.policyApply
+          ? "Apply is on for this server. Preview first. Apply signs with the owner key."
+          : "Apply is off on this public demo. Preview shows the diff and does not sign. Set TRIAGEPAY_POLICY_APPLY=1 to allow apply."
+      ));
+    }
+    if (data.agent && data.explorerAccount) {
+      var pass = $("passport-link");
+      if (pass) pass.setAttribute("href", "/agent/" + data.agent);
+    }
+    loadHoneypot();
+  }
+
+  function paintReceiptFeed(rows) {
+    var root = $("receipts-feed");
+    if (!root) return;
+    clear(root);
+    var shown = (rows || []).filter(function (row) { return row.txHash; }).slice(0, 6);
+    if (!shown.length) {
+      root.appendChild(el("p", { class: "hint" }, "Receipts appear after a signed attempt. A replay link is added when this server stored the agent's text."));
+      return;
+    }
+    shown.forEach(function (row) {
+      var card = shareCard({
+        kind: row.outcome === "success" && !row.errorCode ? "settled" : "refused",
+        headline: row.errorCode || (row.outcome === "success" ? "SETTLED" : "REFUSED"),
+        rule: row.errorCode || "",
+        ruleText: row.title || "",
+        tried: row.title || "",
+        amount: row.amount || "",
+        payee: row.payee || "",
+        txHash: row.txHash,
+        explorerUrl: row.explorerUrl,
+        shareText: (row.errorCode || "RECEIPT") + " built at NEAR HACKATHON @NEARProtocol #NEARHackathon",
+      });
+      if (card) root.appendChild(card);
+    });
+  }
+
+  async function loadHoneypot() {
+    var note = $("honeypot-note");
+    if (!note) return;
+    var result = await api("/api/honeypot");
+    if (!result.ok || !result.json) return;
+    var data = result.json;
+    clear(note).appendChild(document.createTextNode(data.note || ""));
+    var payee = $("honeypot-payee");
+    if (payee) payee.textContent = data.payee || "";
+    var list = clear($("honeypot-list"));
+    var rows = data.feed || [];
+    if (!rows.length) {
+      list.appendChild(el("li", null, "No trap payment is stored on this instance yet."));
+      return;
+    }
+    rows.forEach(function (row) {
+      var link = row.explorerUrl ? el("a", { href: row.explorerUrl, rel: "noopener", target: "_blank" }, "evidence") : document.createTextNode("no transaction");
+      list.appendChild(el("li", null, (row.outcome || "refused") + (row.errorCode ? " " + row.errorCode : "") + " ", link));
+    });
+  }
+
+  function paintPolicy(payload, isError) {
+    var root = clear($("policy-result"));
+    if (isError) {
+      root.appendChild(el("p", { class: "notice bad" }, payload));
+      return;
+    }
+    root.appendChild(el("p", null, "Parser: " + (payload.mode || "parser") + "."));
+    if (payload.modelNote) root.appendChild(el("p", { class: "hint" }, payload.modelNote));
+    (payload.notes || []).forEach(function (line) { root.appendChild(el("p", { class: "hint" }, line)); });
+    var changes = payload.changes || [];
+    if (!changes.length) root.appendChild(el("p", null, "No difference from the on-chain policy, or the sentence named nothing I can map."));
+    changes.forEach(function (change) {
+      root.appendChild(el("p", null, change.field + ": " + change.from + " → " + change.to));
+    });
+    if (payload.summary) root.appendChild(el("p", null, payload.summary));
+    var apply = $("btn-policy-apply");
+    if (apply) apply.disabled = !payload.applyAllowed || !changes.length || state.busy;
+  }
+
+  async function onPolicy(event, action) {
+    if (event) event.preventDefault();
+    var text = $("policy-text").value;
+    var result = await api("/api/policy", { text: text, action: action || "preview" });
+    if (!result.ok) paintPolicy(errorText(result), true);
+    else paintPolicy(result.json, false);
   }
 
   function slam(word) {
@@ -647,6 +736,10 @@
   $("btn-walk").addEventListener("click", onWalk);
   $("btn-attest").addEventListener("click", onAttest);
   $("drain-form").addEventListener("submit", onDrain);
+  var policyForm = $("policy-form");
+  if (policyForm) policyForm.addEventListener("submit", function (event) { onPolicy(event, "preview"); });
+  var policyApply = $("btn-policy-apply");
+  if (policyApply) policyApply.addEventListener("click", function () { onPolicy(null, "apply"); });
   $("btn-kill").addEventListener("click", onKill);
 
   refresh().then(function () { return refreshDrain(); }).then(playDiagram);

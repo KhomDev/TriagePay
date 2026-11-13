@@ -16,6 +16,7 @@ import { classifyAmount, classifyPayee } from "./risk.js";
 import { mergeRecent } from "./recent.js";
 import { storeFromEnv } from "./store.js";
 import { notifyHold } from "./telegram.js";
+import { traceOutcome } from "./trace.js";
 import { modelFromEnv } from "./agent.js";
 
 let signing = false;
@@ -212,6 +213,7 @@ export async function getHealth() {
     killSwitch: Boolean(String(process.env.KILL_SWITCH_SECRET || "").trim()),
     telegram: Boolean(String(process.env.TELEGRAM_BOT_TOKEN || "").trim() && String(process.env.TELEGRAM_OWNER_CHAT_ID || "").trim()),
     agentMode: String(process.env.NEARAI_API_KEY || "").trim() ? "live" : "scripted",
+    policyApply: String(process.env.TRIAGEPAY_POLICY_APPLY || "") === "1",
     model: modelFromEnv(),
   };
 }
@@ -294,6 +296,54 @@ export async function getDashboard() {
       : review,
     recent: mergeRecent(indexed, recall(), config.explorerTxBase),
   };
+}
+
+export async function signOwnerPolicy(request, { setAgent, setReview }) {
+  const config = loadConfig();
+  const keys = loadKeys();
+  requireChain(config);
+  requireKeys(keys);
+  await assertTestnet(config.rpcUrl);
+  const calls = [];
+  if (setAgent) {
+    calls.push(await functionCall("set_agent", {
+      agent_id: config.accounts.agent,
+      per_call_max: setAgent.perCallMax,
+      daily_max: setAgent.dailyMax,
+      payees: setAgent.payees,
+    }, 40, ONE_YOCTO));
+  }
+  if (setReview) {
+    calls.push(await functionCall("set_review_policy", {
+      approval_threshold: setReview.approvalThreshold,
+      review_unknown_payees: Boolean(setReview.reviewUnknownPayees),
+    }, 20, ONE_YOCTO));
+  }
+  if (!calls.length) throw new DemoError("no_change", "Nothing in that sentence changes the on-chain policy.", 400);
+  return withSigningLock(async ({ note }) => {
+    const decision = await gate(config, request);
+    note(decision);
+    const signed = await signCall({
+      rpcUrl: config.rpcUrl,
+      signerId: config.accounts.owner,
+      secretKey: keys.owner,
+      receiverId: config.accounts.wallet,
+      actions: calls,
+    });
+    const chain = chainView(config, signed);
+    remember({
+      atMs: Date.now(),
+      kind: "policy",
+      title: "Apply policy",
+      outcome: signed.outcome,
+      errorCode: signed.errorCode,
+      txHash: signed.txHash,
+    });
+    const summary = signed.outcome === "success"
+      ? "The owner applied that policy on chain."
+      : `The owner transaction did not succeed${signed.errorCode ? ` (${signed.errorCode})` : ""}.`;
+    return { chain, summary };
+  });
 }
 
 async function ownerCall(config, keys, action) {
@@ -507,6 +557,23 @@ export async function runScenario(id, request) {
         telegram = { configured: true, sent: false, reason: "Telegram did not accept the message." };
       }
     }
+    await traceOutcome(config, {
+      txHash: chain.txHash,
+      injection: attack.injection || attack.narrative,
+      reasoning: attack.narrative,
+      agentMode: "scripted",
+      payee: attack.payee,
+      amountDisplay: attack.amountDisplay,
+      errorCode: chain.errorCode,
+      held: chain.held,
+      outcome: chain.outcome,
+      explorerUrl: chain.explorerUrl,
+      checks: [
+        { name: "Payee risk", result: risk.verdict },
+        { name: "Amount", result: amountCheck.verdict },
+        { name: "Wallet", result: chain.held ? "held for the owner" : (chain.errorCode || chain.outcome || "not submitted") },
+      ],
+    });
     return {
       scenario: scenarioView(attack),
       risk: {
@@ -525,6 +592,7 @@ export async function runScenario(id, request) {
         amountDisplay: attack.amountDisplay,
         payee: attack.payee,
       }),
+      replayUrl: chain.txHash ? `/replay/${chain.txHash}` : null,
       telegram,
       summary: restored
         ? `The agent was revoked, so I restored it before this attempt. ${summary}`
