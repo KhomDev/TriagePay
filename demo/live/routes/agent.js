@@ -7,6 +7,7 @@ export async function POST(request) {
     const body = await readJson(request);
     const scenario = typeof body.scenario === "string" ? body.scenario : "injected-payee";
     const mainnet = body.network === "mainnet";
+    const live = body.live === true;
     const wantsStream = (request.headers.get("accept") || "").includes("text/event-stream");
     if (mainnet) {
       if (!wantsStream) return json(200, await runMainnetLaunch(request));
@@ -16,9 +17,9 @@ export async function POST(request) {
         send({ type: "result", payload });
       });
     }
-    if (!wantsStream) return json(200, await runLaunch(request, { scenario }));
+    if (!wantsStream) return json(200, await runLaunch(request, { scenario, live }));
     return sse(async (send) => {
-      const payload = await runLaunch(request, { scenario, onEvent: send });
+      const payload = await runLaunch(request, { scenario, live, onEvent: send });
       send({ type: "result", payload });
     });
   } catch (error) {

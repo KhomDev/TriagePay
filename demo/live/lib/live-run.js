@@ -262,26 +262,49 @@ export async function runTrackedPayment(request, { attack, agent, onEvent, drain
   });
 }
 
+export function deterministicAgent(attack) {
+  return {
+    mode: "deterministic",
+    label: "deterministic attack, real on-chain refusal",
+    reasoning: "Deterministic attack. The injected account is signed on chain. The contract decides.",
+    tool: attack && attack.payee && attack.amount
+      ? { name: "pay", receiver_id: attack.payee, amount: String(attack.amount) }
+      : null,
+    fallbackReason: null,
+    model: null,
+  };
+}
+
+export function drainStory(prompt, signedDisplay, capDisplay) {
+  const match = /(\d+(?:\.\d+)?)\s*(?:wnear|near)\b/i.exec(String(prompt || ""));
+  if (!match) return null;
+  return `Attacker asked for ${match[1]} wNEAR. The contract cap allows ${capDisplay}. This attempt signed ${signedDisplay}.`;
+}
+
 export async function runLaunch(request, options = {}) {
   const config = loadConfig();
   const attack = describeAttack(options.scenario || "injected-payee", config);
   if (!attack) throw new DemoError("unknown_attack", "unknown scenario", 400);
   requireChain(config);
   requireKeys(loadKeys());
-  const agent = await decidePayment({
-    finding: attack.injection || attack.narrative,
-    fallbackPayee: attack.payee,
-    fallbackAmount: attack.amount,
-    preferFallback: true,
-    apiKey: process.env.NEARAI_API_KEY || "",
-    model: modelFromEnv(),
-    models: [modelFromEnv()],
-    budgetMs: 11_000,
-    maxTokens: 80,
-    quiet: true,
-    fetchImpl: options.fetchImpl || fetch,
-    onEvent: options.onEvent,
-  });
+  let agent = deterministicAgent(attack);
+  if (options.live) {
+    const modeled = await decidePayment({
+      finding: attack.injection || attack.narrative,
+      fallbackPayee: attack.payee,
+      fallbackAmount: attack.amount,
+      preferFallback: true,
+      apiKey: process.env.NEARAI_API_KEY || "",
+      model: modelFromEnv(),
+      models: [modelFromEnv()],
+      budgetMs: 8_000,
+      maxTokens: 60,
+      quiet: true,
+      fetchImpl: options.fetchImpl || fetch,
+      onEvent: options.onEvent,
+    });
+    agent = modeled && modeled.tool ? modeled : deterministicAgent(attack);
+  }
   return runTrackedPayment(request, { attack, agent, onEvent: options.onEvent, drain: null });
 }
 
@@ -333,10 +356,16 @@ export async function runDrainAttempt(request, prompt, options = {}) {
     amountDisplay: amountDisplay(agent.tool ? agent.tool.amount : config.policy.allowedAmount, config.policy.decimals),
     expectedError: null,
   };
-  return runTrackedPayment(request, {
+  const result = await runTrackedPayment(request, {
     attack,
     agent,
     onEvent: options.onEvent,
     drain: { prompt: text, atMs: Date.now() },
   });
+  const capDisplay = amountDisplay(config.policy.perCallMax, config.policy.decimals);
+  const signedDisplay = amountDisplay(agent.tool ? agent.tool.amount : config.policy.allowedAmount, config.policy.decimals);
+  const story = drainStory(text, `${signedDisplay} wNEAR`, `${capDisplay} wNEAR`);
+  if (story) result.summary = `${story} ${result.summary || ""}`.trim();
+  result.asked = story;
+  return result;
 }

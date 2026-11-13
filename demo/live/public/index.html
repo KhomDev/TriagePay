@@ -13,14 +13,14 @@
 <meta name="twitter:description" content="The agent signs. The contract decides. Live on NEAR testnet and mainnet.">
 <meta name="twitter:image" content="/api/site-og">
 <meta name="vercel-toolbar" content="false">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://vercel.live; style-src 'self' https://vercel.live; font-src 'self' https://vercel.live https://assets.vercel.com; img-src 'self' data: https://vercel.live https://vercel.com; connect-src 'self' https://vercel.live wss://ws-us3.pusher.com; frame-src https://vercel.live; base-uri 'none'; form-action 'none'">
 <title>TriagePay — The agent signs. The contract decides.</title>
 <link rel="icon" href="favicon.ico" sizes="32x32">
 <link rel="icon" href="mark.svg" type="image/svg+xml">
 <link rel="preload" href="fonts/syne-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="style.css">
-<script src="app.js" defer></script>
+<script src="app.min.js" defer></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -50,7 +50,6 @@
         <article>
           <p class="stat-kicker">Value protected</p>
           <p id="num-protected" class="stat">—</p>
-          <p id="num-usdc" class="stat-sub">0 USDC</p>
         </article>
         <article>
           <p class="stat-kicker">Unique agents</p>
@@ -64,11 +63,13 @@
           <button type="button" id="net-testnet" class="secondary" aria-pressed="true">Testnet</button>
           <button type="button" id="net-mainnet" class="secondary" aria-pressed="false">Mainnet</button>
         </div>
+        <label class="live-opt" for="opt-live"><input id="opt-live" type="checkbox"> Live model</label>
         <a class="text-btn ghost" href="#drain">Try to drain it</a>
       </div>
       <div id="mainnet-proofs" class="hint" hidden></div>
       <div id="live-verdict" class="live-verdict" aria-live="assertive"></div>
-      <p id="agent-mode" class="mode-pill">Scripted</p>
+      <p id="mainnet-left" class="hint" hidden></p>
+      <p id="agent-mode" class="mode-pill">Deterministic attack, real on-chain refusal</p>
       <p id="status" class="status" role="status" aria-live="polite"></p>
     </div>
     <div class="stage">

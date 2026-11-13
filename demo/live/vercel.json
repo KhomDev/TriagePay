@@ -27,7 +27,8 @@
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "x-vercel-enable-toolbar", "value": "false" }
+        { "key": "x-vercel-enable-toolbar", "value": "false" },
+        { "key": "x-vercel-skip-toolbar", "value": "1" }
       ]
     }
   ],

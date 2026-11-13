@@ -37,6 +37,28 @@ export function formatAmount(atomic, decimals, symbol) {
   return `${text} ${symbol}`;
 }
 
+export function formatAmountShort(atomic, decimals = 24, symbol = "wNEAR", places = 4) {
+  const value = BigInt(atomic);
+  const negative = value < 0n;
+  const abs = negative ? -value : value;
+  const scale = 10n ** BigInt(decimals);
+  let whole = abs / scale;
+  const fracStr = (abs % scale).toString().padStart(Number(decimals), "0");
+  const head = fracStr.slice(0, places) || "0";
+  const next = fracStr[places] || "0";
+  let digits = BigInt(head);
+  if (next >= "5") digits += 1n;
+  const limit = 10n ** BigInt(places);
+  if (digits >= limit) {
+    whole += 1n;
+    digits = 0n;
+  }
+  const fracText = digits.toString().padStart(places, "0").replace(/0+$/, "");
+  const text = fracText ? `${whole}.${fracText}` : whole.toString();
+  const signed = negative ? `-${text}` : text;
+  return symbol ? `${signed} ${symbol}` : signed;
+}
+
 export function nsToIso(ns) {
   if (ns == null || ns === "") return null;
   const ms = typeof ns === "string" ? Number(BigInt(ns) / 1000000n) : Math.round(Number(ns) / 1e6);

@@ -3,7 +3,7 @@
   "use strict";
 
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var state = { scenarios: [], busy: false, review: null, queueScenario: null, ready: false, killSwitch: false, recentRows: null, drainRows: null, network: "testnet", mainnetSigning: false, mainnetProofs: [] };
+  var state = { scenarios: [], busy: false, review: null, queueScenario: null, ready: false, killSwitch: false, recentRows: null, drainRows: null, network: "testnet", mainnetSigning: false, mainnetProofs: [], mainnetRemaining: null };
 
   function $(id) { return document.getElementById(id); }
 
@@ -80,17 +80,20 @@
     if (!board) return;
     $("num-paid").textContent = board.paid == null ? "—" : String(board.paid);
     $("num-refused").textContent = board.refused == null ? "—" : String(board.refused);
-    $("num-protected").textContent = board.protectedDisplay || "amount not in the index";
-    $("num-usdc").textContent = board.usdc || "0 USDC";
+    $("num-protected").textContent = board.protectedDisplay || "—";
     $("num-agents").textContent = board.agents == null ? "—" : String(board.agents);
     var source = $("num-source");
-    if (source) source.textContent = board.source || "";
+    if (source) {
+      clear(source);
+      source.appendChild(document.createTextNode("Live from NearBlocks "));
+      source.appendChild(el("a", { href: board.sourceUrl || "https://nearblocks.io", rel: "noopener", target: "_blank" }, "NearBlocks"));
+    }
   }
 
   function paintMainnetProofs() {
     var box = $("mainnet-proofs");
     if (!box) return;
-    var show = state.network === "mainnet" && !state.mainnetSigning;
+    var show = state.network === "mainnet";
     box.hidden = !show;
     if (!show) return;
     clear(box);
@@ -108,6 +111,12 @@
     if (testnet) testnet.setAttribute("aria-pressed", state.network === "testnet" ? "true" : "false");
     if (mainnet) mainnet.setAttribute("aria-pressed", state.network === "mainnet" ? "true" : "false");
     paintMainnetProofs();
+    var left = $("mainnet-left");
+    if (left) {
+      var showLeft = state.network === "mainnet" && state.mainnetRemaining != null;
+      left.hidden = !showLeft;
+      if (showLeft) left.textContent = state.mainnetRemaining + " mainnet runs left today";
+    }
   }
 
   function paintSpend(data) {
@@ -147,7 +156,7 @@
       $("nav-wallet").textContent = data.wallet;
       $("nav-wallet").setAttribute("href", data.explorerAccount + data.wallet);
     }
-    $("agent-mode").textContent = data.agentMode === "live" ? "Live model" : "Scripted";
+    if (!state.holdStatus) $("agent-mode").textContent = "Deterministic attack, real on-chain refusal";
   }
 
   function paintRisks(risks) {
@@ -332,13 +341,15 @@
   }
 
   function agentLabel(agent) {
-    return agent && agent.mode === "live" ? "Live model" : "Scripted";
+    if (agent && agent.mode === "live") return "Live model";
+    return "Deterministic attack, real on-chain refusal";
   }
 
   function syncControls() {
     var busy = Boolean(state.busy);
     var ready = Boolean(state.ready);
-    if ($("btn-launch")) $("btn-launch").disabled = !ready || busy;
+    var blocked = state.network === "mainnet" && state.mainnetRemaining === 0;
+    if ($("btn-launch")) $("btn-launch").disabled = !ready || busy || blocked;
     if ($("btn-run")) $("btn-run").disabled = !ready || busy;
     if ($("btn-drain")) $("btn-drain").disabled = !ready || busy;
     if ($("btn-kill")) $("btn-kill").disabled = !state.killSwitch || busy;
@@ -507,6 +518,7 @@
     }
     state.mainnetSigning = Boolean(data.mainnet && data.mainnet.signing);
     state.mainnetProofs = (data.mainnet && data.mainnet.proofs) || [];
+    state.mainnetRemaining = data.mainnet && data.mainnet.remaining != null ? data.mainnet.remaining : null;
     paintNumbers(data.scoreboard);
     paintMainnetProofs();
     paintSpend(data);
@@ -605,7 +617,9 @@
     var payee = $("honeypot-payee");
     if (payee) payee.textContent = data.payee || "";
     var rows = data.feed || [];
+    var panel = document.querySelector(".honeypot");
     if (!rows.length && state.honeypotRows && state.honeypotRows.length) return;
+    if (panel) panel.hidden = !rows.length;
     state.honeypotRows = rows;
     var list = clear($("honeypot-list"));
     if (!rows.length) {
@@ -682,9 +696,14 @@
 
   async function onLaunch() {
     if (state.busy) return;
+    if (state.network === "mainnet" && state.mainnetRemaining === 0) {
+      paintMainnetProofs();
+      setStatus("No mainnet runs left today. The proof links stay on the page.");
+      return;
+    }
     if (state.network === "mainnet" && !state.mainnetSigning) {
       paintMainnetProofs();
-      setStatus("Mainnet signing is off. The links above are the recorded proofs.");
+      setStatus("Mainnet signing is off. The proof links stay on the page.");
       return;
     }
     state.busy = true;
@@ -696,14 +715,15 @@
     $("flow").classList.add("is-live");
     $("agent-trace").textContent = "Reading the finding.";
     $("sign-line").textContent = "Waiting to sign.";
-    setStatus("Reading the finding…");
+    setStatus(state.network === "mainnet" ? "Signing on NEAR mainnet…" : "Signing the deterministic attack…");
     setSteps(["step-agent"], false);
     try {
       var launchBody = { scenario: "injected-payee" };
       if (state.network === "mainnet") launchBody.network = "mainnet";
+      if ($("opt-live") && $("opt-live").checked && state.network !== "mainnet") launchBody.live = true;
       var result = await readSse("/api/agent", launchBody, function (event) {
         if (event.type === "mode") {
-          $("agent-mode").textContent = event.mode === "live" ? "Live model" : "Scripted";
+          $("agent-mode").textContent = event.mode === "live" ? "Live model" : "Deterministic attack, real on-chain refusal";
         }
         if (event.type === "tool") {
           setSteps(["step-agent", "step-instruction"], false);
@@ -713,20 +733,26 @@
         }
         if (event.type === "status") {
           setSteps(["step-agent", "step-instruction", "step-wallet"], false);
-          $("sign-line").textContent = "Signing pay on testnet.";
-          setStatus(event.text || "Signing pay on NEAR testnet.");
+          var netName = state.network === "mainnet" ? "mainnet" : "testnet";
+          $("sign-line").textContent = "Signing pay on " + netName + ".";
+          setStatus(event.text || ("Signing pay on NEAR " + netName + "."));
         }
       });
       var word = result.ok ? wordFor(result.json) : null;
-      var code = result.ok && result.json && result.json.chain ? result.json.chain.errorCode : "";
+      var chain = result.ok && result.json ? result.json.chain : null;
+      var code = chain && chain.errorCode ? chain.errorCode : "";
+      var link = chain && chain.explorerUrl ? chain.explorerUrl : "";
       setSteps(["step-agent", "step-instruction", "step-wallet", "step-verdict"], !word || word.kind === "bad");
-      slam(word ? word.text : "STOPPED");
+      if (word) slam(word.text);
       if (result.ok && result.json && result.json.agent) {
         $("agent-mode").textContent = agentLabel(result.json.agent);
       }
       if (!result.ok) {
-        setStatus("This attempt did not finish. The note under the path says why.");
+        setStatus("This attempt did not finish. There is no transaction link.");
         paintResult($("verdict"), result.text || errorText(result), true);
+      } else if (!link) {
+        setStatus((word ? word.text : "This attempt did not reach the chain") + ". There is no transaction link.");
+        paintResult($("verdict"), result.json, false);
       } else {
         setStatus((word ? word.text : "Done") + (code ? " " + code : "") + ". The transaction link is next to the button.");
         showLiveVerdict(word, result.json);

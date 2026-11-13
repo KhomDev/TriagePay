@@ -146,6 +146,7 @@ export function summarize(result) {
     txHash: (result && result.transaction && result.transaction.hash) || null,
     outcome: failure ? "failure" : "success",
     errorCode: match ? match[0] : null,
+    held: !failure && /payment_queued|PaymentQueued/i.test(all),
     rejected: false,
     detail,
   };

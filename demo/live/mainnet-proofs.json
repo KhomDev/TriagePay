@@ -1,0 +1,18 @@
+{
+  "proofs": [
+    {
+      "label": "Paid call",
+      "href": "https://nearblocks.io/txns/2RH77VLsLHovF3m4kzR76jk71X8tYKAyugxQ9YJMXLJJ",
+      "memo": "",
+      "amount": "1000000",
+      "kind": "paid"
+    },
+    {
+      "label": "Refused payee",
+      "href": "https://nearblocks.io/txns/HskzPv94J1JY16K5WdUG8wfGznnhnMMKcXgE1acks63F",
+      "memo": "",
+      "amount": "1000000",
+      "kind": "refused"
+    }
+  ]
+}

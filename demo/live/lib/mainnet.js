@@ -2,8 +2,11 @@
 // signs when TRIAGEPAY_MAINNET_AGENT_SECRET_KEY is set, and then only a
 // 1000-yocto pay to the allowlisted gateway plus one refused attacker pay.
 
-import { fetchDayStamps, fetchIndexerPage } from "./facts.js";
-import { formatAmount } from "./format.js";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { fetchIndexerPage } from "./facts.js";
+import { formatAmountShort } from "./format.js";
 import { DemoError } from "./http.js";
 import { clientIp } from "./limits.js";
 import { functionCall, rpc, signCall } from "./near.js";
@@ -11,10 +14,11 @@ import { storeFromEnv } from "./store.js";
 import { fetchPayTransaction } from "./txread.js";
 import { createHash } from "node:crypto";
 
+const PROOFS_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "mainnet-proofs.json");
+
 export const MAINNET_PAID_AMOUNT = "1000";
 const IP_WINDOW_MS = 10 * 60 * 1000;
 const GLOBAL_RUNS_PER_DAY = 30;
-const TXS_PER_RUN = 2;
 
 export const MAINNET = {
   network: "mainnet",
@@ -36,11 +40,19 @@ export const MAINNET = {
   },
 };
 
-export const MAINNET_PROOFS = [
-  { label: "Paid call", href: "https://nearblocks.io/txns/2RH77VLsLHovF3m4kzR76jk71X8tYKAyugxQ9YJMXLJJ" },
-  { label: "Refused payee", href: "https://nearblocks.io/txns/HskzPv94J1JY16K5WdUG8wfGznnhnMMKcXgE1acks63F" },
-  { label: "Key revoked", href: "https://nearblocks.io/txns/CFutaZM9XMLBBcfm2jwH2JnQQJA8ReNGyTRhH1PZLzFh" },
-];
+export function loadProofFile() {
+  const parsed = JSON.parse(readFileSync(PROOFS_PATH, "utf8"));
+  const proofs = Array.isArray(parsed.proofs) ? parsed.proofs : [];
+  return proofs
+    .filter((item) => item && item.href && item.label && !/revok/i.test(item.label))
+    .map((item) => ({
+      label: String(item.label),
+      href: String(item.href),
+      memo: item.memo ? String(item.memo) : "",
+      amount: item.amount ? String(item.amount) : "",
+      kind: item.kind ? String(item.kind) : "",
+    }));
+}
 
 const KEY_RE = /^ed25519:[1-9A-HJ-NP-Za-km-z]+$/;
 const ipHits = new Map();
@@ -63,8 +75,20 @@ export function mainnetStatus(env = process.env) {
     payee: MAINNET.accounts.payee,
     injected: MAINNET.accounts.injected,
     paidAmount: MAINNET_PAID_AMOUNT,
-    proofs: MAINNET_PROOFS,
+    proofs: loadProofFile(),
+    remaining: null,
+    runs: null,
   };
+}
+
+export function countDemoMemos(pays) {
+  let injected = 0;
+  let paid = 0;
+  for (const pay of pays || []) {
+    if (pay.memo === "demo:mainnet-injected") injected += 1;
+    if (pay.memo === "demo:mainnet-paid") paid += 1;
+  }
+  return { injected, paid, runs: Math.max(injected, paid) };
 }
 
 export function tallyPays(rows) {
@@ -97,8 +121,8 @@ function takeLocalIp(ip, nowMs) {
   return true;
 }
 
-export async function reserveMainnetRun({ request, nowMs = Date.now(), chainPayCount = 0, store = null }) {
-  if (chainPayCount >= GLOBAL_RUNS_PER_DAY * TXS_PER_RUN) {
+export async function reserveMainnetRun({ request, nowMs = Date.now(), demoRunCount = 0, store = null }) {
+  if (demoRunCount >= GLOBAL_RUNS_PER_DAY) {
     return { allowed: false, reason: "Mainnet has used its 30 runs for today." };
   }
   const ip = clientIp(request);
@@ -135,14 +159,18 @@ async function assertMainnet(rpcUrl) {
 }
 
 function chainView(signed, label) {
+  const held = Boolean(signed && signed.held);
+  const refused = Boolean(signed && (signed.errorCode || signed.outcome === "failure"));
   return {
     submitted: Boolean(signed && signed.txHash && !signed.rejected),
     txHash: signed && signed.txHash ? signed.txHash : null,
     explorerUrl: signed && signed.txHash ? MAINNET.explorerTxBase + signed.txHash : null,
     outcome: signed ? signed.outcome : null,
     errorCode: signed ? signed.errorCode : null,
+    held,
     rejected: Boolean(signed && signed.rejected),
-    label,
+    label: held ? "held" : label,
+    honest: held ? "held" : refused ? "refused" : "settled",
   };
 }
 
@@ -162,16 +190,84 @@ async function signPay(secretKey, { payee, amount, memo }) {
   });
 }
 
+async function recentPays() {
+  const seen = new Set();
+  const rows = [];
+  let cursor = null;
+  for (let page = 0; page < 2; page += 1) {
+    const batch = await fetchIndexerPage(MAINNET.indexerAccountsBase, MAINNET.accounts.agent, { limit: 25, next: cursor });
+    if (!batch.ok) break;
+    for (const row of batch.rows || []) {
+      if (!row.txHash || seen.has(row.txHash)) continue;
+      if (!(row.methods || []).includes("pay")) continue;
+      seen.add(row.txHash);
+      rows.push(row);
+    }
+    if (!batch.next) break;
+    cursor = batch.next;
+  }
+  const decoded = [];
+  for (const row of rows) {
+    try {
+      const pay = await fetchPayTransaction(MAINNET.rpcUrl, row.txHash, [MAINNET.accounts.agent]);
+      if (pay) decoded.push({ ...pay, txHash: row.txHash, atMs: row.atMs });
+    } catch {
+      // Skip a call the RPC did not return.
+    }
+  }
+  return decoded;
+}
+
+let usageCache = { at: 0, value: null };
+
+export async function demoUsage() {
+  if (usageCache.value && Date.now() - usageCache.at < 60_000) return usageCache.value;
+  const pays = await recentPays();
+  const counted = countDemoMemos(pays);
+  const pinned = [];
+  for (const memo of ["demo:mainnet-paid", "demo:mainnet-injected"]) {
+    const found = pays.find((pay) => pay.memo === memo && pay.txHash);
+    if (!found) continue;
+    pinned.push({
+      label: memo === "demo:mainnet-paid" ? "Paid call" : "Refused payee",
+      href: MAINNET.explorerTxBase + found.txHash,
+      memo,
+      amount: found.amount || MAINNET_PAID_AMOUNT,
+      kind: memo === "demo:mainnet-paid" ? "paid" : "refused",
+      verified: true,
+    });
+  }
+  const configured = loadProofFile();
+  const proofs = pinned.length ? pinned : configured;
+  const value = {
+    runs: counted.runs,
+    remaining: Math.max(0, GLOBAL_RUNS_PER_DAY - counted.runs),
+    proofs,
+  };
+  usageCache = { at: Date.now(), value };
+  return value;
+}
+
+export async function mainnetPublic(env = process.env) {
+  const base = mainnetStatus(env);
+  try {
+    const usage = await demoUsage();
+    return { ...base, runs: usage.runs, remaining: usage.remaining, proofs: usage.proofs };
+  } catch {
+    return base;
+  }
+}
+
 export async function runMainnetLaunch(request, env = process.env) {
   const secretKey = mainnetAgentKey(env);
   if (!secretKey) {
     throw new DemoError("mainnet_off", "Mainnet signing is off. The proof links are the record.", 409);
   }
   await assertMainnet(MAINNET.rpcUrl);
-  const day = await fetchDayStamps(MAINNET.indexerAccountsBase, MAINNET.accounts.agent, Date.now());
+  const usage = await demoUsage().catch(() => ({ runs: 0 }));
   const gate = await reserveMainnetRun({
     request,
-    chainPayCount: (day.stamps || []).length,
+    demoRunCount: usage.runs || 0,
     store: storeFromEnv(env),
   });
   if (!gate.allowed) throw new DemoError("mainnet_limit", gate.reason, 429);
@@ -187,23 +283,31 @@ export async function runMainnetLaunch(request, env = process.env) {
   });
   const chain = chainView(refusedSigned, "refused");
   const paid = chainView(paidSigned, "paid");
+  const malloryHeld = Boolean(chain.held);
+  const headline = malloryHeld ? "HELD" : (chain.errorCode || chain.outcome !== "success" ? "REFUSED" : "SETTLED");
+  const ruleText = malloryHeld
+    ? "The wallet held the payment instead of refusing it."
+    : "The payee is not on the allowlist.";
+  usageCache = { at: 0, value: null };
   return {
     network: "mainnet",
-    agent: { mode: "scripted", label: "Scripted", reasoning: "Scripted. The agent pays the injected account, then the allowlisted gateway.", tool: { name: "pay", receiver_id: MAINNET.accounts.injected, amount: MAINNET_PAID_AMOUNT }, fallbackReason: "scripted", model: null },
+    agent: { mode: "deterministic", label: "deterministic attack, real on-chain refusal", reasoning: "Deterministic attack on mainnet.", tool: { name: "pay", receiver_id: MAINNET.accounts.injected, amount: MAINNET_PAID_AMOUNT }, fallbackReason: null, model: null },
     chain,
     paid,
-    summary: "Mainnet: the injected payee was sent first, then 1000 yocto wNEAR to the allowlisted gateway.",
+    summary: malloryHeld
+      ? "Mainnet held the attacker payment instead of refusing it."
+      : "Mainnet refused the injected payee, then sent 1000 yocto wNEAR to the allowlisted gateway.",
     receipt: chain.txHash ? {
-      kind: chain.errorCode || chain.outcome !== "success" ? "refused" : "settled",
-      headline: chain.errorCode || chain.outcome !== "success" ? "REFUSED" : "SETTLED",
+      kind: malloryHeld ? "held" : (headline === "REFUSED" ? "refused" : "settled"),
+      headline,
       rule: chain.errorCode || "",
-      ruleText: "The payee is not on the allowlist.",
+      ruleText,
       tried: "The agent pays the injected account.",
       amount: "1000 yocto wNEAR",
       payee: MAINNET.accounts.injected,
       txHash: chain.txHash,
       explorerUrl: chain.explorerUrl,
-      shareText: "REFUSED. The payee is not on the allowlist. built at NEAR HACKATHON @NEARProtocol #NEARHackathon",
+      shareText: `${headline}. ${ruleText} built at NEAR HACKATHON @NEARProtocol #NEARHackathon`,
     } : null,
   };
 }
@@ -231,17 +335,32 @@ export async function scoreboard() {
   let truncated = false;
   const notes = [];
   for (const side of sides) {
-    const page = await fetchIndexerPage(side.indexerAccountsBase, side.agent, { limit: 25 });
-    if (!page.ok) {
+    const seen = new Set();
+    const rows = [];
+    let cursor = null;
+    let ok = false;
+    for (let pageNo = 0; pageNo < 2; pageNo += 1) {
+      const page = await fetchIndexerPage(side.indexerAccountsBase, side.agent, { limit: 25, next: cursor });
+      if (!page.ok) break;
+      ok = true;
+      for (const row of page.rows || []) {
+        if (!row.txHash || seen.has(row.txHash)) continue;
+        seen.add(row.txHash);
+        rows.push(row);
+      }
+      if (!page.next) break;
+      truncated = true;
+      cursor = page.next;
+    }
+    if (!ok) {
       notes.push(`${side.network} index did not answer`);
       continue;
     }
-    if (page.next) truncated = true;
-    const tally = tallyPays(page.rows);
+    const tally = tallyPays(rows);
     paid += tally.paid;
     refused += tally.refused;
     for (const signer of tally.signers) signers.add(signer);
-    const refusedRows = (page.rows || []).filter((row) => (row.methods || []).includes("pay") && row.txHash && !row.success).slice(0, 4);
+    const refusedRows = rows.filter((row) => (row.methods || []).includes("pay") && row.txHash && !row.success).slice(0, 4);
     for (const row of refusedRows) {
       try {
         const pay = await fetchPayTransaction(side.rpcUrl, row.txHash, [side.agent]);
@@ -258,13 +377,12 @@ export async function scoreboard() {
     paid,
     refused,
     agents: signers.size,
-    protectedDisplay: decoded ? formatAmount(protectedYocto, 24, "wNEAR") : null,
+    protectedDisplay: decoded ? formatAmountShort(protectedYocto, 24, "wNEAR") : null,
     protectedDecoded: decoded,
-    usdc: "0 USDC",
     truncated,
-    source: notes.length
-      ? `NearBlocks pay calls for the testnet and mainnet agents. ${notes.join(". ")}.`
-      : "NearBlocks pay calls for tpd-e947e7-agent.testnet and tp-agent2.hlpok1lad.tg. One page each. Refused amounts are from the calls I decoded. USDC is 0 because these wallets pay wNEAR.",
+    source: "Live from NearBlocks",
+    sourceUrl: "https://nearblocks.io",
+    note: notes.length ? notes.join(". ") : "",
   };
   scoreboardCache = { at: Date.now(), value };
   return value;
