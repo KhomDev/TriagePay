@@ -12,6 +12,20 @@ export function formatAtomic(atomic, decimals) {
   return negative ? `-${text}` : text;
 }
 
+const TOKEN_SYMBOLS = {
+  "wrap.near": "wNEAR",
+  "wrap.testnet": "wNEAR",
+};
+
+export function tokenSymbol(accountId) {
+  return TOKEN_SYMBOLS[String(accountId || "").toLowerCase()] || null;
+}
+
+export function formatAmount(atomic, decimals, symbol) {
+  const text = formatAtomic(atomic, decimals);
+  return symbol ? `${text} ${symbol}` : text;
+}
+
 export function nsToIso(ns) {
   if (ns == null || ns === "") return null;
   const ms = typeof ns === "string" ? Number(BigInt(ns) / 1000000n) : Math.round(Number(ns) / 1e6);

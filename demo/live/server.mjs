@@ -11,6 +11,12 @@ import { POST as revoke } from "./api/revoke.js";
 import { POST as review } from "./api/review.js";
 import { GET as judgment } from "./api/judgment.js";
 import { GET as cron } from "./api/cron.js";
+import { POST as agent } from "./routes/agent.js";
+import { GET as drainGet, POST as drainPost } from "./routes/drain.js";
+import { GET as og } from "./routes/og.js";
+import { GET as share } from "./routes/share.js";
+import { POST as telegram } from "./api/telegram.js";
+import { GET as killGet, POST as killPost } from "./routes/kill.js";
 
 const ROOT = fileURLToPath(new URL("./public/", import.meta.url));
 const PORT = Number(process.env.PORT || 8787);
@@ -18,6 +24,8 @@ const TYPES = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".woff2": "font/woff2",
 };
 
 const routes = {
@@ -28,6 +36,14 @@ const routes = {
   "POST /api/review": review,
   "GET /api/judgment": judgment,
   "GET /api/cron": cron,
+  "POST /api/agent": agent,
+  "GET /api/drain": drainGet,
+  "POST /api/drain": drainPost,
+  "GET /api/og": og,
+  "GET /api/share": share,
+  "POST /api/telegram": telegram,
+  "GET /api/kill": killGet,
+  "POST /api/kill": killPost,
 };
 
 async function toRequest(req) {
@@ -45,7 +61,18 @@ async function toRequest(req) {
 async function send(res, response) {
   res.statusCode = response.status;
   response.headers.forEach((value, key) => res.setHeader(key, value));
-  res.end(Buffer.from(await response.arrayBuffer()));
+  if (!response.body) {
+    res.end();
+    return;
+  }
+  if ((response.headers.get("content-type") || "").includes("text/event-stream")) res.flushHeaders();
+  const reader = response.body.getReader();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    res.write(Buffer.from(value));
+  }
+  res.end();
 }
 
 const server = createServer(async (req, res) => {

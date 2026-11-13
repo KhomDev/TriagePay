@@ -27,4 +27,11 @@ test("the page script does not parse chain data as HTML", () => {
   assert.match(script, /injected-payee/);
   assert.match(script, /\/api\/judgment/);
   assert.match(script, /\/api\/review/);
+  assert.match(script, /\/api\/drain/);
+  assert.match(script, /\/api\/kill/);
+  assert.match(script, /built at NEAR HACKATHON @NEARProtocol #NEARHackathon/);
+  assert.match(html, /Drain Me/);
+  assert.match(html, /Kill switch/);
+  assert.match(html, /Launch attack/);
+  assert.match(script, /approvalThresholdDisplay/);
 });

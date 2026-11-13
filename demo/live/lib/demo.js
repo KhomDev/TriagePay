@@ -6,19 +6,22 @@ import { describeAttack, explain, listScenarios, shouldSubmit } from "./attacks.
 import { chainReady, loadConfig, loadKeys, signingReady } from "./config.js";
 import { assessCooldown, cooldownMessage } from "./cooldown.js";
 import { payeeFacts, fetchIndexerTxns, fetchDayStamps } from "./facts.js";
-import { formatAtomic, nsToIso } from "./format.js";
+import { formatAmount, formatAtomic, nsToIso, tokenSymbol } from "./format.js";
 import { DemoError } from "./http.js";
 import { recall, remember } from "./journal.js";
 import { clientIp, releaseLock, reserveAttempt } from "./limits.js";
 import { functionCall, signCall, viewCall, assertTestnet } from "./near.js";
+import { matchPending, receiptFromRun } from "./receipt.js";
 import { classifyAmount, classifyPayee } from "./risk.js";
 import { mergeRecent } from "./recent.js";
 import { storeFromEnv } from "./store.js";
+import { notifyHold } from "./telegram.js";
+import { modelFromEnv } from "./agent.js";
 
 let signing = false;
 const ONE_YOCTO = 1n;
 
-function requireChain(config) {
+export function requireChain(config) {
   if (!chainReady(config)) {
     throw new DemoError(
       "demo_not_configured",
@@ -28,7 +31,7 @@ function requireChain(config) {
   }
 }
 
-function requireKeys(keys) {
+export function requireKeys(keys) {
   if (!signingReady(keys)) {
     throw new DemoError(
       "keys_not_configured",
@@ -78,7 +81,7 @@ async function chainDecision(config, nowMs) {
   });
 }
 
-async function gate(config, request) {
+export async function gate(config, request) {
   const nowMs = Date.now();
   const chain = await chainDecision(config, nowMs);
   const store = storeFromEnv();
@@ -146,7 +149,7 @@ async function classifyAccount(config, accountId, chainPayees) {
   };
 }
 
-async function readReview(config) {
+export async function readReview(config) {
   try {
     const policy = await viewCall(config.rpcUrl, config.accounts.wallet, "get_review_policy", {});
     const pending = await viewCall(config.rpcUrl, config.accounts.wallet, "get_pending", {});
@@ -206,6 +209,10 @@ export async function getHealth() {
     ipLimit: config.ipLimit || 4,
     ipWindowSeconds: config.ipWindowSeconds || 60,
     sharedLimits: Boolean(storeFromEnv()),
+    killSwitch: Boolean(String(process.env.KILL_SWITCH_SECRET || "").trim()),
+    telegram: Boolean(String(process.env.TELEGRAM_BOT_TOKEN || "").trim() && String(process.env.TELEGRAM_OWNER_CHAT_ID || "").trim()),
+    agentMode: String(process.env.NEARAI_API_KEY || "").trim() ? "live" : "scripted",
+    model: modelFromEnv(),
   };
 }
 
@@ -275,7 +282,16 @@ export async function getDashboard() {
     },
     scenarios: listScenarios(config).map(scenarioView),
     risks,
-    review,
+    review: review && review.supported
+      ? {
+        ...review,
+        approvalThresholdDisplay: formatAmount(
+          review.approvalThreshold || "0",
+          decimals,
+          tokenSymbol(config.accounts.token),
+        ),
+      }
+      : review,
     recent: mergeRecent(indexed, recall(), config.explorerTxBase),
   };
 }
@@ -303,7 +319,47 @@ async function ownerCall(config, keys, action) {
   });
 }
 
-function chainView(config, signed) {
+export async function ensureAgentActive(config, keys) {
+  let agent = await viewCall(config.rpcUrl, config.accounts.wallet, "get_agent", {
+    agent_id: config.accounts.agent,
+  });
+  let restored = null;
+  if (!agent || !agent.active) {
+    const signed = await ownerCall(config, keys, "restore");
+    restored = chainView(config, signed);
+    if (signed.outcome !== "success") {
+      throw new DemoError(
+        "restore_failed",
+        `The agent was inactive and the restore did not succeed${signed.errorCode ? ` (${signed.errorCode})` : ""}.`,
+        502,
+      );
+    }
+    agent = await viewCall(config.rpcUrl, config.accounts.wallet, "get_agent", {
+      agent_id: config.accounts.agent,
+    });
+  }
+  return { agent, restored };
+}
+
+export async function withSigningLock(work) {
+  if (signing) {
+    throw new DemoError("cooldown", "A signature is already in progress.", 429, { retry_after_seconds: 2 });
+  }
+  signing = true;
+  let decision = null;
+  try {
+    return await work({
+      note(next) {
+        decision = next;
+      },
+    });
+  } finally {
+    signing = false;
+    if (decision) await releaseLock(decision.store, decision.lockToken);
+  }
+}
+
+export function chainView(config, signed) {
   return {
     submitted: true,
     txHash: signed.txHash,
@@ -315,7 +371,7 @@ function chainView(config, signed) {
   };
 }
 
-async function submitPay(config, keys, attack) {
+export async function submitPay(config, keys, attack) {
   const action = await functionCall(
     "pay",
     {
@@ -423,6 +479,7 @@ export async function runScenario(id, request) {
         } catch {
           chain.pending = [];
         }
+        chain.paymentId = matchPending(chain.pending, attack.payee, attack.amount);
       }
       remember({
         atMs: Date.now(),
@@ -437,6 +494,19 @@ export async function runScenario(id, request) {
       });
     }
     const summary = explain(attack, risk, amountCheck, chain);
+    let telegram = { configured: false, sent: false, reason: "not_held" };
+    if (chain.held) {
+      try {
+        telegram = await notifyHold({
+          payee: attack.payee,
+          amountDisplay: attack.amountDisplay,
+          paymentId: chain.paymentId,
+          explorerUrl: chain.explorerUrl,
+        });
+      } catch {
+        telegram = { configured: true, sent: false, reason: "Telegram did not accept the message." };
+      }
+    }
     return {
       scenario: scenarioView(attack),
       risk: {
@@ -449,6 +519,13 @@ export async function runScenario(id, request) {
       amountCheck,
       chain,
       restored,
+      receipt: receiptFromRun({
+        scenario: attack,
+        chain,
+        amountDisplay: attack.amountDisplay,
+        payee: attack.payee,
+      }),
+      telegram,
       summary: restored
         ? `The agent was revoked, so I restored it before this attempt. ${summary}`
         : summary,
@@ -527,6 +604,17 @@ export async function decideReview(action, paymentId, request) {
   await assertTestnet(config.rpcUrl);
   const review = await readReview(config);
   if (!review.supported) throw new DemoError("review_not_enabled", review.reason, 409);
+  const row = (review.pending || []).find((item) => String(item.payment_id) === String(paymentId));
+  const payee = row ? String(row.receiver_id) : null;
+  const amount = row && row.amount != null ? String(row.amount) : null;
+  let amountDisplay = null;
+  if (amount) {
+    try {
+      amountDisplay = formatAtomic(amount, config.policy.decimals);
+    } catch {
+      amountDisplay = amount;
+    }
+  }
   if (signing) {
     throw new DemoError("cooldown", "A signature is already in progress.", 429, { retry_after_seconds: 2 });
   }
@@ -560,7 +648,21 @@ export async function decideReview(action, paymentId, request) {
         ? "The owner approved the held payment. The wallet scheduled the transfer."
         : "The owner rejected the held payment. The reserved amount returned to today's budget."
       : `The owner transaction did not succeed${signed.errorCode ? ` (${signed.errorCode})` : ""}.`;
-    return { action, paymentId: String(paymentId), chain: chainView(config, signed), summary };
+    const chain = chainView(config, signed);
+    const receipt = receiptFromRun({
+      scenario: {
+        narrative: action === "approve"
+          ? "The owner approved a held payment."
+          : "The owner rejected a held payment.",
+        amountDisplay,
+        payee,
+      },
+      chain,
+      action,
+      amountDisplay,
+      payee,
+    });
+    return { action, paymentId: String(paymentId), chain, summary, receipt, payee, amountDisplay };
   } finally {
     signing = false;
     if (decision) await releaseLock(decision.store, decision.lockToken);
