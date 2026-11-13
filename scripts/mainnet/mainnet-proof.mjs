@@ -190,7 +190,9 @@ function summarize(result) {
   const burnt = BigInt(result.transaction_outcome.outcome.tokens_burnt) + outcomes.reduce((s, o) => s + BigInt(o.outcome.tokens_burnt), 0n);
   return {
     tx_hash: result.transaction.hash,
-    outcome: result.status && result.status.Failure ? "failure" : "success",
+    // Success only on an explicit SuccessValue; a missing status is not a
+    // success (red-team T5-3).
+    outcome: result.status && result.status.SuccessValue !== undefined ? "success" : "failure",
     error_code: (all.match(/ERR_[A-Z_]+/) || [null])[0],
     events,
     gas_burnt_near: fmtNear(burnt),
