@@ -55,9 +55,17 @@ cargo near build non-reproducible-wasm --locked --no-abi \
 
 The three placeholders are the absolute paths of the build host's cargo
 home, rustup home and repository checkout (in Git Bash on Windows, convert
-them with `cygpath -w`). The remapping is required for any wasm that is
-deployed; see "Host paths in the wasm" below. cargo-near force-appends
-`--cfg near` to these flags.
+them with `cygpath -w`). Use `CARGO_HOME` and `RUSTUP_HOME`, not
+`$HOME/.cargo`: on this image those are `/usr/local/cargo` and
+`/usr/local/rustup`. The factory's embedded wallet also remaps those two
+absolute paths and the `contracts/` directory. The remapping is required
+for any wasm that is deployed; see "Host paths in the wasm" below.
+cargo-near force-appends `--cfg near` to these flags.
+
+The wallet bytes inside the factory are `contracts/wallet-factory/res/policy_wallet.wasm.zlib`.
+Inflated, that is 222,412 bytes, sha256
+`f8464e1c325715c7b51311eff86bb9d995129ee3ca04d4f44b1b1ef20afa4e1d`.
+CI rebuilds it with the flags above and rejects a mismatch.
 
 `--no-abi` is required on Windows: the ABI step builds a host `cdylib` with
 `near-sdk/__abi-generate`, and the MSVC linker fails on the unresolved NEAR

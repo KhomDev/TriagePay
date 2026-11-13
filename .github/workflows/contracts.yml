@@ -85,7 +85,7 @@ jobs:
       # (docs/contracts/build.md, "Host paths in the wasm").
       - name: Path remapping flags
         run: |
-          echo "WASM_RUSTFLAGS=--remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo --remap-path-prefix=${RUSTUP_HOME:-$HOME/.rustup}=/rustup --remap-path-prefix=$GITHUB_WORKSPACE=/src" >> "$GITHUB_ENV"
+          echo "WASM_RUSTFLAGS=--remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo --remap-path-prefix=${RUSTUP_HOME:-$HOME/.rustup}=/rustup --remap-path-prefix=/usr/local/cargo=/cargo --remap-path-prefix=/usr/local/rustup=/rustup --remap-path-prefix=$GITHUB_WORKSPACE=/src" >> "$GITHUB_ENV"
 
       - name: Build policy-wallet wasm
         working-directory: contracts/policy-wallet
@@ -105,6 +105,44 @@ jobs:
               exit 1
             fi
           done
+
+      - name: Use wasm-opt 108
+        run: |
+          if ! wasm-opt --version 2>/dev/null | grep -q "version 108"; then
+            curl -fsSL -o /tmp/binaryen.tgz https://github.com/WebAssembly/binaryen/releases/download/version_108/binaryen-version_108-x86_64-linux.tar.gz
+            tar -xzf /tmp/binaryen.tgz -C /tmp
+            echo "/tmp/binaryen-version_108/bin" >> "$GITHUB_PATH"
+          fi
+
+      # The committed wallet blob must match this build. Remap the cargo home,
+      # the rustup home, /usr/local/cargo, /usr/local/rustup, and this
+      # contracts directory. Remapping the repository root instead changes
+      # the panic paths and the hash.
+      - name: Check the embedded wallet wasm
+        run: |
+          RUSTFLAGS="--cfg near --remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo --remap-path-prefix=${RUSTUP_HOME:-$HOME/.rustup}=/rustup --remap-path-prefix=/usr/local/cargo=/cargo --remap-path-prefix=/usr/local/rustup=/rustup --remap-path-prefix=$PWD=/src" \
+            cargo build -p policy-wallet --target wasm32-unknown-unknown --release --locked
+          wasm-opt --version
+          wasm-opt -Oz --strip-debug --strip-producers --enable-bulk-memory \
+            --enable-nontrapping-float-to-int --enable-sign-ext \
+            target/wasm32-unknown-unknown/release/policy_wallet.wasm -o /tmp/policy_wallet.wasm
+          python3 - <<'PY'
+          import hashlib, pathlib, re, zlib
+          wasm = pathlib.Path("/tmp/policy_wallet.wasm").read_bytes()
+          digest = hashlib.sha256(wasm).hexdigest()
+          src = pathlib.Path("wallet-factory/src/lib.rs").read_text()
+          want_len = int(re.search(r"WALLET_CODE_LEN: u64 = ([0-9_]+)", src).group(1).replace("_", ""))
+          want_sha = re.search(r'WALLET_CODE_SHA256: &str =\s*"([0-9a-f]+)"', src).group(1)
+          if len(wasm) != want_len or digest != want_sha:
+              raise SystemExit(f"embedded wallet is {len(wasm)} {digest}, source says {want_len} {want_sha}")
+          committed = pathlib.Path("wallet-factory/res/policy_wallet.wasm.zlib").read_bytes()
+          if zlib.compress(wasm, 9) != committed:
+              raise SystemExit("committed zlib does not match the rebuilt wasm")
+          for needle in (b"/usr/local/cargo", b"/usr/local/rustup", b"/home/"):
+              if needle in wasm:
+                  raise SystemExit(f"host path {needle!r} in wallet wasm")
+          print(len(wasm), digest)
+          PY
 
       # The factory sandbox reads the wasm32 release artifacts. The embedded
       # wallet bytes are the committed zlib; wallet-factory's unit test checks

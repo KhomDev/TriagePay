@@ -61,6 +61,8 @@ pub const ERR_MEMO_TOO_LONG: &str = "ERR_MEMO_TOO_LONG";
 pub const ERR_TOO_MANY_TOKENS: &str = "ERR_TOO_MANY_TOKENS";
 /// The wallet's own account was used as an agent, payee or destination.
 pub const ERR_SELF_ACCOUNT: &str = "ERR_SELF_ACCOUNT";
+/// `new` was called by someone other than this account or its parent.
+pub const ERR_INIT_NOT_ALLOWED: &str = "ERR_INIT_NOT_ALLOWED";
 /// `close` was called while the wallet is not paused.
 pub const ERR_NOT_PAUSED: &str = "ERR_NOT_PAUSED";
 /// The owner-approval queue already holds [`MAX_PENDING`] payments.
@@ -396,6 +398,26 @@ fn fail_with(code: &str, description: &str) -> ! {
     env::panic_str(&format!("{code}: {description}"))
 }
 
+/// `new` is allowed from this account, or from its parent. The parent is the
+/// factory when the wallet was created as `<name>.<factory>`.
+fn assert_initializer() {
+    let me = env::current_account_id();
+    let predecessor = env::predecessor_account_id();
+    if predecessor == me {
+        return;
+    }
+    let parent_ok = me
+        .as_str()
+        .split_once('.')
+        .is_some_and(|(_, parent)| predecessor.as_str() == parent);
+    if !parent_ok {
+        fail_with(
+            ERR_INIT_NOT_ALLOWED,
+            "new may only be called by this account or its parent",
+        );
+    }
+}
+
 fn normalize_tokens(mut tokens: Vec<AccountId>) -> Vec<AccountId> {
     tokens.sort();
     tokens.dedup();
@@ -417,15 +439,16 @@ impl PolicyWallet {
     ///
     /// A direct deploy puts `new` in the same transaction as the deploy, signed
     /// by this account. The factory puts `new` in the same receipt as
-    /// `create_account` and `use_global_contract`. In that receipt the
-    /// predecessor is the factory, not this account, so `new` is not
-    /// `#[private]`. `#[init]` still rejects a second call, and the factory
-    /// receipt is atomic, so nothing can initialize the account first.
+    /// `create_account` and `deploy_contract`. In that receipt the predecessor
+    /// is the factory, which is this account's parent. Anyone else is refused,
+    /// so a two-step deploy cannot be front-run. `#[init]` still rejects a
+    /// second call.
     /// `tokens` holds at most [`MAX_TOKENS`] contracts. Native USDC and
     /// `wrap.near` start with the beta deposit cap; any other token is
     /// uncapped until `set_deposit_cap`.
     #[init]
     pub fn new(owner: AccountId, tokens: Vec<AccountId>) -> Self {
+        assert_initializer();
         if owner == env::current_account_id() {
             fail_with(ERR_SELF_ACCOUNT, "the wallet cannot own itself");
         }

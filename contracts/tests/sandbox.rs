@@ -155,8 +155,8 @@ async fn setup_with(per_call: u128, daily: u128) -> Result<Env, Box<dyn std::err
     let gateway = sub(&root, "gateway", 5).await?;
     let token = deploy_token(&root, "token", &owner, SUPPLY).await?;
 
-    // Deploy and initialize in one batch signed by the wallet account, as
-    // the mainnet plan does (`new` is #[private]).
+    // Deploy and initialize in one batch signed by the wallet account.
+    // `new` accepts this account or its parent, and nobody else.
     let wallet = sub(&root, "wallet", 20).await?;
     wallet
         .batch(wallet.id())
@@ -682,21 +682,54 @@ async fn owner_withdraws_tokens() -> TestResult {
 
 #[tokio::test]
 #[cfg_attr(windows, ignore = "near-sandbox has no Windows build")]
-async fn init_and_callbacks_are_private() -> TestResult {
+async fn init_allows_the_account_or_its_parent_only() -> TestResult {
     let env = setup().await?;
-    // A fresh, uninitialized deployment: only the wallet account may init.
+    let code = wasm("policy_wallet", "POLICY_WALLET_WASM");
+    let init_args = json!({"owner": env.owner.id(), "tokens": [env.token.id()]});
+
+    // A stranger is not the account and not its parent.
     let fresh = sub(&env.root, "fresh", 10).await?;
-    fresh
-        .deploy(&wasm("policy_wallet", "POLICY_WALLET_WASM"))
-        .await?
-        .into_result()?;
+    fresh.deploy(&code).await?.into_result()?;
     let res = env
         .owner
         .call(fresh.id(), "new")
-        .args_json(json!({"owner": env.owner.id(), "tokens": [env.token.id()]}))
+        .args_json(init_args.clone())
         .transact()
         .await?;
-    assert_refused(&res, "Method new is private");
+    assert_refused(&res, "ERR_INIT_NOT_ALLOWED");
+
+    // The account itself may init, in the same batch as the deploy.
+    let self_init = sub(&env.root, "selfinit", 10).await?;
+    let res = self_init
+        .batch(self_init.id())
+        .deploy(&code)
+        .call(Function::new("new").args_json(init_args.clone()))
+        .transact()
+        .await?;
+    assert!(res.is_success(), "{:?}", res.failures());
+    let config: Value = env
+        .worker
+        .view(self_init.id(), "get_config")
+        .await?
+        .json()?;
+    assert_eq!(config["owner"], json!(env.owner.id()));
+
+    // The parent may init. That is the factory's predecessor in the create batch.
+    let by_parent = sub(&env.root, "byparent", 10).await?;
+    by_parent.deploy(&code).await?.into_result()?;
+    let res = env
+        .root
+        .call(by_parent.id(), "new")
+        .args_json(init_args)
+        .transact()
+        .await?;
+    assert!(res.is_success(), "{:?}", res.failures());
+    let config: Value = env
+        .worker
+        .view(by_parent.id(), "get_config")
+        .await?
+        .json()?;
+    assert_eq!(config["owner"], json!(env.owner.id()));
     // The agent cannot forge a failed-transfer callback to refund itself.
     let res = env
         .agent_full

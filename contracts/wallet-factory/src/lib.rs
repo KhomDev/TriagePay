@@ -54,11 +54,13 @@ pub const WALLET_STATE_BYTES: u64 = 1_000;
 pub const WORKING_BALANCE: u128 = 300_000_000_000_000_000_000_000;
 
 /// Length of the wasm-opt `-Oz` policy-wallet binary that `create_wallet` deploys.
-pub const WALLET_CODE_LEN: u64 = 221_906;
+pub const WALLET_CODE_LEN: u64 = 222_412;
 /// sha256 of that binary. The factory stores it compressed and inflates it
 /// in `create_wallet`, so the factory account does not lock a second full copy.
+/// Built with `CARGO_HOME`, `RUSTUP_HOME`, `/usr/local/cargo`, `/usr/local/rustup`,
+/// and the `contracts/` directory remapped. See the README build command.
 pub const WALLET_CODE_SHA256: &str =
-    "fbc50fd34d703db5886c2484ff064938213fd5a591b27336300fc9592f5cda18";
+    "f8464e1c325715c7b51311eff86bb9d995129ee3ca04d4f44b1b1ef20afa4e1d";
 #[cfg(not(feature = "global-contracts"))]
 const WALLET_CODE_ZLIB: &[u8] = include_bytes!("../res/policy_wallet.wasm.zlib");
 

@@ -160,9 +160,20 @@ fn new_initializes_config() {
     assert_eq!(c.event_version, "1.0.0");
 }
 
-// `#[private]` is enforced by the generated wasm entry point, which the
-// mocked runtime bypasses; the sandbox tests cover `new` and the callbacks
-// being private.
+#[test]
+#[should_panic(expected = "ERR_INIT_NOT_ALLOWED")]
+fn new_rejects_a_third_party() {
+    Ctx::new(acc("mallory.near")).set();
+    PolicyWallet::new(owner(), vec![usdc()]);
+}
+
+#[test]
+fn new_accepts_the_parent_account() {
+    // The wallet is `agent-wallet.owner.near`, so `owner.near` is its parent.
+    Ctx::new(owner()).set();
+    let w = PolicyWallet::new(acc("alice.near"), vec![usdc()]);
+    assert_eq!(w.get_config().owner, acc("alice.near"));
+}
 
 #[test]
 #[should_panic(expected = "ERR_SELF_ACCOUNT")]
