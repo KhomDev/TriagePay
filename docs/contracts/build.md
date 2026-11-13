@@ -63,9 +63,13 @@ for any wasm that is deployed; see "Host paths in the wasm" below.
 cargo-near force-appends `--cfg near` to these flags.
 
 The wallet bytes inside the factory are `contracts/wallet-factory/res/policy_wallet.wasm.zlib`.
-Inflated, that is 222,412 bytes, sha256
-`f8464e1c325715c7b51311eff86bb9d995129ee3ca04d4f44b1b1ef20afa4e1d`.
-CI rebuilds it with the flags above and rejects a mismatch.
+Inflated, that is 221,884 bytes, sha256
+`17acbefc65151683d5a37771b785ec0e5a9fa6debfbdc566084370a714e25b7e`.
+The cargo registry folder `index.crates.io-<hash>` differs between machines
+and is the same length, so a remap of only the cargo home still produces
+two hashes. The build remaps that folder to `/cargo/registry/src` last,
+because rustc keeps the last matching prefix. CI rebuilds it and rejects a
+mismatch.
 
 `--no-abi` is required on Windows: the ABI step builds a host `cdylib` with
 `near-sdk/__abi-generate`, and the MSVC linker fails on the unresolved NEAR

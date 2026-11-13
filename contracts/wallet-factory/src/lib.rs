@@ -54,13 +54,13 @@ pub const WALLET_STATE_BYTES: u64 = 1_000;
 pub const WORKING_BALANCE: u128 = 300_000_000_000_000_000_000_000;
 
 /// Length of the wasm-opt `-Oz` policy-wallet binary that `create_wallet` deploys.
-pub const WALLET_CODE_LEN: u64 = 222_412;
+pub const WALLET_CODE_LEN: u64 = 221_884;
 /// sha256 of that binary. The factory stores it compressed and inflates it
 /// in `create_wallet`, so the factory account does not lock a second full copy.
-/// Built with `CARGO_HOME`, `RUSTUP_HOME`, `/usr/local/cargo`, `/usr/local/rustup`,
-/// and the `contracts/` directory remapped. See the README build command.
+/// The cargo registry directory name is remapped away, so two machines with
+/// different `index.crates.io-*` folders produce this same hash.
 pub const WALLET_CODE_SHA256: &str =
-    "f8464e1c325715c7b51311eff86bb9d995129ee3ca04d4f44b1b1ef20afa4e1d";
+    "17acbefc65151683d5a37771b785ec0e5a9fa6debfbdc566084370a714e25b7e";
 #[cfg(not(feature = "global-contracts"))]
 const WALLET_CODE_ZLIB: &[u8] = include_bytes!("../res/policy_wallet.wasm.zlib");
 

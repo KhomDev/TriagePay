@@ -7,9 +7,9 @@
 // the wallet's code, state, and working balance.
 
 export const BYTE_YOCTO = 10_000_000_000_000_000_000n;
-export const WALLET_CODE_BYTES = 222_412n;
+export const WALLET_CODE_BYTES = 221_884n;
 export const WALLET_CODE_SHA256 =
-  "f8464e1c325715c7b51311eff86bb9d995129ee3ca04d4f44b1b1ef20afa4e1d";
+  "17acbefc65151683d5a37771b785ec0e5a9fa6debfbdc566084370a714e25b7e";
 export const STATE_BYTES = 1_000n;
 export const WORKING_YOCTO = 300_000_000_000_000_000_000_000n;
 export const FEE_YOCTO = 1_000_000_000_000_000_000_000_000n;

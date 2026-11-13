@@ -120,7 +120,14 @@ jobs:
       # the panic paths and the hash.
       - name: Check the embedded wallet wasm
         run: |
-          RUSTFLAGS="--cfg near --remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo --remap-path-prefix=${RUSTUP_HOME:-$HOME/.rustup}=/rustup --remap-path-prefix=/usr/local/cargo=/cargo --remap-path-prefix=/usr/local/rustup=/rustup --remap-path-prefix=$PWD=/src" \
+          REG_FLAGS=""
+          for dir in "${CARGO_HOME:-$HOME/.cargo}"/registry/src/index.crates.io-*; do
+            if [ -d "$dir" ]; then
+              REG_FLAGS="$REG_FLAGS --remap-path-prefix=${dir}=/cargo/registry/src"
+            fi
+          done
+          # The registry remap must be last: rustc keeps the last matching prefix.
+          RUSTFLAGS="--cfg near --remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo --remap-path-prefix=${RUSTUP_HOME:-$HOME/.rustup}=/rustup --remap-path-prefix=/usr/local/cargo=/cargo --remap-path-prefix=/usr/local/rustup=/rustup --remap-path-prefix=$PWD=/src ${REG_FLAGS}" \
             cargo build -p policy-wallet --target wasm32-unknown-unknown --release --locked
           wasm-opt --version
           wasm-opt -Oz --strip-debug --strip-producers --enable-bulk-memory \
