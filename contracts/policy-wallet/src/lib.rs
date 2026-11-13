@@ -682,14 +682,14 @@ impl PolicyWallet {
         let mut payees = payees;
         payees.sort();
         payees.dedup();
-        let names: Vec<String> = payees.iter().map(|p| p.to_string()).collect();
+        let names = payee_names(&payees);
         let previous = self.agents.get(&agent_id).cloned();
         if self.tokens.len() > 1 {
             if per_call_max.0 != 0 || daily_max.0 != 0 {
                 fail_with(ERR_AMBIGUOUS_LIMITS, "call set_token_limits once per token");
             }
-            let mut stored = previous.unwrap_or_else(|| empty_agent());
-            stored.payees = payees.clone();
+            let mut stored = previous.unwrap_or_else(empty_agent);
+            stored.payees.clone_from(&payees);
             stored.active = true;
             self.agents.insert(agent_id.clone(), stored);
             WalletEvent::AgentSet {
@@ -711,10 +711,9 @@ impl PolicyWallet {
             _ => AgentPolicy::new(per_call_max.0, daily_max.0, names),
         }
         .unwrap_or_else(|e| fail(e));
-        let (holds_open, holds_created, holds_window) = previous
-            .as_ref()
-            .map(|p| (p.holds_open, p.holds_created, p.holds_window))
-            .unwrap_or((0, 0, 0));
+        let (holds_open, holds_created, holds_window) = previous.as_ref().map_or((0, 0, 0), |p| {
+            (p.holds_open, p.holds_created, p.holds_window)
+        });
         let stored = StoredAgent {
             per_call_max: policy.per_call_max(),
             daily_max: policy.daily_max(),
@@ -769,7 +768,7 @@ impl PolicyWallet {
             .agents
             .get_mut(&agent_id)
             .unwrap_or_else(|| fail(PolicyError::AgentInactive));
-        let names: Vec<String> = stored.payees.iter().map(|p| p.to_string()).collect();
+        let names = payee_names(&stored.payees);
         if self.tokens.len() == 1 {
             let policy = if stored.per_call_max > 0 {
                 let mut policy = stored.policy();
@@ -788,7 +787,7 @@ impl PolicyWallet {
             stored.budgets.clear();
             return;
         }
-        let payee_names: Vec<String> = stored.payees.iter().map(|p| p.to_string()).collect();
+        let names = payee_names(&stored.payees);
         let previous = stored.budgets.iter().find(|b| b.token == token).map(|b| {
             (
                 b.per_call_max,
@@ -802,19 +801,20 @@ impl PolicyWallet {
                 let mut policy = AgentPolicy::from_parts(
                     per_call,
                     daily,
-                    payee_names.clone(),
+                    names.clone(),
                     stored.active,
                     spent,
                     window,
                 )
                 .unwrap_or_else(|e| fail(e));
                 policy
-                    .reconfigure(per_call_max.0, daily_max.0, payee_names)
+                    .reconfigure(per_call_max.0, daily_max.0, names)
                     .unwrap_or_else(|e| fail(e));
                 policy
             }
-            None => AgentPolicy::new(per_call_max.0, daily_max.0, payee_names)
-                .unwrap_or_else(|e| fail(e)),
+            None => {
+                AgentPolicy::new(per_call_max.0, daily_max.0, names).unwrap_or_else(|e| fail(e))
+            }
         };
         stored.active = true;
         if let Some(budget) = stored.budgets.iter_mut().find(|b| b.token == token) {
@@ -1261,8 +1261,7 @@ impl PolicyWallet {
             self.agents
                 .get(&agent_id)
                 .filter(|stored| stored.per_call_max > 0)
-                .map(|stored| stored.policy().spent_at(now))
-                .unwrap_or(0),
+                .map_or(0, |stored| stored.policy().spent_at(now)),
         )
     }
 
@@ -1272,11 +1271,7 @@ impl PolicyWallet {
         let Some(stored) = self.agents.get(&agent_id) else {
             return U128(0);
         };
-        U128(
-            load_policy(&self.tokens, stored, &token)
-                .map(|policy| policy.spent_at(now))
-                .unwrap_or(0),
-        )
+        U128(load_policy(&self.tokens, stored, &token).map_or(0, |policy| policy.spent_at(now)))
     }
 
     /// Payments waiting for the owner, oldest first.
@@ -1494,6 +1489,10 @@ fn transfer_succeeded() -> bool {
     !matches!(env::promise_result_checked(0, 0), Err(PromiseError::Failed))
 }
 
+fn payee_names(payees: &[AccountId]) -> Vec<String> {
+    payees.iter().map(ToString::to_string).collect()
+}
+
 fn empty_agent() -> StoredAgent {
     StoredAgent {
         per_call_max: 0,
@@ -1541,7 +1540,7 @@ fn load_policy(
         return AgentPolicy::from_parts(
             budget.per_call_max,
             budget.daily_max,
-            stored.payees.iter().map(|p| p.to_string()).collect(),
+            payee_names(&stored.payees),
             stored.active,
             budget.spent_in_window,
             budget.window_index,
@@ -1552,7 +1551,7 @@ fn load_policy(
         return AgentPolicy::from_parts(
             stored.per_call_max,
             stored.daily_max,
-            stored.payees.iter().map(|p| p.to_string()).collect(),
+            payee_names(&stored.payees),
             stored.active,
             stored.spent_in_window,
             stored.window_index,
@@ -1590,7 +1589,7 @@ fn budget_view(stored: &StoredAgent, budget: &TokenBudget, now: u64) -> TokenBud
     let policy = AgentPolicy::from_parts(
         budget.per_call_max,
         budget.daily_max,
-        stored.payees.iter().map(|p| p.to_string()).collect(),
+        payee_names(&stored.payees),
         stored.active,
         budget.spent_in_window,
         budget.window_index,

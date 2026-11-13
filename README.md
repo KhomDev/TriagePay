@@ -65,6 +65,35 @@ I re-check the live deployment every six hours, and I can start the same check b
 
 A later mainnet run is in progress on another machine. Its notes will land under `docs/demo/mainnet-*`. I have not written a result for that run here. The 2026-11-12 transactions above are the mainnet evidence that exists today.
 
+## Wallet factory
+
+The factory is `triagepay.hlpok1lad.tg`. I have not deployed this build yet. Each wallet gets its own copy of the policy-wallet wasm. I do not use a global contract; that path is behind the `global-contracts` cargo feature and it is off.
+
+`create_wallet` takes a 1 NEAR fee plus 2.52906 NEAR of refundable storage. The storage is the wasm (221,906 bytes after `wasm-opt -Oz`, 2.21906 NEAR), 0.01000 NEAR of state, and 0.30000 NEAR left liquid so a few holds can be stored. Excess comes back immediately. The fee moves to `hlpok1lad.tg` only after `new` succeeds. A failed create refunds the fee and the storage. The factory stores the wasm compressed (92,246 bytes) and inflates it in `create_wallet`, so the factory account does not lock a second full copy. The bytes that land on the wallet are the `wasm-opt` output, sha256 `fbc50fd34d703db5886c2484ff064938213fd5a591b27336300fc9592f5cda18`.
+
+I get the storage back from the wallet, not from the factory. I pause it, withdraw every token, and call `close` with a beneficiary that already exists. Account deletion returns the code stake, the state, and the working balance. The factory's own code stake stays until I delete the factory account.
+
+This build's factory wasm is 246,030 bytes after `wasm-opt`. The dry-run peak for that file is 6.41936 NEAR: 2.51030 to fund the factory, 0.08000 of deploy burn, the 3.52906 create deposit, and 0.30000 of prepaid gas. A rebuild can move the factory size by a few bytes; the script prints the figure for the wasm it finds.
+
+The mainnet script is `scripts/mainnet/mainnet-e2e.mjs`. `--dry-run` prints the budget and does not read a key. A real run reads `NEAR_ACCOUNT_ID` and `NEAR_PRIVATE_KEY` from the file in `APS_MAINNET_ENV` and never prints the key. It deploys the factory, creates one wallet as the owner (the fee comes back), moves 0.01 USDC and a millionth of a wNEAR, checks holds and a revoked key, then closes the wallet. It does not create a second wallet. The projected peak, factory fund plus one create plus gas the signer has to be holding, is under 6.5 NEAR. The dry-run prints the exact figure from the wasm it would deploy.
+
+```text
+cd contracts
+rustup target add wasm32-unknown-unknown
+RUSTFLAGS="--cfg near --remap-path-prefix=$HOME/.cargo=/cargo --remap-path-prefix=$HOME/.rustup=/rustup --remap-path-prefix=$PWD=/src" \
+  cargo build -p policy-wallet -p wallet-factory --target wasm32-unknown-unknown --release
+wasm-opt -Oz --strip-debug --strip-producers --enable-bulk-memory \
+  --enable-nontrapping-float-to-int --enable-sign-ext \
+  target/wasm32-unknown-unknown/release/wallet_factory.wasm \
+  -o target/near/wallet_factory/wallet_factory.wasm
+cd ..
+node scripts/mainnet/mainnet-e2e.mjs --dry-run
+APS_MAINNET_ENV=/path/outside/the/repo.env \
+  node scripts/mainnet/mainnet-e2e.mjs --out-dir DIR --keys-dir /path/outside/keys
+```
+
+`wasm-opt` is binaryen 108. The release profile is `opt-level = "z"`, `lto = true`, `strip = true`, `panic = "abort"`, `debug = false`. The page at `/app` states the same 1 NEAR fee and 2.52906 NEAR of refundable storage. The contract is beta and unaudited. The deposit ceiling on the wallet is 100 USDC and 10 wNEAR, and a raw `ft_transfer` can bypass it.
+
 ## Hosted demo
 
 `demo/live` is the judge page at https://triagepay-demo.vercel.app/. Press Launch attack and the server signs `pay` on NEAR testnet. The page shows the attack path, live spend, a receipt, and a replay URL. The browser never sees a key.

@@ -90,7 +90,7 @@ fn setup() -> WalletFactory {
 }
 
 fn cost() -> u128 {
-    SERVICE_FEE + WALLET_STORAGE_BYTES as u128 * STORAGE_BYTE_COST
+    SERVICE_FEE + stake_yocto()
 }
 
 fn events() -> Vec<String> {
@@ -101,10 +101,17 @@ fn events() -> Vec<String> {
 }
 
 fn ready() -> WalletFactory {
-    let mut f = setup();
-    as_owner().set();
-    f.update_wallet_code_hash("ab".repeat(32));
-    f
+    setup()
+}
+
+#[test]
+fn embedded_code_is_the_optimized_wallet() {
+    as_factory().set();
+    let code = embedded_wallet_code();
+    assert_eq!(code.len() as u64, WALLET_CODE_LEN);
+    let hash = env::sha256(&code);
+    let hex: String = hash.iter().map(|b| format!("{b:02x}")).collect();
+    assert_eq!(hex, WALLET_CODE_SHA256);
 }
 
 #[test]
@@ -121,9 +128,15 @@ fn new_starts_with_one_near_and_the_default_recipient() {
     let quote = f.get_create_cost();
     assert_eq!(quote.fee, U128(SERVICE_FEE));
     assert_eq!(quote.total.0, quote.fee.0 + quote.storage.0);
+    assert!(quote.code_bytes > 0);
+    assert_eq!(quote.working.0, WORKING_BALANCE);
     assert_eq!(
         quote.storage.0,
-        WALLET_STORAGE_BYTES as u128 * STORAGE_BYTE_COST
+        quote.code.0 + quote.state.0 + quote.working.0
+    );
+    assert_eq!(
+        quote.code.0,
+        u128::from(quote.code_bytes) * STORAGE_BYTE_COST
     );
     assert_eq!(
         f.get_wallet_id("alpha".into()).as_deref(),
@@ -137,14 +150,6 @@ fn new_rejects_too_many_default_tokens() {
     as_factory().set();
     let tokens: Vec<AccountId> = (0..9).map(|i| acc(&format!("t{i}.near"))).collect();
     WalletFactory::new(owner(), owner(), tokens);
-}
-
-#[test]
-#[should_panic(expected = "ERR_CODE_UNSET")]
-fn create_before_publish_is_refused() {
-    let mut f = setup();
-    as_user().deposit(cost()).set();
-    f.create_wallet("alpha".into()).detach();
 }
 
 #[test]
@@ -216,9 +221,13 @@ fn exact_deposit_schedules_creation_and_does_not_count_yet() {
     assert_eq!(f.get_config().wallets_created, 0);
     let receipts = get_created_receipts();
     assert!(
-        receipts
-            .iter()
-            .any(|r| r.receiver_id.as_str() == "alpha.triagepay.hlpok1lad.tg"),
+        receipts.iter().any(|r| {
+            r.receiver_id.as_str() == "alpha.triagepay.hlpok1lad.tg"
+                && r.actions.iter().any(|action| matches!(
+                    action,
+                    near_sdk::mock::MockAction::DeployContract { code, .. } if code.len() == wallet_code_bytes() as usize
+                ))
+        }),
         "{:?}",
         receipts
             .iter()
@@ -255,7 +264,7 @@ fn failed_creation_refunds_fee_and_storage_and_does_not_pay_the_recipient() {
         user(),
         acc("alpha.triagepay.hlpok1lad.tg"),
         U128(SERVICE_FEE),
-        U128(storage_cost()),
+        U128(stake_yocto()),
     );
     assert_eq!(f.get_config().wallets_created, 0);
     let receipts = get_created_receipts();
@@ -269,12 +278,9 @@ fn failed_creation_refunds_fee_and_storage_and_does_not_pay_the_recipient() {
             _ => None,
         })
         .sum();
-    assert_eq!(transferred, SERVICE_FEE + storage_cost());
+    assert_eq!(transferred, SERVICE_FEE + stake_yocto());
     assert!(events()[0].contains(r#""event":"wallet_creation_failed""#));
-    assert!(events()[0].contains(&format!(
-        "\"refunded\":\"{}\"",
-        SERVICE_FEE + storage_cost()
-    )));
+    assert!(events()[0].contains(&format!("\"refunded\":\"{}\"", SERVICE_FEE + stake_yocto())));
 }
 
 #[test]
@@ -285,7 +291,7 @@ fn successful_creation_pays_the_fee_recipient_and_emits() {
         user(),
         acc("alpha.triagepay.hlpok1lad.tg"),
         U128(SERVICE_FEE),
-        U128(storage_cost()),
+        U128(stake_yocto()),
     );
     assert_eq!(f.get_config().wallets_created, 1);
     let receipts = get_created_receipts();
@@ -317,91 +323,49 @@ fn a_zero_fee_success_does_not_transfer() {
         user(),
         acc("alpha.triagepay.hlpok1lad.tg"),
         U128(0),
-        U128(storage_cost()),
+        U128(stake_yocto()),
     );
     assert_eq!(f.get_config().wallets_created, 1);
     assert!(get_created_receipts().is_empty());
 }
 
-#[test]
-fn publish_failure_does_not_store_the_hash() {
-    let mut f = setup();
-    as_factory().set_with_result(PromiseResult::Failed);
-    f.on_code_published(vec![7u8; 32]);
-    assert!(f.get_config().code_hash_hex.is_none());
-}
+#[cfg(feature = "global-contracts")]
+mod global_contract {
+    use super::*;
+    use near_sdk::json_types::Base64VecU8;
 
-#[test]
-fn publish_success_stores_the_hash() {
-    let mut f = setup();
-    as_factory().set_with_result(PromiseResult::Successful(Vec::new()));
-    let hash = vec![0xabu8; 32];
-    f.on_code_published(hash.clone());
-    assert_eq!(f.get_config().code_hash_hex.unwrap(), "ab".repeat(32));
-}
+    #[test]
+    fn publish_failure_does_not_store_the_hash() {
+        let mut f = setup();
+        as_factory().set_with_result(PromiseResult::Failed);
+        f.on_code_published(vec![7u8; 32]);
+        assert!(f.get_config().code_hash_hex.is_none());
+    }
 
-#[test]
-fn publish_ignores_a_hash_of_the_wrong_length() {
-    let mut f = setup();
-    as_factory().set_with_result(PromiseResult::Successful(Vec::new()));
-    f.on_code_published(vec![1, 2, 3]);
-    assert!(f.get_config().code_hash_hex.is_none());
-}
+    #[test]
+    fn publish_success_stores_the_hash() {
+        let mut f = setup();
+        as_factory().set_with_result(PromiseResult::Successful(Vec::new()));
+        let hash = vec![0xabu8; 32];
+        f.on_code_published(hash.clone());
+        assert_eq!(f.get_config().code_hash_hex.unwrap(), "ab".repeat(32));
+    }
 
-#[test]
-#[should_panic(expected = "ERR_BAD_CODE")]
-fn publish_rejects_empty_code() {
-    let mut f = setup();
-    as_owner().set();
-    f.publish_wallet_code(Base64VecU8(Vec::new())).detach();
-}
+    #[test]
+    #[should_panic(expected = "ERR_BAD_CODE")]
+    fn publish_rejects_empty_code() {
+        let mut f = setup();
+        as_owner().set();
+        f.publish_wallet_code(Base64VecU8(Vec::new())).detach();
+    }
 
-#[test]
-#[should_panic(expected = "ERR_NOT_OWNER")]
-fn publish_refuses_a_non_owner() {
-    let mut f = setup();
-    Ctx::new(stranger()).deposit(1).set();
-    f.publish_wallet_code(Base64VecU8(vec![1, 2, 3])).detach();
-}
-
-#[test]
-#[should_panic(expected = "exactly 1 yoctoNEAR")]
-fn publish_requires_one_yocto() {
-    let mut f = setup();
-    Ctx::new(owner()).set();
-    f.publish_wallet_code(Base64VecU8(vec![1])).detach();
-}
-
-#[test]
-#[should_panic(expected = "ERR_BAD_HASH")]
-fn update_hash_rejects_odd_hex() {
-    let mut f = setup();
-    as_owner().set();
-    f.update_wallet_code_hash("abc".into());
-}
-
-#[test]
-#[should_panic(expected = "ERR_BAD_HASH")]
-fn update_hash_rejects_non_hex() {
-    let mut f = setup();
-    as_owner().set();
-    f.update_wallet_code_hash("zz".repeat(32));
-}
-
-#[test]
-#[should_panic(expected = "ERR_NOT_OWNER")]
-fn update_hash_refuses_a_non_owner() {
-    let mut f = setup();
-    Ctx::new(stranger()).deposit(1).set();
-    f.update_wallet_code_hash("ab".repeat(32));
-}
-
-#[test]
-#[should_panic(expected = "exactly 1 yoctoNEAR")]
-fn update_hash_requires_one_yocto() {
-    let mut f = setup();
-    Ctx::new(owner()).set();
-    f.update_wallet_code_hash("ab".repeat(32));
+    #[test]
+    #[should_panic(expected = "ERR_NOT_OWNER")]
+    fn update_hash_refuses_a_non_owner() {
+        let mut f = setup();
+        Ctx::new(stranger()).deposit(1).set();
+        f.update_wallet_code_hash("ab".repeat(32));
+    }
 }
 
 #[test]

@@ -54,7 +54,7 @@ jobs:
       - name: Install cargo-near
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y -q --no-install-recommends libudev-dev pkg-config libssl-dev
+          sudo apt-get install -y -q --no-install-recommends libudev-dev pkg-config libssl-dev binaryen
           cargo install cargo-near --version "$CARGO_NEAR_VERSION" --locked
           cargo near --version
 
@@ -105,6 +105,12 @@ jobs:
               exit 1
             fi
           done
+
+      # The factory sandbox reads the wasm32 release artifacts. The embedded
+      # wallet bytes are the committed zlib; wallet-factory's unit test checks
+      # they inflate to WALLET_CODE_LEN and WALLET_CODE_SHA256.
+      - name: Build factory and test-token wasm for the sandbox
+        run: RUSTFLAGS="--cfg near $WASM_RUSTFLAGS" cargo build -p wallet-factory -p test-token --target wasm32-unknown-unknown --release --locked
 
       # The sandbox tests are ignored only on Windows, so on Linux this runs
       # them; the near-workspaces build script fetches the sandbox binary.

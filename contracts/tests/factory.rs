@@ -1,8 +1,8 @@
 //! Sandbox tests for the wallet factory.
 //!
-//! The factory publishes the policy wallet once, as a global contract by
-//! code hash, and each wallet calls `use_global_contract`. A new wallet
-//! pays for its state, not for a second copy of the Wasm.
+//! The factory embeds the optimized policy-wallet wasm and deploys a copy
+//! onto each wallet. The stake quoted by `get_create_cost` covers that
+//! code, the initial state, and a working balance. `close` returns it.
 //!
 //! Prerequisite: release wasm for both contracts.
 //!
@@ -48,35 +48,6 @@ fn wasm(crate_name: &str) -> Vec<u8> {
             path.display()
         )
     })
-}
-
-fn b64(data: &[u8]) -> String {
-    const T: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::new();
-    let mut i = 0;
-    while i + 3 <= data.len() {
-        let n = ((data[i] as u32) << 16) | ((data[i + 1] as u32) << 8) | data[i + 2] as u32;
-        out.push(T[((n >> 18) & 63) as usize] as char);
-        out.push(T[((n >> 12) & 63) as usize] as char);
-        out.push(T[((n >> 6) & 63) as usize] as char);
-        out.push(T[(n & 63) as usize] as char);
-        i += 3;
-    }
-    if i < data.len() {
-        let mut n = (data[i] as u32) << 16;
-        out.push(T[((n >> 18) & 63) as usize] as char);
-        if i + 1 < data.len() {
-            n |= (data[i + 1] as u32) << 8;
-            out.push(T[((n >> 12) & 63) as usize] as char);
-            out.push(T[((n >> 6) & 63) as usize] as char);
-            out.push('=');
-        } else {
-            out.push(T[((n >> 12) & 63) as usize] as char);
-            out.push('=');
-            out.push('=');
-        }
-    }
-    out
 }
 
 fn yocto(token: NearToken) -> u128 {
@@ -183,31 +154,6 @@ async fn world() -> Result<World, Box<dyn std::error::Error>> {
 }
 
 impl World {
-    async fn publish(&self) -> Result<ExecutionFinalResult, Box<dyn std::error::Error>> {
-        let code = wasm("policy_wallet");
-        eprintln!(
-            "MEASURE wallet wasm {} bytes; global burn at 10x storage is {:.6} NEAR",
-            code.len(),
-            code.len() as f64 * 10.0 * 1e19 / 1e24
-        );
-        let before = yocto(self.worker.view_account(self.factory.id()).await?.balance);
-        let res = self
-            .owner
-            .call(self.factory.id(), "publish_wallet_code")
-            .args_json(json!({"code": b64(&code)}))
-            .deposit(ONE_YOCTO)
-            .max_gas()
-            .transact()
-            .await?;
-        let after = yocto(self.worker.view_account(self.factory.id()).await?.balance);
-        eprintln!(
-            "MEASURE publish balance drop {:.6} NEAR (includes gas), success {}",
-            before.saturating_sub(after) as f64 / 1e24,
-            res.is_success()
-        );
-        Ok(res)
-    }
-
     async fn cost(&self) -> Result<u128, Box<dyn std::error::Error>> {
         let view: Value = self
             .worker
@@ -227,7 +173,7 @@ impl World {
             .call(self.factory.id(), "create_wallet")
             .args_json(json!({"name": name}))
             .deposit(NearToken::from_yoctonear(deposit))
-            .gas(Gas::from_tgas(200))
+            .gas(Gas::from_tgas(300))
             .transact()
             .await?)
     }
@@ -235,16 +181,14 @@ impl World {
 
 #[tokio::test]
 #[cfg_attr(windows, ignore = "near-sandbox has no Windows build")]
-async fn global_contract_wallet_costs_state_not_code() -> TestResult {
+async fn per_wallet_code_is_staked_and_a_failed_create_refunds() -> TestResult {
     let world = world().await?;
-    let published = world.publish().await?;
-    assert!(published.is_success(), "{:?}", published.failures());
     let config: Value = world
         .worker
         .view(world.factory.id(), "get_config")
         .await?
         .json()?;
-    assert!(config["code_hash_hex"].as_str().unwrap().len() == 64);
+    assert!(config["code_hash_hex"].is_null());
 
     let parent = world.factory.id().as_str();
     let room = 64 - 1 - parent.len();
@@ -252,8 +196,8 @@ async fn global_contract_wallet_costs_state_not_code() -> TestResult {
     let total = world.cost().await?;
     let storage = total - SERVICE_FEE;
     assert!(
-        storage < 50_000_000_000_000_000_000_000,
-        "per-wallet storage {storage} yocto is not under 0.05 NEAR"
+        storage > NearToken::from_near(2).as_yoctonear(),
+        "quoted stake {storage} is smaller than the wallet code"
     );
 
     let owner_before = yocto(world.worker.view_account(world.owner.id()).await?.balance);
@@ -302,8 +246,8 @@ async fn global_contract_wallet_costs_state_not_code() -> TestResult {
         storage as f64 / 1e24
     );
     assert!(
-        used < 5_000,
-        "wallet state is {used} bytes, over the 0.05 NEAR aim"
+        used > 200_000 && used < 240_000,
+        "wallet storage_usage {used} bytes is not the embedded code plus a little state"
     );
     assert!(
         state_cost <= storage,
@@ -370,6 +314,28 @@ async fn global_contract_wallet_costs_state_not_code() -> TestResult {
         "a non-owner set_fee must not succeed: {:?}",
         refused.failures()
     );
+    let paused = world
+        .user
+        .call(&wallet_id, "pause")
+        .deposit(ONE_YOCTO)
+        .transact()
+        .await?;
+    assert!(paused.is_success(), "{:?}", paused.failures());
+    let before_close = yocto(world.worker.view_account(world.user.id()).await?.balance);
+    let closed = world
+        .user
+        .call(&wallet_id, "close")
+        .args_json(json!({"beneficiary": world.user.id()}))
+        .deposit(ONE_YOCTO)
+        .gas(Gas::from_tgas(80))
+        .transact()
+        .await?;
+    assert!(closed.is_success(), "{:?}", closed.failures());
+    let after_close = yocto(world.worker.view_account(world.user.id()).await?.balance);
+    assert!(
+        after_close > before_close + NearToken::from_near(2).as_yoctonear(),
+        "close returned less than the code stake: before {before_close} after {after_close}"
+    );
     let _ = world.root;
     Ok(())
 }
@@ -378,19 +344,10 @@ async fn global_contract_wallet_costs_state_not_code() -> TestResult {
 #[cfg_attr(windows, ignore = "near-sandbox has no Windows build")]
 async fn created_wallet_pays_holds_and_rejects_a_queue_fill() -> TestResult {
     let world = world().await?;
-    let published = world.publish().await?;
-    assert!(published.is_success(), "{:?}", published.failures());
     let total = world.cost().await?;
     let created = world.create(&world.user, "mine", total).await?;
     assert!(created.is_success(), "{:?}", created.failures());
     let wallet: AccountId = format!("mine.{}", world.factory.id()).parse()?;
-    // Creation stakes the initial state (about 0.003 NEAR). Later state,
-    // an agent and queued payments, needs a little more NEAR locked.
-    world
-        .user
-        .transfer_near(&wallet, NearToken::from_millinear(300))
-        .await?
-        .into_result()?;
 
     for token in [world.usdc.id(), world.wnear.id()] {
         world

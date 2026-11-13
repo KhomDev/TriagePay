@@ -1,17 +1,22 @@
 //! Factory for TriagePay policy wallets.
 //!
-//! `create_wallet(name)` is payable. It requires a service fee (1 NEAR by
-//! default) plus the storage the new account locks, and it refunds any
-//! excess. The fee is paid to `fee_recipient` only after the wallet exists.
-//! If account creation fails, the callback refunds the fee and the storage
-//! too, so the user receives the whole attachment back (gas aside).
+//! `create_wallet(name)` is payable. It requires a 1 NEAR service fee plus
+//! the NEAR the new account locks: one copy of the policy-wallet wasm, the
+//! initial state, and a working balance so later holds can be stored. Any
+//! excess is refunded. The fee is paid to `fee_recipient` only after `new`
+//! succeeds. If creation fails, the callback refunds the fee and the stake,
+//! so the user receives the whole attachment back (gas aside).
 //!
-//! Each wallet is `<name>.<factory>` and uses the policy-wallet code as a
-//! NEAR global contract, by code hash, so the wallet does not pay for a
-//! second copy of the Wasm. near-sdk 5.29.1 exposes
-//! `deploy_global_contract` and `use_global_contract` (NEP-591). Mainnet
-//! has had global contracts since protocol 78; the network this factory
-//! targets was on protocol 86 on 2026-10-21.
+//! Each wallet is `<name>.<factory>`. The batch is `create_account`,
+//! `transfer`, `deploy_contract` of the embedded wasm, and `new`.
+//!
+//! The wallet owner recovers that NEAR with the wallet's own `close`: pause
+//! the wallet, withdraw every token, then `close(beneficiary)`. Account
+//! deletion returns the code stake, the state stake, and the working
+//! balance.
+//!
+//! Global contracts (`deploy_global_contract` / `use_global_contract`) stay
+//! behind the `global-contracts` feature and are off by default.
 //!
 //! The factory is deployed to `triagepay.hlpok1lad.tg`. This crate does not
 //! deploy itself.
@@ -22,7 +27,9 @@ pub mod accounting;
 mod tests;
 
 use accounting::{required_deposit, wallet_account_id, QuoteError};
-use near_sdk::json_types::{Base64VecU8, U128};
+#[cfg(feature = "global-contracts")]
+use near_sdk::json_types::Base64VecU8;
+use near_sdk::json_types::U128;
 use near_sdk::{assert_one_yocto, env, near, AccountId, Gas, NearToken, PanicOnDefault, Promise};
 
 /// Service fee charged for each wallet, in yoctoNEAR. 1 NEAR.
@@ -38,30 +45,45 @@ pub const WRAP_NEAR: &str = "wrap.near";
 
 /// YoctoNEAR locked per byte of account state on mainnet.
 pub const STORAGE_BYTE_COST: u128 = 10_000_000_000_000_000_000;
-/// Bytes of state a new wallet locks, including the account record, for the
-/// longest accepted name and the two default tokens. Measured in sandbox
-/// and kept at or above that measurement. `get_create_cost` charges it.
-/// Measured in sandbox for a 32-character name: 281 bytes. 1_000 bytes is
-/// headroom for a 64-character owner and the 64-character USDC account id,
-/// and it is 0.01 NEAR, under the 0.05 NEAR aim.
-pub const WALLET_STORAGE_BYTES: u64 = 1_000;
+/// Bytes of state a fresh wallet locks, on top of its code. Measured in
+/// sandbox for a long name: 281 bytes. 1_000 bytes covers a 64-character
+/// owner and the 64-character USDC account id.
+pub const WALLET_STATE_BYTES: u64 = 1_000;
+/// Liquid NEAR left on the new wallet so an agent and a few holds can be
+/// stored. Without it the third hold fails with `LackBalanceForState`.
+pub const WORKING_BALANCE: u128 = 300_000_000_000_000_000_000_000;
+
+/// Length of the wasm-opt `-Oz` policy-wallet binary that `create_wallet` deploys.
+pub const WALLET_CODE_LEN: u64 = 221_906;
+/// sha256 of that binary. The factory stores it compressed and inflates it
+/// in `create_wallet`, so the factory account does not lock a second full copy.
+pub const WALLET_CODE_SHA256: &str =
+    "fbc50fd34d703db5886c2484ff064938213fd5a591b27336300fc9592f5cda18";
+#[cfg(not(feature = "global-contracts"))]
+const WALLET_CODE_ZLIB: &[u8] = include_bytes!("../res/policy_wallet.wasm.zlib");
 
 /// Gas for the new wallet's `new`.
 const GAS_INIT: Gas = Gas::from_tgas(40);
 /// Gas for the factory callback.
 const GAS_CALLBACK: Gas = Gas::from_tgas(30);
 /// Gas for publishing the global contract.
+#[cfg(feature = "global-contracts")]
 const GAS_PUBLISH: Gas = Gas::from_tgas(50);
-/// Minimum gas the caller must attach to `create_wallet`.
-const GAS_MIN_CREATE: Gas = Gas::from_tgas(100);
+/// Minimum gas the caller must attach to `create_wallet`. Deploying the
+/// wasm needs the headroom above the init call and the callback.
+const GAS_MIN_CREATE: Gas = Gas::from_tgas(250);
 
 const ERR_NOT_OWNER: &str = "ERR_NOT_OWNER";
 const ERR_PAUSED: &str = "ERR_PAUSED";
+#[cfg(feature = "global-contracts")]
 const ERR_CODE_UNSET: &str = "ERR_CODE_UNSET";
 const ERR_BAD_NAME: &str = "ERR_BAD_NAME";
 const ERR_INSUFFICIENT_DEPOSIT: &str = "ERR_INSUFFICIENT_DEPOSIT";
 const ERR_BAD_FEE: &str = "ERR_BAD_FEE";
+const ERR_TOO_MANY_TOKENS: &str = "ERR_TOO_MANY_TOKENS";
+#[cfg(feature = "global-contracts")]
 const ERR_BAD_HASH: &str = "ERR_BAD_HASH";
+#[cfg(feature = "global-contracts")]
 const ERR_BAD_CODE: &str = "ERR_BAD_CODE";
 const ERR_INSUFFICIENT_GAS: &str = "ERR_INSUFFICIENT_GAS";
 
@@ -83,7 +105,13 @@ pub struct WalletFactory {
 pub struct CreateCostView {
     /// Service fee, in yoctoNEAR.
     pub fee: U128,
-    /// Storage locked on the new wallet, in yoctoNEAR.
+    /// Wasm stake, in yoctoNEAR. Zero when `global-contracts` is enabled.
+    pub code: U128,
+    /// Initial-state stake, in yoctoNEAR.
+    pub state: U128,
+    /// Liquid NEAR left on the wallet for later state growth.
+    pub working: U128,
+    /// `code + state + working`. `close` on the wallet returns this.
     pub storage: U128,
     /// Exact deposit `create_wallet` requires. Any more is refunded.
     pub total: U128,
@@ -91,7 +119,9 @@ pub struct CreateCostView {
     pub paused: bool,
     /// Account that receives the fee after a successful create.
     pub fee_recipient: AccountId,
-    /// Hex sha256 of the wallet code, or null before it is published.
+    /// Embedded wasm length, or zero when creation uses a global contract.
+    pub code_bytes: u64,
+    /// Hex sha256 of a published global contract, or null.
     pub code_hash_hex: Option<String>,
 }
 
@@ -106,6 +136,8 @@ pub struct FactoryConfigView {
     pub wallets_created: u64,
     pub code_hash_hex: Option<String>,
     pub storage_bytes: u64,
+    pub code_bytes: u64,
+    pub working_balance: U128,
 }
 
 #[near(event_json(standard = "triagepay_factory"))]
@@ -131,10 +163,44 @@ fn fail(code: &str, description: &str) -> ! {
     env::panic_str(&format!("{code}: {description}"))
 }
 
-fn storage_cost() -> u128 {
-    u128::from(WALLET_STORAGE_BYTES) * STORAGE_BYTE_COST
+fn byte_cost(bytes: u64) -> u128 {
+    u128::from(bytes) * STORAGE_BYTE_COST
 }
 
+/// Code bytes deployed onto each wallet. Zero when the global-contract
+/// feature is on, because the wallet then stores only a hash reference.
+pub fn wallet_code_bytes() -> u64 {
+    #[cfg(feature = "global-contracts")]
+    {
+        0
+    }
+    #[cfg(not(feature = "global-contracts"))]
+    {
+        WALLET_CODE_LEN
+    }
+}
+
+/// The wasm deployed onto each wallet. Empty when `global-contracts` is on.
+pub fn embedded_wallet_code() -> Vec<u8> {
+    #[cfg(feature = "global-contracts")]
+    {
+        Vec::new()
+    }
+    #[cfg(not(feature = "global-contracts"))]
+    {
+        miniz_oxide::inflate::decompress_to_vec_zlib(WALLET_CODE_ZLIB)
+            .unwrap_or_else(|_| env::panic_str("ERR_BAD_CODE: wallet wasm"))
+    }
+}
+
+/// NEAR locked on the new wallet: code, initial state, and working balance.
+pub fn stake_yocto() -> u128 {
+    byte_cost(wallet_code_bytes())
+        .saturating_add(byte_cost(WALLET_STATE_BYTES))
+        .saturating_add(WORKING_BALANCE)
+}
+
+#[cfg(feature = "global-contracts")]
 fn parse_hash(hex_hash: &str) -> [u8; 32] {
     if hex_hash.len() != 64 || !hex_hash.bytes().all(|b| b.is_ascii_hexdigit()) {
         fail(ERR_BAD_HASH, "code hash must be 64 hex characters");
@@ -164,7 +230,7 @@ impl WalletFactory {
     #[private]
     pub fn new(owner: AccountId, fee_recipient: AccountId, default_tokens: Vec<AccountId>) -> Self {
         if default_tokens.len() > 8 {
-            fail(ERR_BAD_CODE, "at most 8 default tokens");
+            fail(ERR_TOO_MANY_TOKENS, "at most 8 default tokens");
         }
         Self {
             owner,
@@ -189,8 +255,9 @@ impl WalletFactory {
             fail(ERR_PAUSED, "wallet creation is paused");
         }
         if env::prepaid_gas() < GAS_MIN_CREATE {
-            fail(ERR_INSUFFICIENT_GAS, "attach at least 100 TGas");
+            fail(ERR_INSUFFICIENT_GAS, "attach at least 250 TGas");
         }
+        #[cfg(feature = "global-contracts")]
         let hash = self
             .code_hash
             .unwrap_or_else(|| fail(ERR_CODE_UNSET, "publish the wallet code first"));
@@ -198,7 +265,7 @@ impl WalletFactory {
             .unwrap_or_else(|_| fail(ERR_BAD_NAME, "name is not a valid wallet name"))
             .parse()
             .unwrap_or_else(|_| fail(ERR_BAD_NAME, "name is not a valid account id"));
-        let storage = storage_cost();
+        let storage = stake_yocto();
         let fee = self.fee;
         let cost = match required_deposit(fee, storage) {
             Ok(cost) => cost,
@@ -215,7 +282,9 @@ impl WalletFactory {
         let excess = attached - cost;
         let user = env::predecessor_account_id();
         if excess > 0 {
-            Promise::new(user.clone()).transfer(NearToken::from_yoctonear(excess));
+            Promise::new(user.clone())
+                .transfer(NearToken::from_yoctonear(excess))
+                .detach();
         }
         let args = near_sdk::serde_json::json!({
             "owner": user,
@@ -223,10 +292,14 @@ impl WalletFactory {
         })
         .to_string()
         .into_bytes();
-        Promise::new(wallet_id.clone())
+        let created = Promise::new(wallet_id.clone())
             .create_account()
-            .transfer(NearToken::from_yoctonear(storage))
-            .use_global_contract(hash)
+            .transfer(NearToken::from_yoctonear(storage));
+        #[cfg(feature = "global-contracts")]
+        let created = created.use_global_contract(hash);
+        #[cfg(not(feature = "global-contracts"))]
+        let created = created.deploy_contract(embedded_wallet_code());
+        created
             .function_call("new", args, NearToken::from_yoctonear(0), GAS_INIT)
             .then(
                 Self::ext(env::current_account_id())
@@ -252,7 +325,9 @@ impl WalletFactory {
         if failed {
             let refund = fee.0.saturating_add(storage.0);
             if refund > 0 {
-                Promise::new(user.clone()).transfer(NearToken::from_yoctonear(refund));
+                Promise::new(user.clone())
+                    .transfer(NearToken::from_yoctonear(refund))
+                    .detach();
             }
             FactoryEvent::WalletCreationFailed {
                 wallet_id,
@@ -264,7 +339,9 @@ impl WalletFactory {
         }
         self.wallets_created = self.wallets_created.saturating_add(1);
         if fee.0 > 0 {
-            Promise::new(self.fee_recipient.clone()).transfer(NearToken::from_yoctonear(fee.0));
+            Promise::new(self.fee_recipient.clone())
+                .transfer(NearToken::from_yoctonear(fee.0))
+                .detach();
         }
         FactoryEvent::WalletCreated {
             wallet_id,
@@ -277,6 +354,7 @@ impl WalletFactory {
 
     /// Publish `code` as a global contract by hash and remember that hash.
     /// The burn (10x storage) is paid by this factory account.
+    #[cfg(feature = "global-contracts")]
     #[payable]
     pub fn publish_wallet_code(&mut self, code: Base64VecU8) -> Promise {
         self.assert_owner();
@@ -297,6 +375,7 @@ impl WalletFactory {
 
     /// Store the hash after a successful publish. A failed publish changes
     /// nothing.
+    #[cfg(feature = "global-contracts")]
     #[private]
     pub fn on_code_published(&mut self, hash: Vec<u8>) {
         if hash.len() != 32 {
@@ -314,6 +393,7 @@ impl WalletFactory {
     }
 
     /// Point creation at an already published global-contract hash.
+    #[cfg(feature = "global-contracts")]
     #[payable]
     pub fn update_wallet_code_hash(&mut self, code_hash_hex: String) {
         self.assert_owner();
@@ -324,7 +404,7 @@ impl WalletFactory {
     #[payable]
     pub fn set_fee(&mut self, fee: U128) {
         self.assert_owner();
-        if required_deposit(fee.0, storage_cost()).is_err() {
+        if required_deposit(fee.0, stake_yocto()).is_err() {
             fail(ERR_BAD_FEE, "fee plus storage overflows");
         }
         self.fee = fee.0;
@@ -354,16 +434,24 @@ impl WalletFactory {
         self.paused = false;
     }
 
-    /// Exact deposit, fee and storage for one wallet.
+    /// Exact deposit for one wallet: the 1 NEAR fee plus refundable storage
+    /// (code, initial state, and the working balance).
     pub fn get_create_cost(&self) -> CreateCostView {
-        let storage = storage_cost();
+        let code = byte_cost(wallet_code_bytes());
+        let state = byte_cost(WALLET_STATE_BYTES);
+        let working = WORKING_BALANCE;
+        let storage = code.saturating_add(state).saturating_add(working);
         let total = required_deposit(self.fee, storage).unwrap_or(u128::MAX);
         CreateCostView {
             fee: U128(self.fee),
+            code: U128(code),
+            state: U128(state),
+            working: U128(working),
             storage: U128(storage),
             total: U128(total),
             paused: self.paused,
             fee_recipient: self.fee_recipient.clone(),
+            code_bytes: wallet_code_bytes(),
             code_hash_hex: self.code_hash.as_ref().map(hex_hash),
         }
     }
@@ -378,7 +466,9 @@ impl WalletFactory {
             default_tokens: self.default_tokens.clone(),
             wallets_created: self.wallets_created,
             code_hash_hex: self.code_hash.as_ref().map(hex_hash),
-            storage_bytes: WALLET_STORAGE_BYTES,
+            storage_bytes: WALLET_STATE_BYTES,
+            code_bytes: wallet_code_bytes(),
+            working_balance: U128(WORKING_BALANCE),
         }
     }
 

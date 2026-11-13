@@ -10,8 +10,14 @@ rust-version = "1.93"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[features]
+# Off by default. When enabled, create_wallet uses a published global
+# contract by code hash instead of deploying the embedded wasm.
+global-contracts = []
+
 [dependencies]
 near-sdk = "=5.29.1"
+miniz_oxide = { version = "0.8.9", default-features = false, features = ["with-alloc"] }
 
 [dev-dependencies]
 near-sdk = { version = "=5.29.1", features = ["unit-testing"] }
