@@ -16,6 +16,9 @@ test("the judge path and the hackathon marks are on the page", () => {
   assert.match(html, /Agents pay per call over x402 on NEAR, and the wallet is the security layer that makes that safe/);
   assert.match(html, /id="net-mainnet"/);
   assert.match(html, /id="opt-live"/);
+  assert.equal(/vercel\.live/.test(html), false);
+  assert.equal(/CFutaZM9/.test(html), false);
+  assert.match(html, /id="attempt-left"/);
   assert.match(script, /There is no transaction link/);
   assert.match(html, /Judge in 60 seconds/);
   assert.match(html, /Why it's different/);

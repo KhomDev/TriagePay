@@ -5,6 +5,7 @@
 import { describeAttack, explain, listScenarios, shouldSubmit } from "./attacks.js";
 import { chainReady, loadConfig, loadKeys, signingReady } from "./config.js";
 import { assessCooldown, cooldownMessage } from "./cooldown.js";
+import { cacheGet, cacheSet } from "./region-cache.js";
 import { payeeFacts, fetchIndexerTxns, fetchDayStamps } from "./facts.js";
 import { formatAmount, formatAtomic, nsToIso, tokenSymbol } from "./format.js";
 import { DemoError } from "./http.js";
@@ -62,23 +63,38 @@ function limitMessage(decision, config) {
   return cooldownMessage(decision, config.cooldownSeconds, config.maxAttemptsPerDay);
 }
 
+function dayCacheKey(config, nowMs) {
+  return `testnet-day:${config.accounts.agent}:${new Date(nowMs).toISOString().slice(0, 10)}`;
+}
+
+async function cachedDayStamps(config, nowMs) {
+  const key = dayCacheKey(config, nowMs);
+  const cached = await cacheGet(key);
+  if (cached && Array.isArray(cached.stamps)) return cached;
+  const day = await fetchDayStamps(config.indexerAccountsBase, config.accounts.agent, nowMs, {
+    maxPages: 16,
+    limit: 25,
+    stopAt: config.maxAttemptsPerDay,
+  });
+  if (!day.unavailable) await cacheSet(key, day, 15);
+  return day;
+}
+
+export function noteTestnetSign(config, nowMs = Date.now()) {
+  const key = dayCacheKey(config, nowMs);
+  return cacheGet(key).then((day) => {
+    if (!day || !Array.isArray(day.stamps)) return;
+    const next = { ...day, stamps: [...day.stamps, nowMs] };
+    return cacheSet(key, next, 15);
+  }).catch(() => {});
+}
+
 async function chainDecision(config, nowMs) {
-  const day = await fetchDayStamps(config.indexerAccountsBase, config.accounts.agent, nowMs);
-  if (day.unavailable) return null;
-  if (day.truncated) {
-    const next = Date.UTC(new Date(nowMs).getUTCFullYear(), new Date(nowMs).getUTCMonth(), new Date(nowMs).getUTCDate()) + 86400000;
-    return {
-      allowed: false,
-      code: "daily_attempt_cap",
-      retryAfterSeconds: Math.max(1, Math.ceil((next - nowMs) / 1000)),
-      attemptsToday: day.stamps.length,
-    };
-  }
-  const newest = day.stamps.reduce((max, value) => (value > max ? value : max), 0);
-  const extra = recall().map((row) => row.atMs).filter((value) => value && value > newest);
+  const day = await cachedDayStamps(config, nowMs);
+  if (!day || day.unavailable) return null;
   return assessCooldown({
     nowMs,
-    timestampsMs: [...day.stamps, ...extra],
+    timestampsMs: day.stamps,
     cooldownMs: config.cooldownSeconds * 1000,
     maxPerDay: config.maxAttemptsPerDay,
   });
@@ -115,6 +131,7 @@ export async function gate(config, request) {
       limit_source: decision.source,
     });
   }
+  await noteTestnetSign(config, nowMs);
   return { ...decision, store };
 }
 
@@ -262,6 +279,18 @@ export async function getDashboard() {
     const scaled = (spentToday * 10000n) / dailyMax;
     percent = Math.max(0, Math.min(100, Number(scaled) / 100));
   }
+  let attemptSnap = { attemptsToday: null, attemptsRemaining: null };
+  try {
+    const decision = await chainDecision(config, Date.now());
+    if (decision) {
+      attemptSnap = {
+        attemptsToday: decision.attemptsToday,
+        attemptsRemaining: Math.max(0, config.maxAttemptsPerDay - decision.attemptsToday),
+      };
+    }
+  } catch {
+    // The rest of the dashboard still renders.
+  }
   return {
     ...health,
     wallet: config.accounts.wallet,
@@ -314,6 +343,8 @@ export async function getDashboard() {
       source: "Live from NearBlocks",
       sourceUrl: "https://nearblocks.io",
     })),
+    attemptsToday: attemptSnap.attemptsToday,
+    attemptsRemaining: attemptSnap.attemptsRemaining,
     cooldownRemainingSeconds: assessCooldown({
       nowMs: Date.now(),
       timestampsMs: (indexed || []).map((row) => row.atMs).filter((value) => Number.isFinite(value)),

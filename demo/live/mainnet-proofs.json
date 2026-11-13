@@ -2,16 +2,16 @@
   "proofs": [
     {
       "label": "Paid call",
-      "href": "https://nearblocks.io/txns/2RH77VLsLHovF3m4kzR76jk71X8tYKAyugxQ9YJMXLJJ",
-      "memo": "",
-      "amount": "1000000",
+      "href": "https://nearblocks.io/txns/6F3jNamjerT69EMnxaQVy7WRdZuscj7t53V1oceTU4Yj",
+      "memo": "demo:mainnet-paid",
+      "amount": "1000",
       "kind": "paid"
     },
     {
       "label": "Refused payee",
-      "href": "https://nearblocks.io/txns/HskzPv94J1JY16K5WdUG8wfGznnhnMMKcXgE1acks63F",
-      "memo": "",
-      "amount": "1000000",
+      "href": "https://nearblocks.io/txns/5BCGjxC4CkPSy8iv876cP65xxs2LRWwcWKFqmcVJEyEw",
+      "memo": "demo:mainnet-injected",
+      "amount": "1000",
       "kind": "refused"
     }
   ]

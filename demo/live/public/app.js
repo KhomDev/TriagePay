@@ -3,7 +3,7 @@
   "use strict";
 
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var state = { scenarios: [], busy: false, review: null, queueScenario: null, ready: false, killSwitch: false, recentRows: null, drainRows: null, network: "testnet", mainnetSigning: false, mainnetProofs: [], mainnetRemaining: null };
+  var state = { scenarios: [], busy: false, review: null, queueScenario: null, ready: false, killSwitch: false, recentRows: null, drainRows: null, network: "testnet", mainnetSigning: false, mainnetProofs: [], mainnetRemaining: null, testnetRemaining: null, maxAttempts: 300 };
 
   function $(id) { return document.getElementById(id); }
 
@@ -85,8 +85,7 @@
     var source = $("num-source");
     if (source) {
       clear(source);
-      source.appendChild(document.createTextNode("Live from NearBlocks "));
-      source.appendChild(el("a", { href: board.sourceUrl || "https://nearblocks.io", rel: "noopener", target: "_blank" }, "NearBlocks"));
+      source.appendChild(el("a", { href: board.sourceUrl || "https://nearblocks.io", rel: "noopener", target: "_blank" }, "Live from NearBlocks"));
     }
   }
 
@@ -348,7 +347,8 @@
   function syncControls() {
     var busy = Boolean(state.busy);
     var ready = Boolean(state.ready);
-    var blocked = state.network === "mainnet" && state.mainnetRemaining === 0;
+    var blocked = (state.network === "mainnet" && state.mainnetRemaining === 0)
+      || (state.network !== "mainnet" && state.testnetRemaining === 0);
     if ($("btn-launch")) $("btn-launch").disabled = !ready || busy || blocked;
     if ($("btn-run")) $("btn-run").disabled = !ready || busy;
     if ($("btn-drain")) $("btn-drain").disabled = !ready || busy;
@@ -397,6 +397,13 @@
     var parsed = null;
     try { parsed = JSON.parse(text); } catch (err) { parsed = null; }
     return { status: response.status, ok: response.ok, json: parsed, text: text };
+  }
+
+  async function apiRead(path) {
+    var result = await api(path);
+    if (result.ok || (result.status && result.status < 500)) return result;
+    await sleep(400);
+    return api(path);
   }
 
   function errorText(result) {
@@ -490,13 +497,17 @@
       clear(status);
       status.appendChild(document.createTextNode("Reading the wallet on testnet…"));
     }
-    var result = await api("/api/dashboard");
+    var result = await apiRead("/api/dashboard");
     if (state.holdStatus) {
       // The launch verdict stays. Stats still update below.
     } else {
       clear(status);
     }
     if (!result.ok || !result.json) {
+      if (state.ready) {
+        status.appendChild(document.createTextNode("The wallet read failed. The last numbers are still on the page."));
+        return;
+      }
       status.appendChild(el("span", { class: "notice bad" }, errorText(result)));
       return;
     }
@@ -519,6 +530,14 @@
     state.mainnetSigning = Boolean(data.mainnet && data.mainnet.signing);
     state.mainnetProofs = (data.mainnet && data.mainnet.proofs) || [];
     state.mainnetRemaining = data.mainnet && data.mainnet.remaining != null ? data.mainnet.remaining : null;
+    state.testnetRemaining = data.attemptsRemaining == null ? null : data.attemptsRemaining;
+    state.maxAttempts = data.maxAttemptsPerDay;
+    var left = $("attempt-left");
+    if (left) {
+      left.textContent = state.testnetRemaining == null
+        ? ""
+        : state.testnetRemaining + " testnet attempts left today";
+    }
     paintNumbers(data.scoreboard);
     paintMainnetProofs();
     paintSpend(data);
@@ -696,6 +715,10 @@
 
   async function onLaunch() {
     if (state.busy) return;
+    if (state.network !== "mainnet" && state.testnetRemaining === 0) {
+      setStatus("This demo has used its " + state.maxAttempts + " signed attempts for the UTC day.");
+      return;
+    }
     if (state.network === "mainnet" && state.mainnetRemaining === 0) {
       paintMainnetProofs();
       setStatus("No mainnet runs left today. The proof links stay on the page.");
@@ -754,14 +777,37 @@
         setStatus((word ? word.text : "This attempt did not reach the chain") + ". There is no transaction link.");
         paintResult($("verdict"), result.json, false);
       } else {
+        if (state.network === "mainnet" && state.mainnetRemaining != null) {
+          state.mainnetRemaining = Math.max(0, state.mainnetRemaining - 1);
+          var remain = $("mainnet-left");
+          if (remain) remain.textContent = state.mainnetRemaining + " mainnet runs left today";
+        }
+        if (state.testnetRemaining != null) {
+          state.testnetRemaining = Math.max(0, state.testnetRemaining - 1);
+          var attemptLeft = $("attempt-left");
+          if (attemptLeft) attemptLeft.textContent = state.testnetRemaining + " testnet attempts left today";
+        }
         setStatus((word ? word.text : "Done") + (code ? " " + code : "") + ". The transaction link is next to the button.");
         showLiveVerdict(word, result.json);
         paintResult($("verdict"), result.json, false);
       }
     } finally {
+      var keptMainnet = state.mainnetRemaining;
+      var keptTestnet = state.testnetRemaining;
       $("btn-launch").classList.remove("is-busy");
       state.busy = false;
       await refresh();
+      if (keptMainnet != null && state.mainnetRemaining != null && state.mainnetRemaining > keptMainnet) {
+        state.mainnetRemaining = keptMainnet;
+        var remain = $("mainnet-left");
+        if (remain && state.network === "mainnet") remain.textContent = keptMainnet + " mainnet runs left today";
+      }
+      if (keptTestnet != null && state.testnetRemaining != null && state.testnetRemaining > keptTestnet) {
+        state.testnetRemaining = keptTestnet;
+        var attemptLeft = $("attempt-left");
+        if (attemptLeft) attemptLeft.textContent = keptTestnet + " testnet attempts left today";
+      }
+      syncControls();
       await refreshDrain();
     }
   }

@@ -47,7 +47,7 @@ export async function fetchIndexerPage(base, accountId, { limit = 25, next = nul
 // Walk the index until a transaction is older than the UTC day, or until
 // `maxPages`. `truncated` means the day may contain more transactions than
 // the pages that were read. `unavailable` means the index could not be read.
-export async function fetchDayStamps(base, accountId, nowMs, { maxPages = 6, limit = 25 } = {}) {
+export async function fetchDayStamps(base, accountId, nowMs, { maxPages = 16, limit = 25, stopAt = Infinity } = {}) {
   const dayStart = Date.UTC(
     new Date(nowMs).getUTCFullYear(),
     new Date(nowMs).getUTCMonth(),
@@ -66,6 +66,7 @@ export async function fetchDayStamps(base, accountId, nowMs, { maxPages = 6, lim
         break;
       }
       stamps.push(row.atMs);
+      if (stamps.length >= stopAt) return { stamps, truncated: false, unavailable: false };
     }
     if (crossed || !batch.next) return { stamps, truncated: false, unavailable: false };
     cursor = batch.next;

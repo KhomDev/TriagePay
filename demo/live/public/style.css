@@ -149,16 +149,19 @@ h3 { margin: 18px 0 8px; font-size: 0.95rem; letter-spacing: 0.04em; text-transf
 .status { min-height: 1.4em; }
 
 .numbers {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-  align-items: baseline;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
   margin: 8px 0 0;
-  min-height: 2.6rem;
+  min-height: 4.2rem;
 }
 .numbers article { min-width: 0; }
-.numbers .stat { margin: 0; font-size: 1.05rem; }
-.numbers .hint { flex-basis: 100%; margin: 0; }
+.numbers .stat-kicker { white-space: normal; line-height: 1.2; }
+.numbers .stat { margin: 2px 0 0; font-size: 1rem; overflow-wrap: anywhere; }
+.numbers .hint { grid-column: 1 / -1; margin: 0; }
+@media (min-width: 800px) {
+  .numbers { grid-template-columns: repeat(4, minmax(0, 1fr)); min-height: 3.2rem; }
+}
 .live-opt { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.85rem; }
 .mode-pill { white-space: normal; max-width: 36rem; }
 .net-toggle { display: inline-flex; gap: 6px; }
@@ -426,6 +429,9 @@ summary { cursor: pointer; font-family: var(--display); font-weight: 700; font-s
 .passport-dl dd { margin: 0; white-space: nowrap; }
 .honeypot { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--line); }
 .sheet { padding-top: 12px; }
+.plain-page { margin: 0; background: #07080c; color: #f4f1e8; font: 18px/1.5 sans-serif; }
+.plain-main { max-width: 40rem; margin: 8vh auto; padding: 24px; }
+.plain-kicker { letter-spacing: 0.16em; color: #e2ff54; }
 .sr-only {
   position: absolute;
   width: 1px;
@@ -443,8 +449,7 @@ main { padding-bottom: 24px; }
 
 @media (max-width: 900px) {
   .pipeline, .stats, .challenge-head, .split, .judge ol, .diff ol, .passport-dl { grid-template-columns: 1fr; }
-  .numbers { flex-wrap: nowrap; }
-  .numbers .stat { font-size: 0.85rem; }
+  .numbers .stat { font-size: 0.95rem; }
   .passport-dl dd { white-space: normal; }
   .rail { height: 18px; }
   .packet { top: 0; left: 50%; }

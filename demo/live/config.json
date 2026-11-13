@@ -54,5 +54,7 @@
   ],
   "newAccountWindowMs": 604800000,
   "cooldownSeconds": 20,
-  "maxAttemptsPerDay": 40
+  "maxAttemptsPerDay": 300,
+  "ipLimit": 20,
+  "ipWindowSeconds": 60
 }

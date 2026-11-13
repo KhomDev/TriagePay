@@ -29,10 +29,11 @@ function page(title, body, status) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)}</title>
+<link rel="stylesheet" href="/style.css">
 </head>
-<body style="margin:0;background:#07080c;color:#f4f1e8;font:18px/1.5 sans-serif">
-<main style="max-width:36rem;margin:12vh auto;padding:24px">
-<p style="letter-spacing:.16em;color:#e2ff54">TRIAGEPAY KILL SWITCH</p>
+<body class="plain-page">
+<main class="plain-main">
+<p class="plain-kicker">TRIAGEPAY KILL SWITCH</p>
 <h1>${escapeHtml(title)}</h1>
 <p>${escapeHtml(body)}</p>
 <p>built at NEAR HACKATHON @NEARProtocol #NEARHackathon</p>

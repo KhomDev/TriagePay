@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fetchIndexerPage } from "./facts.js";
+import { cacheGet, cacheSet } from "./region-cache.js";
 import { formatAmountShort } from "./format.js";
 import { DemoError } from "./http.js";
 import { clientIp } from "./limits.js";
@@ -288,7 +289,13 @@ export async function runMainnetLaunch(request, env = process.env) {
   const ruleText = malloryHeld
     ? "The wallet held the payment instead of refusing it."
     : "The payee is not on the allowlist.";
-  usageCache = { at: 0, value: null };
+  if (usageCache.value) {
+    const runs = (usageCache.value.runs || 0) + 1;
+    usageCache = {
+      at: Date.now(),
+      value: { ...usageCache.value, runs, remaining: Math.max(0, GLOBAL_RUNS_PER_DAY - runs) },
+    };
+  }
   return {
     network: "mainnet",
     agent: { mode: "deterministic", label: "deterministic attack, real on-chain refusal", reasoning: "Deterministic attack on mainnet.", tool: { name: "pay", receiver_id: MAINNET.accounts.injected, amount: MAINNET_PAID_AMOUNT }, fallbackReason: null, model: null },
@@ -302,7 +309,7 @@ export async function runMainnetLaunch(request, env = process.env) {
       headline,
       rule: chain.errorCode || "",
       ruleText,
-      tried: "The agent pays the injected account.",
+      tried: "The agent tried to pay the injected account. The contract refused.",
       amount: "1000 yocto wNEAR",
       payee: MAINNET.accounts.injected,
       txHash: chain.txHash,
@@ -319,10 +326,9 @@ const TESTNET_INDEX = {
   agent: "tpd-e947e7-agent.testnet",
 };
 
-let scoreboardCache = { at: 0, value: null };
-
 export async function scoreboard() {
-  if (scoreboardCache.value && Date.now() - scoreboardCache.at < 60_000) return scoreboardCache.value;
+  const cached = await cacheGet("scoreboard");
+  if (cached) return cached;
   const sides = [
     { ...TESTNET_INDEX },
     { network: "mainnet", rpcUrl: MAINNET.rpcUrl, indexerAccountsBase: MAINNET.indexerAccountsBase, agent: MAINNET.accounts.agent },
@@ -384,6 +390,6 @@ export async function scoreboard() {
     sourceUrl: "https://nearblocks.io",
     note: notes.length ? notes.join(". ") : "",
   };
-  scoreboardCache = { at: Date.now(), value };
+  await cacheSet("scoreboard", value, 60);
   return value;
 }

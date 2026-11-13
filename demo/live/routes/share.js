@@ -42,10 +42,11 @@ export async function GET(request) {
 <meta name="twitter:title" content="${escapeHtml(title)}">
 <meta name="twitter:description" content="${escapeHtml(description)}">
 <meta name="twitter:image" content="${escapeHtml(image)}">
+<link rel="stylesheet" href="/style.css">
 </head>
-<body style="margin:0;background:#07080c;color:#f4f1e8;font:18px/1.5 sans-serif">
-<main style="max-width:40rem;margin:8vh auto;padding:24px">
-<p style="letter-spacing:.16em;color:#e2ff54">TRIAGEPAY</p>
+<body class="plain-page">
+<main class="plain-main">
+<p class="plain-kicker">TRIAGEPAY</p>
 <h1>${escapeHtml(fields.headline)}</h1>
 <p>${escapeHtml(fields.rule)} — ${escapeHtml(fields.ruleText)}</p>
 <p>Amount ${escapeHtml(fields.amount || "—")}. Payee ${escapeHtml(fields.payee || "—")}.</p>

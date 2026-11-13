@@ -50,6 +50,19 @@ test("the daily attempt cap refuses even after the cooldown", () => {
   assert.match(cooldownMessage(decision, 20, 40), /40 signed attempts/);
 });
 
+test("a generous daily cap still allows a judge's handful of attempts", () => {
+  const start = Date.UTC(2026, 10, 13);
+  const stamps = Array.from({ length: 40 }, (_, index) => start + index * 1000);
+  const decision = assessCooldown({
+    nowMs: start + 50_000,
+    timestampsMs: stamps,
+    cooldownMs: 0,
+    maxPerDay: 300,
+  });
+  assert.equal(decision.allowed, true);
+  assert.equal(decision.attemptsToday, 40);
+});
+
 test("yesterday's attempts do not count against today's cap", () => {
   const start = Date.UTC(2026, 10, 12);
   const decision = assessCooldown({

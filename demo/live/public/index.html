@@ -13,7 +13,7 @@
 <meta name="twitter:description" content="The agent signs. The contract decides. Live on NEAR testnet and mainnet.">
 <meta name="twitter:image" content="/api/site-og">
 <meta name="vercel-toolbar" content="false">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://vercel.live; style-src 'self' https://vercel.live; font-src 'self' https://vercel.live https://assets.vercel.com; img-src 'self' data: https://vercel.live https://vercel.com; connect-src 'self' https://vercel.live wss://ws-us3.pusher.com; frame-src https://vercel.live; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'">
 <title>TriagePay — The agent signs. The contract decides.</title>
 <link rel="icon" href="favicon.ico" sizes="32x32">
 <link rel="icon" href="mark.svg" type="image/svg+xml">
@@ -66,6 +66,7 @@
         <label class="live-opt" for="opt-live"><input id="opt-live" type="checkbox"> Live model</label>
         <a class="text-btn ghost" href="#drain">Try to drain it</a>
       </div>
+      <p id="attempt-left" class="hint"></p>
       <div id="mainnet-proofs" class="hint" hidden></div>
       <div id="live-verdict" class="live-verdict" aria-live="assertive"></div>
       <p id="mainnet-left" class="hint" hidden></p>
@@ -120,10 +121,9 @@
       </li>
       <li>
         <p class="num">3</p>
-        <p>Mainnet: a paid call, a refusal, and the key revoked.</p>
-        <a href="https://nearblocks.io/txns/2RH77VLsLHovF3m4kzR76jk71X8tYKAyugxQ9YJMXLJJ" rel="noopener" target="_blank">Paid</a>
-        <a href="https://nearblocks.io/txns/HskzPv94J1JY16K5WdUG8wfGznnhnMMKcXgE1acks63F" rel="noopener" target="_blank">Refused</a>
-        <a href="https://nearblocks.io/txns/CFutaZM9XMLBBcfm2jwH2JnQQJA8ReNGyTRhH1PZLzFh" rel="noopener" target="_blank">Revoked</a>
+        <p>Mainnet: a paid call and a refusal.</p>
+        <a href="https://nearblocks.io/txns/6F3jNamjerT69EMnxaQVy7WRdZuscj7t53V1oceTU4Yj" rel="noopener" target="_blank">Paid</a>
+        <a href="https://nearblocks.io/txns/5BCGjxC4CkPSy8iv876cP65xxs2LRWwcWKFqmcVJEyEw" rel="noopener" target="_blank">Refused</a>
       </li>
     </ol>
   </section>
