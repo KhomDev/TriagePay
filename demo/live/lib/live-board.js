@@ -9,7 +9,7 @@ import { fetchIndexerPage } from "./facts.js";
 import { presentScoreboard, raiseScoreboard, readSnapshot, SIDES } from "./scoreboard.js";
 import { fillHome, tapeFromRows } from "./tape.js";
 
-const PAGE = join(dirname(fileURLToPath(import.meta.url)), "..", "public", "index.html");
+const PAGE = join(dirname(fileURLToPath(import.meta.url)), "..", "public", "shell.html");
 export const HOME_CACHE = "public, max-age=0, s-maxage=10, stale-while-revalidate=60";
 
 export async function liveBoard() {
@@ -54,7 +54,12 @@ export function renderHomeHtml(board) {
 
 export async function homeResponse() {
   const board = await liveBoard();
-  return new Response(renderHomeHtml(board), {
+  let recent = Array.isArray(board.recent) ? board.recent : [];
+  if (recent.length < 4) {
+    const peeked = await peekTape(400);
+    if (peeked.length > recent.length) recent = peeked;
+  }
+  return new Response(renderHomeHtml({ ...board, recent }), {
     status: 200,
     headers: {
       "content-type": "text/html; charset=utf-8",

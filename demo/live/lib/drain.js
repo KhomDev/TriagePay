@@ -31,7 +31,7 @@ export function redactPrompt(text) {
 }
 
 function drainLimit(env = process.env) {
-  const limit = Number(env.TRIAGEPAY_DRAIN_IP_LIMIT || 3);
+  const limit = Number(env.TRIAGEPAY_DRAIN_IP_LIMIT || 8);
   const windowSeconds = Number(env.TRIAGEPAY_DRAIN_WINDOW_SECONDS || 600);
   return {
     limit: Number.isFinite(limit) ? Math.max(1, Math.min(30, limit)) : 3,

@@ -69,6 +69,13 @@ function replaceParagraph(html, id, inner) {
   );
 }
 
+export const FALLBACK_TAPE = [
+  { hash: "5BCGjxC4CkPSy8iv876cP65xxs2LRWwcWKFqmcVJEyEw", network: "mainnet", paid: false, atMs: 2 },
+  { hash: "6F3jNamjerT69EMnxaQVy7WRdZuscj7t53V1oceTU4Yj", network: "mainnet", paid: true, atMs: 3 },
+  { hash: "8y6sEwL8i5sP2aMKo5HS3WGZtZ8NMDP9MUdywYAmVnN4", network: "testnet", paid: false, atMs: 1 },
+  { hash: "4oxycWdvo9M4YWoq9mg2y4FXL7AZYQY6McvcPJQYJejq", network: "testnet", paid: true, atMs: 1 },
+];
+
 export function fillHome(html, board) {
   const source = board || {};
   let next = html;
@@ -86,12 +93,12 @@ export function fillHome(html, board) {
   if (source.attemptsRemaining != null) {
     next = replaceParagraph(next, "attempt-left", `${esc(source.attemptsRemaining)} testnet attempts left today`);
   }
-  const items = tapeHtml(source.recent);
-  if (items) {
-    next = next.replace(
-      /<ol id="tape" class="tape"[^>]*>[\s\S]*?<\/ol>/,
-      `<ol id="tape" class="tape" aria-label="Latest on-chain decisions">${items}</ol>`,
-    );
-  }
+  const rows = source.recent && source.recent.length ? source.recent : FALLBACK_TAPE;
+  const items = tapeHtml(rows);
+  const key = rows.map((item) => item.hash).join(",");
+  next = next.replace(
+    /<ol id="tape" class="tape"[^>]*>[\s\S]*?<\/ol>/,
+    `<ol id="tape" class="tape" data-key="${esc(key)}" aria-label="Latest on-chain decisions">${items}</ol>`,
+  );
   return next;
 }

@@ -53,8 +53,8 @@
     "6aaVftHnCQMpV6p7AqsmQro3qiKsfUqfD1C5a4HJhDaD"
   ],
   "newAccountWindowMs": 604800000,
-  "cooldownSeconds": 20,
+  "cooldownSeconds": 1,
   "maxAttemptsPerDay": 300,
-  "ipLimit": 20,
+  "ipLimit": 60,
   "ipWindowSeconds": 60
 }

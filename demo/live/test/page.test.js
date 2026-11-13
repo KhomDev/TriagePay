@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const html = readFileSync(join(ROOT, "public", "index.html"), "utf8");
+const html = readFileSync(join(ROOT, "public", "shell.html"), "utf8");
 const scoreboard = JSON.parse(readFileSync(join(ROOT, "public", "scoreboard.json"), "utf8"));
 const css = readFileSync(join(ROOT, "public", "style.css"), "utf8");
 const script = readFileSync(join(ROOT, "public", "app.js"), "utf8");
@@ -46,7 +46,10 @@ test("the judge path and the hackathon marks are on the page", () => {
   assert.match(html, /TRIAGEPAY_OWNER_SECRET_KEY/);
   assert.match(html, /shows <strong>warn<\/strong>/);
   assert.match(css, /prefers-reduced-motion/);
-  assert.match(html, /href="style.css"/);
+  assert.match(html, /href="\/style.css"/);
+  assert.match(html, /src="\/app\.min\.js"/);
+  assert.match(css, /\.tape a \{[\s\S]*min-height: 48px/);
+  assert.match(css, /\.tape \{[\s\S]*grid-template-columns: repeat\(3/);
 });
 
 test("Check attestation re-enables Launch when it finishes", () => {

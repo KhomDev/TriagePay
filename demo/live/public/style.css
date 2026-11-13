@@ -161,23 +161,20 @@ h3 { margin: 18px 0 8px; font-size: 0.95rem; letter-spacing: 0.04em; text-transf
 .numbers .hint { grid-column: 1 / -1; margin: 0; }
 .tape {
   list-style: none;
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  height: 36px;
-  min-height: 36px;
+  min-height: 104px;
   margin: 10px 0 0;
   padding: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
 }
 .tape li {
-  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 48px;
   display: flex;
-  align-items: center;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0 10px;
-  font-size: 0.78rem;
+  border: 1px solid rgba(246, 243, 234, 0.28);
+  border-radius: 14px;
+  background: #171a22;
   animation: tape-in 0.45s ease both;
 }
 .tape li:nth-child(2) { animation-delay: 70ms; }
@@ -185,9 +182,21 @@ h3 { margin: 18px 0 8px; font-size: 0.95rem; letter-spacing: 0.04em; text-transf
 .tape li:nth-child(4) { animation-delay: 210ms; }
 .tape li:nth-child(5) { animation-delay: 280ms; }
 .tape li:nth-child(6) { animation-delay: 350ms; }
-.tape a { color: inherit; text-decoration: none; }
-.tape .paid { color: var(--ok); font-weight: 700; margin-right: 6px; }
-.tape .refused { color: var(--bad); font-weight: 700; margin-right: 6px; }
+.tape a {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 12px;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.tape .paid { color: #d8ffb0; font-weight: 700; }
+.tape .refused { color: #ffc1c1; font-weight: 700; }
 @keyframes tape-in {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }
@@ -500,6 +509,7 @@ main { padding-bottom: 24px; }
 @media (max-width: 900px) {
   .pipeline, .stats, .challenge-head, .split, .judge ol, .diff ol, .passport-dl { grid-template-columns: 1fr; }
   .numbers .stat { font-size: 0.95rem; }
+  .tape { grid-template-columns: repeat(2, minmax(0, 1fr)); min-height: 160px; }
   .passport-dl dd { white-space: normal; }
   .rail { height: 18px; }
   .packet { top: 0; left: 50%; }

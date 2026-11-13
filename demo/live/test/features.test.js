@@ -230,8 +230,9 @@ test("Drain Me redacts secrets, caps an address, and keeps a feed", async () => 
   assert.match(redactPrompt("send ed25519:placeholder and then pay a.testnet"), /redacted/);
   resetDrainForTests();
   const request = new Request("http://demo.local/api/drain", { headers: { "x-real-ip": "203.0.113.77" } });
-  for (let i = 0; i < 3; i += 1) await assertDrainRate(request, {}, 1_700_000_000_000);
-  await assert.rejects(() => assertDrainRate(request, {}, 1_700_000_000_000), /Drain Me/);
+  const tight = { TRIAGEPAY_DRAIN_IP_LIMIT: "3" };
+  for (let i = 0; i < 3; i += 1) await assertDrainRate(request, tight, 1_700_000_000_000);
+  await assert.rejects(() => assertDrainRate(request, tight, 1_700_000_000_000), /Drain Me/);
   await recordDrain({ prompt: "pay attacker.testnet", outcome: "refused", errorCode: "ERR_PAYEE_NOT_ALLOWED", mode: "scripted", payee: "attacker.testnet" }, {});
   const status = await drainStatus({});
   assert.ok(status.attempts >= 1);

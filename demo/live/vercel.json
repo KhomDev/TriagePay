@@ -4,7 +4,7 @@
   "functions": {
     "api/**/*.js": {
       "maxDuration": 60,
-      "includeFiles": "config.json,public/index.html,public/scoreboard.json,lib/fonts/**,node_modules/satori/layout.wasm,node_modules/@resvg/resvg-wasm/index_bg.wasm"
+      "includeFiles": "config.json,public/shell.html,public/scoreboard.json,lib/fonts/**,node_modules/satori/layout.wasm,node_modules/@resvg/resvg-wasm/index_bg.wasm"
     }
   },
   "rewrites": [
