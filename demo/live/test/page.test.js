@@ -11,6 +11,13 @@ const css = readFileSync(join(ROOT, "public", "style.css"), "utf8");
 const script = readFileSync(join(ROOT, "public", "app.js"), "utf8");
 
 test("the judge path and the hackathon marks are on the page", () => {
+  assert.match(html, /id="drain-more"/);
+  assert.match(html, /id="recent-more"/);
+  assert.match(script, /Show more/);
+  assert.match(script, /Show all/);
+  assert.match(script, /Show less/);
+  assert.match(script, /LIST_FIRST = 5/);
+  assert.match(script, /LIST_STEP = 10/);
   assert.match(html, /Launch the attack/);
   assert.match(html, /Try to drain it/);
   assert.match(html, /The agent signs\. The contract decides\./);

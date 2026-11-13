@@ -345,29 +345,94 @@
     });
   }
 
+  var LIST_FIRST = 5;
+  var LIST_STEP = 10;
+
+  function listWindow(key) {
+    if (!state.listWindows) state.listWindows = {};
+    if (!state.listWindows[key]) state.listWindows[key] = { shown: LIST_FIRST, all: false };
+    return state.listWindows[key];
+  }
+
+  function visibleCount(key, total) {
+    if (total <= LIST_FIRST) return total;
+    var window = listWindow(key);
+    if (window.all) return total;
+    var shown = window.shown < LIST_FIRST ? LIST_FIRST : window.shown;
+    return Math.min(shown, total);
+  }
+
+  function paintListControls(host, key, total, repaint) {
+    if (!host) return;
+    clear(host);
+    host.className = "";
+    if (total <= LIST_FIRST) return;
+    var shown = visibleCount(key, total);
+    var window = listWindow(key);
+    host.className = "actions";
+    if (shown < total) {
+      var more = el("button", { type: "button", class: "secondary" }, "Show more");
+      more.addEventListener("click", function () {
+        var next = shown + LIST_STEP;
+        window.shown = next;
+        window.all = next >= total;
+        repaint();
+      });
+      host.appendChild(more);
+      var all = el("button", { type: "button", class: "secondary" }, "Show all");
+      all.addEventListener("click", function () {
+        window.all = true;
+        window.shown = total;
+        repaint();
+      });
+      host.appendChild(all);
+    }
+    if (shown > LIST_FIRST) {
+      var less = el("button", { type: "button", class: "secondary" }, "Show less");
+      less.addEventListener("click", function () {
+        window.all = false;
+        window.shown = LIST_FIRST;
+        repaint();
+      });
+      host.appendChild(less);
+    }
+  }
+
+  function renderRecent() {
+    var body = clear($("recent"));
+    if (!body) return;
+    var rows = state.recentRows || [];
+    if (!rows.length) {
+      body.appendChild(el("tr", null, el("td", { colspan: "5" }, "No signed attempts yet. Launch the attack and the transaction shows up here.")));
+      paintListControls($("recent-more"), "recent", 0, renderRecent);
+      return;
+    }
+    var count = visibleCount("recent", rows.length);
+    rows.slice(0, count).forEach(paintRecentRow);
+    paintListControls($("recent-more"), "recent", rows.length, renderRecent);
+  }
+
   function paintRecent(rows) {
     if ((!rows || !rows.length) && state.recentRows && state.recentRows.length) return;
     state.recentRows = rows || [];
-    var body = clear($("recent"));
-    if (!rows || !rows.length) {
-      body.appendChild(el("tr", null, el("td", { colspan: "5" }, "No signed attempts yet. Launch the attack and the transaction shows up here.")));
-      return;
-    }
-    rows.forEach(function (row) {
-      var when = row.atMs ? new Date(row.atMs).toISOString().replace("T", " ").slice(0, 19) + " UTC" : "";
-      var chain = row.outcome === "success" ? "settled" : (row.outcome === "failure" ? "refused" : (row.errorCode || row.outcome || "refused"));
-      var risk = row.riskVerdict || (row.errorCode ? "block" : (row.outcome === "success" ? "allow" : "block"));
-      var link = row.explorerUrl
-        ? el("a", { href: row.explorerUrl, rel: "noopener", target: "_blank" }, "view")
-        : document.createTextNode("");
-      body.appendChild(el("tr", null,
-        el("td", null, when),
-        el("td", null, [row.title || row.kind || "", row.payee || "", withNear(row.amount || "")].filter(Boolean).join(" ")),
-        el("td", null, risk ? pill(risk, risk) : document.createTextNode("")),
-        el("td", null, chain),
-        el("td", null, link)
-      ));
-    });
+    renderRecent();
+  }
+
+  function paintRecentRow(row) {
+    var body = $("recent");
+    var when = row.atMs ? new Date(row.atMs).toISOString().replace("T", " ").slice(0, 19) + " UTC" : "";
+    var chain = row.outcome === "success" ? "settled" : (row.outcome === "failure" ? "refused" : (row.errorCode || row.outcome || "refused"));
+    var risk = row.riskVerdict || (row.errorCode ? "block" : (row.outcome === "success" ? "allow" : "block"));
+    var link = row.explorerUrl
+      ? el("a", { href: row.explorerUrl, rel: "noopener", target: "_blank" }, "view")
+      : document.createTextNode("");
+    body.appendChild(el("tr", null,
+      el("td", null, when),
+      el("td", null, [row.title || row.kind || "", row.payee || "", withNear(row.amount || "")].filter(Boolean).join(" ")),
+      el("td", null, risk ? pill(risk, risk) : document.createTextNode("")),
+      el("td", null, chain),
+      el("td", null, link)
+    ));
   }
 
   function wordFor(payload) {
@@ -588,13 +653,20 @@
     $("drain-drained").textContent = data.drainedDisplay || data.drained || "0";
     var note = clear($("drain-note"));
     note.appendChild(document.createTextNode(data.note || ""));
+    renderDrainFeed();
+  }
+
+  function renderDrainFeed() {
     var feed = clear($("drain-feed"));
-    var rows = data.feed || [];
+    if (!feed) return;
+    var rows = state.drainRows || [];
     if (!rows.length) {
       feed.appendChild(el("li", null, "No one has tried yet. Write a prompt above and press Try to drain it."));
+      paintListControls($("drain-more"), "drain", 0, renderDrainFeed);
       return;
     }
-    rows.forEach(function (row) {
+    var count = visibleCount("drain", rows.length);
+    rows.slice(0, count).forEach(function (row) {
       var link = row.explorerUrl
         ? el("a", { href: row.explorerUrl, rel: "noopener", target: "_blank" }, "transaction")
         : document.createTextNode("no transaction");
@@ -607,6 +679,7 @@
         link
       ));
     });
+    paintListControls($("drain-more"), "drain", rows.length, renderDrainFeed);
   }
 
   async function refreshDrain() {
