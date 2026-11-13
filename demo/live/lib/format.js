@@ -9,7 +9,17 @@ export function formatAtomic(atomic, decimals) {
   let frac = (abs % scale).toString().padStart(Number(decimals), "0");
   frac = frac.replace(/0+$/, "");
   const text = Number(decimals) > 0 && frac ? `${whole}.${frac}` : whole.toString();
-  return negative ? `-${text}` : text;
+  return humanDust(negative ? `-${text}` : text);
+}
+
+function humanDust(text) {
+  const match = /^(-?)(\d+)\.(\d+)$/.exec(text);
+  if (!match) return text;
+  const dust = /^(\d*?)(0{8,})([1-9]\d{0,4})$/.exec(match[3]);
+  if (!dust || dust[3] !== "1") return text;
+  const head = dust[1].replace(/0+$/, "");
+  const shown = head ? `${match[1]}${match[2]}.${head}` : `${match[1]}${match[2]}`;
+  return `${shown} wNEAR + 1 yocto`;
 }
 
 const TOKEN_SYMBOLS = {
@@ -23,7 +33,8 @@ export function tokenSymbol(accountId) {
 
 export function formatAmount(atomic, decimals, symbol) {
   const text = formatAtomic(atomic, decimals);
-  return symbol ? `${text} ${symbol}` : text;
+  if (!symbol || text.includes(symbol)) return text;
+  return `${text} ${symbol}`;
 }
 
 export function nsToIso(ns) {

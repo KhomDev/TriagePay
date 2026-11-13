@@ -25,6 +25,16 @@ test("the judge path and the hackathon marks are on the page", () => {
   assert.match(html, /href="style.css"/);
 });
 
+test("Check attestation re-enables Launch when it finishes", () => {
+  const start = script.indexOf("async function onAttest");
+  const end = script.indexOf("async function onDrain");
+  const attest = script.slice(start, end);
+  assert.match(attest, /state\.busy = false/);
+  assert.match(attest, /syncControls\(\)/);
+  assert.match(script, /function syncControls\(\)/);
+  assert.match(script, /\$\("btn-launch"\)\.disabled = !ready \|\| busy/);
+});
+
 test("the page script does not parse chain data as HTML", () => {
   for (const sink of ["innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function"]) {
     assert.equal(script.includes(sink), false, sink);

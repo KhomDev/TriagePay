@@ -19,19 +19,25 @@ function present(status) {
 export async function GET() {
   try {
     const status = await drainStatus();
-    if (!status.feed.length) {
-      try {
-        const config = loadConfig();
-        const hits = await honeypotHitsFromChain(config, honeypotAccount(config));
-        if (hits.length) {
-          status.feed = hits;
-          status.attempts = Math.max(status.attempts || 0, hits.length);
-          status.refusals = Math.max(status.refusals || 0, hits.filter((row) => row.outcome === "refused").length);
-          status.note = "Counted from refused payments on the chain.";
-        }
-      } catch {
-        // The in-memory feed stands.
+    try {
+      const config = loadConfig();
+      const hits = await honeypotHitsFromChain(config, honeypotAccount(config));
+      const byHash = new Map();
+      for (const row of [...hits, ...(status.feed || [])]) {
+        if (!row) continue;
+        const key = row.txHash || `local-${row.atMs || ""}-${row.prompt || ""}`;
+        const prev = byHash.get(key) || {};
+        byHash.set(key, { ...prev, ...row });
       }
+      const feed = [...byHash.values()].sort((a, b) => (b.atMs || 0) - (a.atMs || 0));
+      if (feed.length) {
+        status.feed = feed;
+        status.attempts = feed.length;
+        status.refusals = feed.filter((row) => row.outcome === "refused" || row.errorCode).length;
+        status.note = "Counted from the agent's payments on the chain.";
+      }
+    } catch {
+      // Keep the feed this process already has.
     }
     return json(200, present(status));
   } catch (error) {

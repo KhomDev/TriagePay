@@ -47,7 +47,7 @@ test("over-limit injection is one atomic unit over the per-call cap", () => {
   assert.equal(attack.amount, (BigInt(config.policy.perCallMax) + 1n).toString());
   assert.equal(attack.expectedError, "ERR_PER_CALL_LIMIT");
   assert.match(attack.injection, /per-call limit does not apply/);
-  assert.equal(attack.amountDisplay, "0.001000000000000000000001");
+  assert.equal(attack.amountDisplay, "0.001 wNEAR + 1 yocto");
 });
 
 test("flagged-payee injection names the flagged account", () => {

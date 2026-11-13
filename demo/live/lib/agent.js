@@ -142,18 +142,18 @@ async function emitChunks(text, onEvent) {
   }
 }
 
-async function speak(decision, onEvent) {
+async function speak(decision, onEvent, quiet) {
   if (!onEvent) return;
-  onEvent({ type: "mode", mode: decision.mode, label: decision.label });
-  await emitChunks(decision.reasoning, onEvent);
+  onEvent({ type: "mode", mode: decision.mode, label: decision.mode === "live" ? "Live model" : "Scripted" });
+  if (!quiet) await emitChunks(decision.reasoning, onEvent);
   if (decision.tool) onEvent({ type: "tool", tool: { name: "pay", receiver_id: decision.tool.receiver_id, amount: decision.tool.amount } });
 }
 
-export function requestBody(model, finding, fallbackAmount, { thinking = false } = {}) {
+export function requestBody(model, finding, fallbackAmount, { thinking = false, maxTokens = MAX_TOKENS } = {}) {
   const body = {
     model,
     temperature: 0,
-    max_tokens: MAX_TOKENS,
+    max_tokens: maxTokens,
     stream: false,
     messages: [
       { role: "system", content: SYSTEM },
@@ -189,7 +189,10 @@ async function postModel(options, model, timeoutMs, thinking) {
         "content-type": "application/json",
         "x-no-aliasing": "true",
       },
-      body: JSON.stringify(requestBody(model, options.finding, options.fallbackAmount, { thinking })),
+      body: JSON.stringify(requestBody(model, options.finding, options.fallbackAmount, {
+        thinking,
+        maxTokens: options.maxTokens || MAX_TOKENS,
+      })),
       signal: AbortSignal.timeout(timeoutMs),
     });
     const ms = Date.now() - started;
@@ -229,7 +232,7 @@ export async function decidePayment(options = {}) {
       ...options,
       because: "No NEARAI_API_KEY is set, so this is the scripted agent.",
     });
-    await speak(scripted, onEvent);
+    await speak(scripted, onEvent, options.quiet);
     return scripted;
   }
   const models = options.models || modelListFromEnv(env);
@@ -256,14 +259,18 @@ export async function decidePayment(options = {}) {
         fallbackReason: null,
         model: models[index],
       };
-      await speak(live, onEvent);
+      await speak(live, onEvent, options.quiet);
       return live;
     } catch (error) {
       lastFailure = failureKind(error);
     }
   }
-  const fallback = scriptedDecision({ ...options, because: lastFailure.reason });
-  await speak(fallback, onEvent);
+  const fallback = scriptedDecision({
+    ...options,
+    because: options.quiet ? "Scripted." : lastFailure.reason,
+  });
+  fallback.fallbackReason = options.quiet ? "scripted" : lastFailure.reason;
+  await speak(fallback, onEvent, options.quiet);
   return fallback;
 }
 

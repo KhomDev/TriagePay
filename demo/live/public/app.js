@@ -3,7 +3,7 @@
   "use strict";
 
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var state = { scenarios: [], busy: false, review: null, queueScenario: null };
+  var state = { scenarios: [], busy: false, review: null, queueScenario: null, ready: false, killSwitch: false, recentRows: null, drainRows: null };
 
   function $(id) { return document.getElementById(id); }
 
@@ -57,7 +57,9 @@
     var select = $("scenario");
     var current = select.value;
     clear(select);
+    var reviewOn = Boolean(state.review && state.review.reviewUnknownPayees);
     scenarios.forEach(function (scenario) {
+      if (scenario.id === "review-payee" && !reviewOn) return;
       select.appendChild(el("option", { value: scenario.id }, scenario.title));
     });
     if (current && scenarios.some(function (item) { return item.id === current; })) select.value = current;
@@ -109,9 +111,7 @@
       $("nav-wallet").textContent = data.wallet;
       $("nav-wallet").setAttribute("href", data.explorerAccount + data.wallet);
     }
-    $("agent-mode").textContent = data.agentMode === "live"
-      ? "Agent: model"
-      : "Agent: follows the text";
+    $("agent-mode").textContent = data.agentMode === "live" ? "Live model" : "Scripted";
   }
 
   function paintRisks(risks) {
@@ -182,6 +182,8 @@
   }
 
   function paintRecent(rows) {
+    if ((!rows || !rows.length) && state.recentRows && state.recentRows.length) return;
+    state.recentRows = rows || [];
     var body = clear($("recent"));
     if (!rows || !rows.length) {
       body.appendChild(el("tr", null, el("td", { colspan: "5" }, "No signed attempts yet. Launch the attack and the transaction shows up here.")));
@@ -266,7 +268,7 @@
     var word = wordFor(payload);
     if (word) root.appendChild(el("p", { class: "verdict-word " + word.kind }, word.text));
     if (payload.agent) {
-      root.appendChild(el("p", null, scriptedLine(payload.agent)));
+      root.appendChild(el("p", null, agentLabel(payload.agent)));
     }
     if (payload.summary) root.appendChild(el("p", null, payload.summary));
     if (payload.risk) root.appendChild(el("p", null, "Payee risk ", pill(payload.risk.verdict, payload.risk.verdict)));
@@ -293,18 +295,19 @@
     return value + " wNEAR";
   }
 
-  function scriptedLine(agent) {
-    if (!agent) return "Scripted.";
-    if (agent.mode === "live") return "Live.";
-    var reason = String(agent.fallbackReason || agent.reasoning || "");
-    reason = reason.replace(/No NEARAI_API_KEY is set, so this is the scripted agent\.?\s*/i, "No model key is set on this server. ");
-    reason = reason.replace(/, so I used the scripted agent\.?/i, ".");
-    reason = reason.replace(/\s+/g, " ").trim();
-    if (!reason || /follows the injected instruction|did not name a NEAR account/i.test(reason)) {
-      return "Scripted. The agent followed the text.";
-    }
-    if (reason.indexOf("Scripted") === 0) return reason;
-    return "Scripted. " + reason;
+  function agentLabel(agent) {
+    return agent && agent.mode === "live" ? "Live model" : "Scripted";
+  }
+
+  function syncControls() {
+    var busy = Boolean(state.busy);
+    var ready = Boolean(state.ready);
+    if ($("btn-launch")) $("btn-launch").disabled = !ready || busy;
+    if ($("btn-run")) $("btn-run").disabled = !ready || busy;
+    if ($("btn-drain")) $("btn-drain").disabled = !ready || busy;
+    if ($("btn-kill")) $("btn-kill").disabled = !state.killSwitch || busy;
+    if ($("btn-attest")) $("btn-attest").disabled = busy;
+    if ($("btn-queue")) $("btn-queue").disabled = !state.queueScenario || busy;
   }
 
   function showLiveVerdict(word, payload) {
@@ -400,6 +403,9 @@
 
   function paintDrain(data) {
     if (!data) return;
+    var incoming = data.feed || [];
+    if (!incoming.length && state.drainRows && state.drainRows.length) return;
+    state.drainRows = incoming;
     $("drain-attempts").textContent = String(data.attempts || 0);
     $("drain-refusals").textContent = String(data.refusals || 0);
     $("drain-drained").textContent = data.drainedDisplay || data.drained || "0";
@@ -479,11 +485,9 @@
         ? "The link works once, then it dies."
         : "The one-time link is off on this server."
     ));
-    var ready = Boolean(data.signing && data.configured);
-    $("btn-launch").disabled = !ready || state.busy;
-    $("btn-run").disabled = !ready || state.busy;
-    $("btn-drain").disabled = !ready || state.busy;
-    $("btn-kill").disabled = !data.killSwitch || state.busy;
+    state.ready = Boolean(data.signing && data.configured);
+    state.killSwitch = Boolean(data.killSwitch);
+    syncControls();
     paintReceiptFeed(data.recent);
     var policyNote = clear($("policy-note"));
     if (policyNote) {
@@ -500,11 +504,24 @@
     loadHoneypot();
   }
 
+  function ruleSentence(row) {
+    if (row.outcome === "held") return "The wallet held the payment for the owner.";
+    if (row.outcome === "success" && !row.errorCode) return "The wallet settled the payment.";
+    if (row.errorCode === "ERR_PAYEE_NOT_ALLOWED") return "The payee is not on the allowlist.";
+    if (row.errorCode === "ERR_PER_CALL_LIMIT") return "The amount is above the per-call cap.";
+    if (row.errorCode === "ERR_DAILY_LIMIT") return "The amount would pass the daily cap.";
+    if (row.errorCode) return "The wallet refused the payment.";
+    if (row.title && row.title !== "pay") return row.title;
+    return "The wallet refused the payment.";
+  }
+
   function paintReceiptFeed(rows) {
     var root = $("receipts-feed");
     if (!root) return;
-    clear(root);
     var shown = (rows || []).filter(function (row) { return row.txHash && (row.payee || row.amount || row.errorCode || row.title); });
+    if (!shown.length && state.receiptRows && state.receiptRows.length) return;
+    state.receiptRows = shown;
+    clear(root);
     if (!shown.length) {
       root.appendChild(el("p", { class: "hint" }, "No receipt yet. Launch the attack. The error code and the transaction link show up here."));
       return;
@@ -513,16 +530,16 @@
     var rest = shown.slice(1, 6);
     [featured].forEach(function (row) {
       var card = shareCard({
-        kind: row.outcome === "success" && !row.errorCode ? "settled" : "refused",
-        headline: row.outcome === "success" && !row.errorCode ? "SETTLED" : (row.outcome === "held" ? "HELD" : "REFUSED"),
+        kind: row.outcome === "held" ? "held" : (row.outcome === "success" && !row.errorCode ? "settled" : "refused"),
+        headline: row.outcome === "held" ? "HELD" : (row.outcome === "success" && !row.errorCode ? "SETTLED" : "REFUSED"),
         rule: row.errorCode || "",
-        ruleText: row.title || "",
-        tried: row.title || "",
-        amount: row.amount || "",
+        ruleText: ruleSentence(row),
+        tried: ruleSentence(row),
+        amount: withNear(row.amount || ""),
         payee: row.payee || "",
         txHash: row.txHash,
         explorerUrl: row.explorerUrl,
-        shareText: (row.errorCode || "REFUSED") + " built at NEAR HACKATHON @NEARProtocol #NEARHackathon",
+        shareText: (row.outcome === "held" ? "HELD" : (row.outcome === "success" && !row.errorCode ? "SETTLED" : "REFUSED")) + ". " + ruleSentence(row) + " built at NEAR HACKATHON @NEARProtocol #NEARHackathon",
       });
       if (card) root.appendChild(card);
     });
@@ -547,8 +564,10 @@
     clear(note).appendChild(document.createTextNode(data.note || ""));
     var payee = $("honeypot-payee");
     if (payee) payee.textContent = data.payee || "";
-    var list = clear($("honeypot-list"));
     var rows = data.feed || [];
+    if (!rows.length && state.honeypotRows && state.honeypotRows.length) return;
+    state.honeypotRows = rows;
+    var list = clear($("honeypot-list"));
     if (!rows.length) {
       list.appendChild(el("li", null, "No refusal to this trap is on the chain index yet. Launch the attack to add one."));
       return;
@@ -637,7 +656,7 @@
     try {
       var result = await readSse("/api/agent", { scenario: "injected-payee" }, function (event) {
         if (event.type === "mode") {
-          $("agent-mode").textContent = event.mode === "live" ? "Live" : "Scripted";
+          $("agent-mode").textContent = event.mode === "live" ? "Live model" : "Scripted";
         }
         if (event.type === "tool") {
           setSteps(["step-agent", "step-instruction"], false);
@@ -656,7 +675,7 @@
       setSteps(["step-agent", "step-instruction", "step-wallet", "step-verdict"], !word || word.kind === "bad");
       slam(word ? word.text : "STOPPED");
       if (result.ok && result.json && result.json.agent) {
-        $("agent-mode").textContent = scriptedLine(result.json.agent);
+        $("agent-mode").textContent = agentLabel(result.json.agent);
       }
       if (!result.ok) {
         setStatus("This attempt did not finish. The note under the path says why.");
@@ -761,7 +780,7 @@
       });
     } finally {
       state.busy = false;
-      $("btn-attest").disabled = false;
+      syncControls();
     }
   }
 

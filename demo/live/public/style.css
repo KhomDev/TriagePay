@@ -185,8 +185,8 @@ button[disabled] { opacity: 0.45; cursor: not-allowed; transform: none; }
   color: var(--accent);
   font-family: var(--mono);
   font-size: 0.75rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-transform: none;
 }
 
 .stage { margin-top: 8px; }
@@ -225,6 +225,18 @@ button[disabled] { opacity: 0.45; cursor: not-allowed; transform: none; }
   text-transform: uppercase;
   color: var(--faint);
 }
+.replay-steps {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 0;
+  max-width: 40rem;
+}
+.replay-steps .step { min-width: 0; }
+.replay-steps .trace { white-space: normal; overflow-wrap: anywhere; }
+.stamp { white-space: nowrap; }
 .pipeline {
   list-style: none;
   display: grid;
@@ -423,6 +435,10 @@ main { padding-bottom: 24px; }
   .nav-wallet { margin-left: 0; }
   h1 { max-width: none; font-size: 2.05rem; }
   .actions button, .cta-row button, .cta-row .text-btn { width: 100%; }
+  .table-wrap table, .table-wrap thead, .table-wrap tbody, .table-wrap tr, .table-wrap th, .table-wrap td { display: block; width: 100%; }
+  .table-wrap thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .table-wrap tr { border-bottom: 1px solid var(--line); padding: 10px 0; }
+  .table-wrap td { border: 0; padding: 2px 0; }
 }
 
 @keyframes travel {

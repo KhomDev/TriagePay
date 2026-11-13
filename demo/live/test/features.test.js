@@ -439,6 +439,7 @@ test("a passport is built from the wallet view and the indexer", () => {
       { txHash: "aaaaaaaa", atMs: 1, success: false, methods: ["pay"] },
       { txHash: "bbbbbbbb", atMs: 2, success: true, methods: ["pay"] },
       { txHash: "cccccccc", atMs: 3, success: true, methods: ["revoke_agent"] },
+      { txHash: "dddddddd", atMs: 4, success: false, methods: ["approve_payment"] },
     ],
     journal: [{ txHash: "aaaaaaaa", errorCode: "ERR_PAYEE_NOT_ALLOWED" }],
     explorerTx: "https://testnet.nearblocks.io/txns/",
@@ -450,6 +451,7 @@ test("a passport is built from the wallet view and the indexer", () => {
   assert.equal(passport.counts.refusals, 1);
   assert.equal(passport.counts.paid, 1);
   assert.equal(passport.counts.revokes, 1);
+  assert.equal(passport.counts.approved, 1);
   assert.equal(passport.events[0].errorCode, "ERR_PAYEE_NOT_ALLOWED");
   assert.equal(passport.source.limits, "wallet contract");
   assert.equal(passport.source.transactions, "indexer");

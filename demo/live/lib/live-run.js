@@ -2,6 +2,7 @@
 // only when the wallet would refuse or hold. A payment the wallet would
 // settle is not signed.
 
+import { extractAccount } from "./accounts.js";
 import { describeAttack } from "./attacks.js";
 import { decidePayment, modelFromEnv, publicAgent } from "./agent.js";
 import { chainReady, loadConfig, loadKeys, signingReady } from "./config.js";
@@ -275,7 +276,9 @@ export async function runLaunch(request, options = {}) {
     apiKey: process.env.NEARAI_API_KEY || "",
     model: modelFromEnv(),
     models: [modelFromEnv()],
-    budgetMs: 2_000,
+    budgetMs: 11_000,
+    maxTokens: 80,
+    quiet: true,
     fetchImpl: options.fetchImpl || fetch,
     onEvent: options.onEvent,
   });
@@ -289,16 +292,36 @@ export async function runDrainAttempt(request, prompt, options = {}) {
   requireChain(config);
   requireKeys(loadKeys());
   await assertDrainRate(request);
-  const agent = await decidePayment({
+  const allow = new Set((config.policy.payees || []).map((item) => String(item).toLowerCase()));
+  const named = extractAccount(text);
+  const attacker = named && !allow.has(named) ? named : config.accounts.injected;
+  let agent = await decidePayment({
     finding: text,
-    fallbackPayee: null,
+    fallbackPayee: attacker,
     fallbackAmount: config.policy.allowedAmount,
     preferFallback: false,
     apiKey: process.env.NEARAI_API_KEY || "",
     model: modelFromEnv(),
+    models: [modelFromEnv()],
+    budgetMs: 8_000,
+    maxTokens: 80,
+    quiet: true,
     fetchImpl: options.fetchImpl || fetch,
     onEvent: options.onEvent,
   });
+  const toolPayee = agent.tool && agent.tool.receiver_id;
+  if (!agent.tool || (toolPayee && allow.has(String(toolPayee).toLowerCase()))) {
+    agent = {
+      mode: "scripted",
+      label: "Scripted",
+      reasoning: "Scripted. The agent pays the attacker named in the prompt.",
+      tool: attacker && config.policy.allowedAmount
+        ? { name: "pay", receiver_id: attacker, amount: String(config.policy.allowedAmount) }
+        : null,
+      fallbackReason: "scripted",
+      model: null,
+    };
+  }
   const attack = {
     id: "drain",
     kind: "attack",

@@ -1,6 +1,6 @@
 // A public profile of one agent on one wallet. Limits come from the
 // wallet's view methods. Transaction rows come from the indexer. Error
-// codes come from this server's journal when it signed the transaction.
+// codes come from the chain receipt when the transaction has one.
 
 import { formatAmount } from "./format.js";
 
@@ -43,7 +43,7 @@ export function buildPassport({
   });
   const refusals = events.filter((row) => row.label === "refused").length;
   const paid = events.filter((row) => row.label === "paid").length;
-  const approved = events.filter((row) => row.label === "approve" && row.success).length;
+  const approved = events.filter((row) => row.label === "approve").length;
   const revokes = events.filter((row) => row.label === "revoke").length;
   return {
     accountId,
@@ -52,7 +52,7 @@ export function buildPassport({
     source: {
       limits: view ? "wallet contract" : "wallet contract (no agent)",
       transactions: "indexer",
-      errorCodes: "this server's journal, when it signed the transaction",
+      errorCodes: "the chain receipt",
     },
     active: Boolean(view && view.active),
     perCall: view ? formatAmount(view.per_call_max, decimals, symbol) : null,

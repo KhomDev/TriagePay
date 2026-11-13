@@ -20,6 +20,11 @@ async function listPassportTxns(config, accountId) {
     if (!batch.next) break;
     cursor = batch.next;
   }
+  const wallet = await fetchIndexerPage(config.indexerAccountsBase, config.accounts.wallet, { limit: 25 });
+  for (const row of wallet.rows || []) {
+    const methods = row.methods || [];
+    if (methods.includes("approve_payment") || methods.includes("reject_payment")) rows.push(row);
+  }
   const pays = rows.filter((row) => (row.methods || []).includes("pay") && row.txHash).slice(0, 12);
   await Promise.all(pays.map((row) => fetchPayTransaction(
     config.rpcUrl,

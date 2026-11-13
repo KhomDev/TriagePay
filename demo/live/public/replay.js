@@ -24,6 +24,13 @@
     return new URLSearchParams(location.search).get("tx") || "";
   }
 
+  function withUnit(text) {
+    var value = String(text || "");
+    if (!value || /[A-Za-z]/.test(value)) return value;
+    if (/^\d+(\.\d+)?$/.test(value)) return value + " wNEAR";
+    return value;
+  }
+
   function wait(ms) {
     if (reduce || ms <= 0) return Promise.resolve();
     return new Promise(function (resolve) { setTimeout(resolve, ms); });
@@ -35,7 +42,7 @@
       return;
     }
     var stage = el("section", { class: "theatre", id: "theatre" });
-    var list = el("ol", { class: "pipeline", id: "rep-steps" });
+    var list = el("ol", { class: "replay-steps", id: "rep-steps" });
     var stampWord = data.kind === "held" ? "HELD" : data.kind === "settled" ? "SETTLED" : "REFUSED";
     var stamp = el("p", { class: "stamp", id: "rep-stamp" }, stampWord);
     var steps = (data.checks || []).slice(0, 4);
@@ -59,7 +66,7 @@
       var check = steps[index];
       var item = el("li", { class: "step is-on" },
         el("span", { class: "kicker" }, "0" + (index + 1) + " · " + (check.name || "Step")),
-        el("p", { class: "trace" }, check.result || "")
+        el("p", { class: "trace" }, withUnit(check.result || ""))
       );
       list.appendChild(item);
     }
