@@ -111,6 +111,18 @@ a:focus-visible, button:focus-visible, select:focus-visible, textarea:focus-visi
   font-size: 1.15rem;
 }
 .tag { margin: 0; color: var(--muted); font-size: 0.86rem; }
+.live-badge {
+  margin-left: auto;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 10px;
+}
+.live-badge:hover { color: var(--ink); }
 .nav-wallet { margin-left: auto; color: var(--muted); font-size: 0.78rem; }
 .mono { font-family: var(--mono); }
 

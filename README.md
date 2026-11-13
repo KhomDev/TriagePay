@@ -63,7 +63,30 @@ Every transaction, the costs, and two setup mistakes I hit are in [`docs/demo/ma
 
 I re-check the live deployment every six hours, and I can start the same check by hand. The workflow is read-only: public RPC at `https://free.rpc.fastnear.com` and `https://test.rpc.fastnear.com`, no key and no signature. It confirms `tp-wallet.hlpok1lad.tg` exists, its code hash is `45HbvWoxBiUoJssERUU6xr8EqAudAHcjS4kYG9NiDagC`, it has no access keys, and its owner, pause flag, token, agent caps, allowlist, review threshold, and queue capacity match [`scripts/mainnet/expected-live.json`](scripts/mainnet/expected-live.json). It confirms `tp-agent2.hlpok1lad.tg` is active and its only key is `ed25519:69i3HGAR51MzFSvGLjQqnZhk6Dpo39VGnaNU9LJscCdn`, a function-call key limited to `pay` on that wallet. It does not treat today's spend or the key's remaining gas allowance as fixed numbers. It confirms the four recorded proof transactions still resolve: `2RH77VLsLHovF3m4kzR76jk71X8tYKAyugxQ9YJMXLJJ` paid, `HskzPv94J1JY16K5WdUG8wfGznnhnMMKcXgE1acks63F` refused, `CFutaZM9XMLBBcfm2jwH2JnQQJA8ReNGyTRhH1PZLzFh` revoke, `C1BnCCrEMYfxhirf283GfGr2sfeBMaZ88fimxQwoKt2d` inactive. It confirms `tpd-e947e7-wallet.testnet` still answers with the recorded owner, token, caps, and code hash, and that `https://triagepay-demo.vercel.app/api/health` reports ok. A new mainnet wallet is another entry in that JSON.
 
-A later mainnet run is in progress on another machine. Its notes will land under `docs/demo/mainnet-*`. I have not written a result for that run here. The 2026-11-12 transactions above are the mainnet evidence that exists today.
+A later mainnet run is in progress on another machine. Its notes will land under `docs/demo/mainnet-app/2026-11-13/`. I have not written a result for that run here. The 2026-11-12 transactions above are the mainnet evidence that exists today.
+
+## Live on NEAR Mainnet
+
+The sandbox on the homepage stays on testnet. These are the mainnet accounts.
+
+| Role | Account |
+|---|---|
+| Factory | [`triagepay.hlpok1lad.tg`](https://nearblocks.io/address/triagepay.hlpok1lad.tg) |
+| Fee recipient | [`hlpok1lad.tg`](https://nearblocks.io/address/hlpok1lad.tg) |
+| Demo wallet | [`tp-wallet.hlpok1lad.tg`](https://nearblocks.io/address/tp-wallet.hlpok1lad.tg) |
+| Agent | [`tp-agent2.hlpok1lad.tg`](https://nearblocks.io/address/tp-agent2.hlpok1lad.tg) |
+
+`/api/health` reports the sandbox `network` and a `mainnet` object with these four ids.
+
+Sample transactions. I copy a hash only when it is already in a committed evidence file.
+
+| What | Hash | Where I read it |
+|---|---|---|
+| Factory deploy | TODO | `docs/demo/mainnet-app/2026-11-13/` is not committed yet |
+| Allowlisted pay on the demo wallet | [`2RH77VLsLHovF3m4kzR76jk71X8tYKAyugxQ9YJMXLJJ`](https://nearblocks.io/txns/2RH77VLsLHovF3m4kzR76jk71X8tYKAyugxQ9YJMXLJJ) | `docs/demo/mainnet-e2e/2026-11-12/mainnet-EVIDENCE.json` |
+| Refused payee | [`HskzPv94J1JY16K5WdUG8wfGznnhnMMKcXgE1acks63F`](https://nearblocks.io/txns/HskzPv94J1JY16K5WdUG8wfGznnhnMMKcXgE1acks63F) | same file |
+| Owner revokes the agent | [`CFutaZM9XMLBBcfm2jwH2JnQQJA8ReNGyTRhH1PZLzFh`](https://nearblocks.io/txns/CFutaZM9XMLBBcfm2jwH2JnQQJA8ReNGyTRhH1PZLzFh) | same file |
+| Revoked agent is refused | [`C1BnCCrEMYfxhirf283GfGr2sfeBMaZ88fimxQwoKt2d`](https://nearblocks.io/txns/C1BnCCrEMYfxhirf283GfGr2sfeBMaZ88fimxQwoKt2d) | same file |
 
 ## Wallet factory
 
