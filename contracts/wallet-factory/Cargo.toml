@@ -1,0 +1,18 @@
+[package]
+name = "wallet-factory"
+description = "Creates TriagePay policy wallets. One NEAR service fee plus storage, refunded in full if creation fails."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+# near-sdk 5.29.1 declares MSRV 1.93.
+rust-version = "1.93"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = "=5.29.1"
+
+[dev-dependencies]
+near-sdk = { version = "=5.29.1", features = ["unit-testing"] }
+proptest = "1.7"

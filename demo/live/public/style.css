@@ -161,7 +161,20 @@ button, .text-btn {
   align-items: center;
   justify-content: center;
 }
-button { background: var(--accent); color: var(--accent-ink); }
+button, a.primary { background: var(--accent); color: var(--accent-ink); }
+a.primary {
+  font: 700 1.2rem/1 var(--display);
+  letter-spacing: -0.03em;
+  min-height: 64px;
+  padding: 0 28px;
+  border-radius: 999px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 1px rgba(226, 255, 84, 0.35), 0 18px 50px rgba(226, 255, 84, 0.12);
+}
+a.primary:hover { color: var(--accent-ink); transform: translateY(-1px); }
 button.secondary, .text-btn.ghost {
   background: transparent;
   color: var(--ink);
@@ -171,10 +184,12 @@ button:hover { transform: translateY(-1px); }
 button[disabled] { opacity: 0.45; cursor: not-allowed; transform: none; }
 #btn-launch[disabled] { opacity: 1; }
 #btn-launch {
-  min-height: 64px;
-  padding: 0 28px;
-  font-size: 1.2rem;
-  box-shadow: 0 0 0 1px rgba(226, 255, 84, 0.35), 0 18px 50px rgba(226, 255, 84, 0.12);
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--line);
+  box-shadow: none;
+  min-height: 52px;
+  font-size: 1rem;
 }
 .mode-pill {
   display: inline-flex;
@@ -370,7 +385,7 @@ summary { cursor: pointer; font-family: var(--display); font-weight: 700; font-s
   .stats article { border-right: 0; border-bottom: 1px solid var(--line); }
   .nav-wallet { margin-left: 0; }
   h1 { max-width: none; }
-  .actions button, .cta-row button, .cta-row .text-btn { width: 100%; }
+  .actions button, .cta-row button, .cta-row .text-btn, .cta-row a.primary { width: 100%; }
 }
 
 @keyframes travel {

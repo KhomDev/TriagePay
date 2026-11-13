@@ -181,41 +181,29 @@ fn new_rejects_too_many_tokens() {
     PolicyWallet::new(owner(), tokens);
 }
 
-// One wallet, one denomination: limits and the running total are plain
-// integers in the token's atomic units, with no per-token bookkeeping.
-
+/// Two tokens are allowed. A limit sized for a 24-decimal token does not
+/// become a limit on a 6-decimal token: each token has its own budget.
 #[test]
-#[should_panic(expected = "ERR_TOO_MANY_TOKENS")]
-fn new_rejects_a_second_token() {
-    as_self().set();
-    PolicyWallet::new(owner(), vec![usdc(), acc("wrap.near")]);
-}
-
-#[test]
-#[should_panic(expected = "ERR_TOO_MANY_TOKENS")]
-fn set_tokens_rejects_a_second_token() {
-    let mut w = setup();
-    as_owner().set();
-    w.set_tokens(vec![usdc(), acc("wrap.near")]);
-}
-
-/// The case the rule exists for. Limits sized for a 24-decimal token
-/// (0.001 per call, 0.003 per day) are, read as a 6-decimal token's
-/// atomic units, 10^15 and 3 x 10^15 whole units. The second token cannot
-/// be allowlisted next to the first, so it cannot be paid at all.
-#[test]
-#[should_panic(expected = "ERR_TOKEN_NOT_ALLOWED")]
 fn limits_sized_for_one_token_cannot_move_another() {
     let wnear = acc("wrap.near");
     as_self().set();
-    let mut w = PolicyWallet::new(owner(), vec![wnear]);
+    let mut w = PolicyWallet::new(owner(), vec![wnear.clone(), usdc()]);
     as_owner().set();
+    w.set_agent(agent(), U128(0), U128(0), vec![gateway()]);
     let per_call: u128 = 1_000_000_000_000_000_000_000; // 0.001 at 24 decimals
     let daily: u128 = 3_000_000_000_000_000_000_000; // 0.003 at 24 decimals
-    w.set_agent(agent(), U128(per_call), U128(daily), vec![gateway()]);
+    w.set_token_limits(agent(), wnear.clone(), U128(per_call), U128(daily));
+    w.set_token_limits(agent(), usdc(), U128(1_000), U128(1_000));
     as_agent().set();
-    // One billion USDC in atomic units: far inside the integer limits.
-    settle(w.pay(usdc(), gateway(), U128(1_000_000_000_000_000), None));
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        settle(w.pay(usdc(), gateway(), U128(1_000_000_000_000_000), None));
+    }));
+    assert!(caught.is_err());
+    assert_eq!(w.get_token_spent(agent(), usdc()), U128(0));
+    assert_eq!(w.get_token_spent(agent(), wnear.clone()), U128(0));
+    settle(w.pay(wnear.clone(), gateway(), U128(per_call), None));
+    assert_eq!(w.get_token_spent(agent(), wnear), U128(per_call));
+    assert_eq!(w.get_token_spent(agent(), usdc()), U128(0));
 }
 
 // ----- pay: happy path and events -------------------------------------------
@@ -561,6 +549,25 @@ agent_cannot_call!(fc_key_cannot_approve, 0, "exactly 1 yoctoNEAR", |w| w
     .detach());
 agent_cannot_call!(fc_key_cannot_reject, 0, "exactly 1 yoctoNEAR", |w| w
     .reject_payment(U64(0)));
+agent_cannot_call!(fc_key_cannot_reject_all, 0, "exactly 1 yoctoNEAR", |w| w
+    .reject_all());
+agent_cannot_call!(fc_key_cannot_reject_payments, 0, "exactly 1 yoctoNEAR", |w| w
+    .reject_payments(vec![U64(0)]));
+agent_cannot_call!(fc_key_cannot_set_token_limits, 0, "exactly 1 yoctoNEAR", |w| w
+    .set_token_limits(agent(), usdc(), U128(1), U128(1)));
+agent_cannot_call!(
+    fc_key_cannot_set_deposit_cap,
+    0,
+    "exactly 1 yoctoNEAR",
+    |w| w.set_deposit_cap(usdc(), U128(1))
+);
+agent_cannot_call!(agent_cannot_reject_all, 1, "ERR_NOT_OWNER", |w| w.reject_all());
+agent_cannot_call!(
+    agent_cannot_set_token_limits,
+    1,
+    "ERR_NOT_OWNER",
+    |w| w.set_token_limits(agent(), usdc(), U128(1), U128(1))
+);
 agent_cannot_call!(fc_key_cannot_close, 0, "exactly 1 yoctoNEAR", |w| w
     .close(agent())
     .detach());
@@ -970,7 +977,7 @@ fn unknown_payee_is_queued_when_review_is_on_and_counts_against_the_day() {
     assert_eq!(pending[0].reason, REASON_NEW_PAYEE);
     assert_eq!(pending[0].receiver_id, stranger);
     assert_eq!(pending[0].memo.as_deref(), Some("hold"));
-    assert_eq!(w.get_spent(agent()), U128(1_000));
+    assert_eq!(w.get_spent(agent()), U128(0));
     assert!(events()[0].contains(r#""event":"payment_queued""#));
     assert!(events()[0].contains(r#""reason":"new_payee""#));
 }
@@ -988,7 +995,8 @@ fn allowlisted_amount_above_the_threshold_waits_for_the_owner() {
         PromiseOrValue::Promise(_) => panic!("above the threshold must wait"),
     }
     assert_eq!(w.get_pending()[0].reason, REASON_ABOVE_THRESHOLD);
-    assert_eq!(w.get_spent(agent()), U128(2_001));
+    // The settled 1_000 counts. The hold of 1_001 does not.
+    assert_eq!(w.get_spent(agent()), U128(1_000));
 }
 
 #[test]
@@ -1017,7 +1025,7 @@ fn owner_rejects_a_queued_payment_and_restores_the_budget() {
     assert!(events()
         .iter()
         .any(|event| event.contains(r#""event":"payment_rejected""#)
-            && event.contains(r#""release":"restored""#)));
+            && event.contains(r#""release":"unreserved""#)));
 }
 
 #[test]
@@ -1070,7 +1078,7 @@ fn approve_refuses_a_revoked_agent_and_keeps_the_queue() {
     }));
     assert!(caught.is_err());
     assert_eq!(w.get_pending().len(), 1);
-    assert_eq!(w.get_spent(agent()), U128(10));
+    assert_eq!(w.get_spent(agent()), U128(0));
 }
 
 #[test]
@@ -1087,16 +1095,268 @@ fn reject_still_works_after_revoke() {
 }
 
 #[test]
-#[should_panic(expected = "ERR_REVIEW_QUEUE_FULL")]
-fn the_queue_stops_at_eight_and_does_not_reserve_the_ninth() {
+fn one_agent_cannot_fill_the_review_queue() {
     let mut w = setup();
     enable_review(&mut w, 0);
     as_agent().set();
-    for index in 0..MAX_PENDING {
+    for index in 0..policy_core::MAX_OPEN_HOLDS_PER_AGENT as usize {
         let payee = acc(&format!("p{index}.near"));
         settle(w.pay(usdc(), payee, U128(1), None));
     }
-    assert_eq!(w.get_pending().len(), MAX_PENDING);
-    assert_eq!(w.get_spent(agent()), U128(MAX_PENDING as u128));
-    settle(w.pay(usdc(), acc("overflow.near"), U128(1), None));
+    assert_eq!(
+        w.get_pending().len(),
+        policy_core::MAX_OPEN_HOLDS_PER_AGENT as usize
+    );
+    assert_eq!(w.get_spent(agent()), U128(0));
+    // The whole daily budget is still available to a real payee.
+    settle(w.pay(usdc(), gateway(), U128(PER_CALL), None));
+    assert_eq!(w.get_spent(agent()), U128(PER_CALL));
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        settle(w.pay(usdc(), acc("overflow.near"), U128(1), None));
+    }));
+    assert!(caught.is_err());
+    assert_eq!(w.get_spent(agent()), U128(PER_CALL));
+}
+
+#[test]
+fn approve_rechecks_the_daily_cap_and_a_hold_does_not_block_it() {
+    let mut w = setup();
+    enable_review(&mut w, 0);
+    as_agent().set();
+    settle(w.pay(usdc(), acc("stranger.near"), U128(PER_CALL), None));
+    assert_eq!(w.get_spent(agent()), U128(0));
+    for _ in 0..4 {
+        settle(w.pay(usdc(), gateway(), U128(PER_CALL), None));
+    }
+    assert_eq!(w.get_spent(agent()), U128(DAILY));
+    as_owner().set();
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        w.approve_payment(U64(0)).detach();
+    }));
+    assert!(caught.is_err());
+    assert_eq!(w.get_pending().len(), 1);
+    assert_eq!(w.get_spent(agent()), U128(DAILY));
+}
+
+#[test]
+fn approve_reserves_the_hold_and_reject_all_clears_the_rest() {
+    let mut w = setup();
+    enable_review(&mut w, 0);
+    as_agent().set();
+    settle(w.pay(usdc(), acc("a.near"), U128(1_000), None));
+    settle(w.pay(usdc(), acc("b.near"), U128(2_000), None));
+    assert_eq!(w.get_spent(agent()), U128(0));
+    as_owner().set();
+    w.approve_payment(U64(0)).detach();
+    assert_eq!(w.get_spent(agent()), U128(1_000));
+    assert_eq!(w.get_pending().len(), 1);
+    assert_eq!(w.reject_all(), U64(1));
+    assert!(w.get_pending().is_empty());
+    assert_eq!(w.get_spent(agent()), U128(1_000));
+    assert!(events()
+        .iter()
+        .any(|event| event.contains(r#""release":"unreserved""#)));
+}
+
+#[test]
+fn reject_payments_drops_only_the_named_holds() {
+    let mut w = setup();
+    enable_review(&mut w, 0);
+    as_agent().set();
+    settle(w.pay(usdc(), acc("a.near"), U128(1), None));
+    settle(w.pay(usdc(), acc("b.near"), U128(1), None));
+    as_owner().set();
+    w.reject_payments(vec![U64(0)]);
+    let pending = w.get_pending();
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0].payment_id, U64(1));
+    assert_eq!(w.get_spent(agent()), U128(0));
+}
+
+#[test]
+#[should_panic(expected = "ERR_NOT_PENDING")]
+fn reject_payments_refuses_an_unknown_id() {
+    let mut w = setup();
+    as_owner().set();
+    w.reject_payments(vec![U64(9)]);
+}
+
+#[test]
+#[should_panic(expected = "ERR_REVIEW_QUEUE_FULL")]
+fn reject_payments_refuses_too_many_ids() {
+    let mut w = setup();
+    as_owner().set();
+    let ids = (0..=MAX_PENDING as u64).map(U64).collect();
+    w.reject_payments(ids);
+}
+
+#[test]
+fn the_daily_hold_quota_survives_rejection_and_resets_next_day() {
+    let mut w = setup();
+    enable_review(&mut w, 0);
+    as_agent().set();
+    for round in 0..2 {
+        for index in 0..policy_core::MAX_OPEN_HOLDS_PER_AGENT as usize {
+            let payee = acc(&format!("r{round}-{index}.near"));
+            settle(w.pay(usdc(), payee, U128(1), None));
+        }
+        as_owner().set();
+        w.reject_all();
+        as_agent().set();
+    }
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        settle(w.pay(usdc(), acc("over.near"), U128(1), None));
+    }));
+    assert!(caught.is_err());
+    assert!(w.get_pending().is_empty());
+    let next = (DAY0 + 1) * NANOS_PER_DAY;
+    as_agent().at(next).set();
+    settle(w.pay(usdc(), acc("tomorrow.near"), U128(1), None));
+    assert_eq!(w.get_pending().len(), 1);
+    assert_eq!(w.get_agent(agent()).unwrap().holds_today, 1);
+}
+
+#[test]
+fn expired_holds_free_the_slot_and_do_not_spend() {
+    let mut w = setup();
+    enable_review(&mut w, 0);
+    as_agent().set();
+    for index in 0..3 {
+        settle(w.pay(usdc(), acc(&format!("e{index}.near")), U128(1), None));
+    }
+    as_agent().at(T0 + HOLD_TTL_NS).set();
+    assert_eq!(w.expire_holds(), U64(3));
+    assert!(w.get_pending().is_empty());
+    assert_eq!(w.get_spent(agent()), U128(0));
+    settle(w.pay(usdc(), acc("fresh.near"), U128(1), None));
+    assert_eq!(w.get_pending().len(), 1);
+    assert!(events()
+        .iter()
+        .any(|event| event.contains(r#""event":"payment_expired""#)));
+}
+
+#[test]
+fn a_second_agent_can_hold_while_the_first_is_at_its_cap() {
+    let mut w = setup();
+    let other = acc("other.near");
+    as_owner().set();
+    w.set_agent(other.clone(), U128(PER_CALL), U128(DAILY), vec![gateway()]);
+    enable_review(&mut w, 0);
+    as_agent().set();
+    for index in 0..3 {
+        settle(w.pay(usdc(), acc(&format!("p{index}.near")), U128(1), None));
+    }
+    Ctx::new(other.clone()).set();
+    settle(w.pay(usdc(), acc("other-payee.near"), U128(1), None));
+    assert_eq!(w.get_pending().len(), 4);
+    assert_eq!(w.get_spent(other), U128(0));
+}
+
+#[test]
+#[should_panic(expected = "ERR_AMBIGUOUS_LIMITS")]
+fn set_agent_refuses_one_limit_for_two_tokens() {
+    as_self().set();
+    let mut w = PolicyWallet::new(owner(), vec![usdc(), acc("wrap.near")]);
+    as_owner().set();
+    w.set_agent(agent(), U128(1), U128(1), vec![gateway()]);
+}
+
+#[test]
+#[should_panic(expected = "ERR_TOKEN_LIMITS_UNSET")]
+fn pay_without_a_per_token_limit_is_refused() {
+    as_self().set();
+    let mut w = PolicyWallet::new(owner(), vec![usdc(), acc("wrap.near")]);
+    as_owner().set();
+    w.set_agent(agent(), U128(0), U128(0), vec![gateway()]);
+    as_agent().set();
+    settle(w.pay(usdc(), gateway(), U128(1), None));
+}
+
+#[test]
+#[should_panic(expected = "ERR_AGENT_INACTIVE")]
+fn set_token_limits_refuses_an_unknown_agent() {
+    let mut w = setup();
+    as_owner().set();
+    w.set_token_limits(acc("nobody.near"), usdc(), U128(1), U128(1));
+}
+
+#[test]
+#[should_panic(expected = "ERR_TOKEN_NOT_ALLOWED")]
+fn set_token_limits_refuses_a_token_that_is_not_allowlisted() {
+    let mut w = setup();
+    as_owner().set();
+    w.set_token_limits(agent(), dai(), U128(1), U128(1));
+}
+
+#[test]
+#[should_panic(expected = "ERR_INVALID_POLICY")]
+fn set_token_limits_refuses_a_zero_per_call_limit() {
+    let mut w = setup();
+    as_owner().set();
+    w.set_token_limits(agent(), usdc(), U128(0), U128(1));
+}
+
+#[test]
+fn native_usdc_deposits_stop_at_one_hundred() {
+    let usdc_mainnet = acc(USDC_MAINNET);
+    as_self().set();
+    let mut w = PolicyWallet::new(owner(), vec![usdc_mainnet.clone()]);
+    let caps = w.get_config().deposit_caps;
+    assert_eq!(caps.len(), 1);
+    assert_eq!(caps[0].max_balance, U128(BETA_USDC_CAP));
+    Ctx::new(usdc_mainnet.clone()).set();
+    match w.ft_on_transfer(owner(), U128(BETA_USDC_CAP), String::new()) {
+        PromiseOrValue::Value(U128(0)) => {}
+        PromiseOrValue::Value(_) | PromiseOrValue::Promise(_) => {
+            panic!("expected the deposit to be kept")
+        }
+    }
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = w.ft_on_transfer(owner(), U128(1), String::new());
+    }));
+    assert!(caught.is_err());
+}
+
+#[test]
+#[should_panic(expected = "ERR_BETA_CAP")]
+fn the_owner_cannot_raise_the_usdc_beta_cap() {
+    let usdc_mainnet = acc(USDC_MAINNET);
+    as_self().set();
+    let mut w = PolicyWallet::new(owner(), vec![usdc_mainnet.clone()]);
+    as_owner().set();
+    w.set_deposit_cap(usdc_mainnet, U128(BETA_USDC_CAP + 1));
+}
+
+#[test]
+fn the_owner_can_lower_the_beta_cap() {
+    let usdc_mainnet = acc(USDC_MAINNET);
+    as_self().set();
+    let mut w = PolicyWallet::new(owner(), vec![usdc_mainnet.clone()]);
+    as_owner().set();
+    w.set_deposit_cap(usdc_mainnet.clone(), U128(10));
+    assert_eq!(w.get_config().deposit_caps[0].max_balance, U128(10));
+    Ctx::new(usdc_mainnet).set();
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = w.ft_on_transfer(owner(), U128(11), String::new());
+    }));
+    assert!(caught.is_err());
+}
+
+#[test]
+fn wrap_near_has_a_ten_token_beta_cap() {
+    let wnear = acc(WRAP_NEAR);
+    as_self().set();
+    let w = PolicyWallet::new(owner(), vec![wnear.clone()]);
+    let caps = w.get_config().deposit_caps;
+    assert_eq!(caps[0].token, wnear);
+    assert_eq!(caps[0].max_balance, U128(BETA_WNEAR_CAP));
+}
+
+#[test]
+#[should_panic(expected = "ERR_PER_CALL_LIMIT")]
+fn a_hold_above_the_per_call_limit_is_not_queued() {
+    let mut w = setup();
+    enable_review(&mut w, 0);
+    as_agent().set();
+    settle(w.pay(usdc(), acc("big.near"), U128(PER_CALL + 1), None));
 }

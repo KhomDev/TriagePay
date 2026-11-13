@@ -14,13 +14,15 @@
 //! - every refusal carries a stable error code string.
 
 pub mod error;
+pub mod hold;
 pub mod policy;
 pub mod window;
 
 pub use error::{
-    PolicyError, ERR_AGENT_INACTIVE, ERR_DAILY_LIMIT, ERR_INVALID_POLICY, ERR_OVERFLOW, ERR_PAUSED,
-    ERR_PAYEE_NOT_ALLOWED, ERR_PER_CALL_LIMIT, ERR_RELEASE_MISMATCH, ERR_TOKEN_NOT_ALLOWED,
-    ERR_ZERO_AMOUNT,
+    PolicyError, ERR_AGENT_DAILY_HOLDS, ERR_AGENT_INACTIVE, ERR_AGENT_OPEN_HOLDS, ERR_DAILY_LIMIT,
+    ERR_INVALID_POLICY, ERR_OVERFLOW, ERR_PAUSED, ERR_PAYEE_NOT_ALLOWED, ERR_PER_CALL_LIMIT,
+    ERR_RELEASE_MISMATCH, ERR_TOKEN_NOT_ALLOWED, ERR_ZERO_AMOUNT,
 };
+pub use hold::{HoldQuota, MAX_DAILY_HOLDS_PER_AGENT, MAX_OPEN_HOLDS_PER_AGENT};
 pub use policy::{AgentPolicy, ReleaseOutcome, Reservation, WalletGate, MAX_PAYEES};
 pub use window::{next_window_start, window_index, NANOS_PER_DAY};

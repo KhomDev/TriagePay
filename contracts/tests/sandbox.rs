@@ -806,3 +806,47 @@ async fn close_after_withdrawing_everything_deletes_the_wallet() -> TestResult {
     );
     Ok(())
 }
+
+/// A hijacked agent used to fill the review queue and the daily cap.
+/// Holds must not spend the cap, and one agent cannot take every slot.
+#[tokio::test]
+#[cfg_attr(windows, ignore = "near-sandbox has no Windows build")]
+async fn hijacked_agent_cannot_fill_the_queue_or_the_daily_budget() -> TestResult {
+    let env = setup().await?;
+    env.owner_call(
+        "set_review_policy",
+        json!({"approval_threshold": "0", "review_unknown_payees": true}),
+    )
+    .await?
+    .into_result()?;
+    let before = env.snapshot().await?;
+    for i in 0..3 {
+        let stranger = sub(&env.root, &format!("junk{i}"), 2).await?;
+        let res = env
+            .pay_with(&env.agent, env.token.id(), stranger.id(), 1)
+            .await?;
+        assert!(res.is_success(), "{:?}", res.failures());
+        assert!(has_event(&res, "payment_queued"));
+    }
+    assert_eq!(env.snapshot().await?, before, "holds must not move balances or spend");
+    let fourth = sub(&env.root, "junk3", 2).await?;
+    assert_refused(
+        &env.pay_with(&env.agent, env.token.id(), fourth.id(), 1).await?,
+        "ERR_AGENT_OPEN_HOLDS",
+    );
+    assert_eq!(env.snapshot().await?, before);
+    let settled = env.pay(PER_CALL).await?;
+    assert!(settled.is_success(), "{:?}", settled.failures());
+    assert_eq!(env.spent().await?, PER_CALL);
+    let res = env.owner_call("reject_all", json!({})).await?;
+    assert!(res.is_success(), "{:?}", res.failures());
+    assert!(has_event(&res, "payment_rejected"));
+    assert_eq!(env.spent().await?, PER_CALL);
+    let pending: Vec<Value> = env
+        .worker
+        .view(env.wallet.id(), "get_pending")
+        .await?
+        .json()?;
+    assert!(pending.is_empty());
+    Ok(())
+}

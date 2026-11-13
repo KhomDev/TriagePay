@@ -24,7 +24,8 @@
     <img src="mark.svg" width="28" height="28" alt="">
     <span>TriagePay</span>
   </a>
-  <p class="tag">NEAR testnet · built at NEAR HACKATHON</p>
+  <p class="tag">Sandbox · NEAR testnet · built at NEAR HACKATHON</p>
+  <a class="text-btn" href="/app">Mainnet</a>
   <a id="nav-wallet" class="nav-wallet mono" href="https://testnet.nearblocks.io/address/tpd-e947e7-wallet.testnet" rel="noopener" target="_blank">tpd-e947e7-wallet.testnet</a>
 </header>
 <main id="main">
@@ -32,11 +33,13 @@
     <div class="hero-copy">
       <p class="eyebrow">Policy wallet for agents</p>
       <h1 id="h-hero">It will pay the attacker. <span>The wallet will not.</span></h1>
-      <p class="lead">A prompt injection tells the agent who to pay. The agent obeys. The spend-policy wallet on NEAR testnet is what says no. Signing happens on the server. This page never holds a key.</p>
+      <p class="lead">A prompt injection tells the agent who to pay. The agent obeys. The free sandbox on this page runs on NEAR testnet and never holds a key. The mainnet app is separate: beta, unaudited, use small amounts.</p>
       <div class="cta-row">
-        <button id="btn-launch" type="button" disabled aria-label="Launch prompt-injection attack">Launch attack</button>
+        <a class="primary" href="/app">Create your wallet on mainnet</a>
+        <button id="btn-launch" type="button" disabled aria-label="Launch prompt-injection attack">Sandbox (testnet)</button>
         <a class="text-btn ghost" href="#drain">Try your own prompt</a>
       </div>
+      <p class="hint">Launch attack runs only in the sandbox, on NEAR testnet.</p>
       <p id="agent-mode" class="mode-pill">Agent: scripted</p>
       <p id="status" class="status" role="status" aria-live="polite"></p>
     </div>

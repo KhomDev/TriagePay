@@ -27,6 +27,10 @@ pub const ERR_INVALID_POLICY: &str = "ERR_INVALID_POLICY";
 pub const ERR_OVERFLOW: &str = "ERR_OVERFLOW";
 /// A release asked to return more than the window currently holds.
 pub const ERR_RELEASE_MISMATCH: &str = "ERR_RELEASE_MISMATCH";
+/// The agent already has the maximum number of payments waiting.
+pub const ERR_AGENT_OPEN_HOLDS: &str = "ERR_AGENT_OPEN_HOLDS";
+/// The agent has opened as many holds as its UTC day allows.
+pub const ERR_AGENT_DAILY_HOLDS: &str = "ERR_AGENT_DAILY_HOLDS";
 
 /// Every refusal the policy core can produce. No function in this crate
 /// panics on caller input; all fallible operations return one of these.
@@ -53,6 +57,10 @@ pub enum PolicyError {
     Overflow,
     /// See [`ERR_RELEASE_MISMATCH`].
     ReleaseMismatch,
+    /// See [`ERR_AGENT_OPEN_HOLDS`].
+    AgentOpenHolds,
+    /// See [`ERR_AGENT_DAILY_HOLDS`].
+    AgentDailyHolds,
 }
 
 impl PolicyError {
@@ -69,6 +77,8 @@ impl PolicyError {
             PolicyError::InvalidPolicy => ERR_INVALID_POLICY,
             PolicyError::Overflow => ERR_OVERFLOW,
             PolicyError::ReleaseMismatch => ERR_RELEASE_MISMATCH,
+            PolicyError::AgentOpenHolds => ERR_AGENT_OPEN_HOLDS,
+            PolicyError::AgentDailyHolds => ERR_AGENT_DAILY_HOLDS,
         }
     }
 
@@ -85,6 +95,8 @@ impl PolicyError {
             PolicyError::InvalidPolicy => "policy parameters are inconsistent",
             PolicyError::Overflow => "arithmetic overflow",
             PolicyError::ReleaseMismatch => "release exceeds the reserved window total",
+            PolicyError::AgentOpenHolds => "agent already has the maximum number of open holds",
+            PolicyError::AgentDailyHolds => "agent has used its daily hold quota",
         }
     }
 }
