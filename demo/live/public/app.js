@@ -196,7 +196,7 @@
         : document.createTextNode("");
       body.appendChild(el("tr", null,
         el("td", null, when),
-        el("td", null, row.title || row.kind || ""),
+        el("td", null, [row.title || row.kind || "", row.payee || "", withNear(row.amount || "")].filter(Boolean).join(" ")),
         el("td", null, risk ? pill(risk, risk) : document.createTextNode("")),
         el("td", null, chain),
         el("td", null, link)
@@ -283,6 +283,14 @@
     }
     var card = shareCard(payload.receipt);
     if (card) root.appendChild(card);
+  }
+
+  function withNear(text) {
+    var value = String(text || "");
+    if (!value || /[A-Za-z]/.test(value)) return value;
+    var over = /^(\d+\.\d{0,6}?)0{8,}1$/.exec(value);
+    if (over) return (over[1].replace(/\.$/, "") || "0") + " wNEAR plus 1 yocto";
+    return value + " wNEAR";
   }
 
   function scriptedLine(agent) {
@@ -551,7 +559,7 @@
       list.appendChild(el("li", null,
         row.payee || "payee",
         " ",
-        row.amount ? row.amount + " wNEAR " : "",
+        row.amount ? withNear(row.amount) + " " : "",
         when ? when + " " : "",
         (row.errorCode ? row.errorCode + " " : ""),
         link

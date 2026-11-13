@@ -58,6 +58,18 @@ export function buildReceipt({ kind, code, tried, amount, payee, txHash, explore
   };
 }
 
+function presentAmount(text) {
+  const value = String(text || "");
+  if (!value) return null;
+  const over = /^(\d+\.\d{0,6}?)0{8,}1$/.exec(value);
+  if (over) {
+    const head = over[1].replace(/\.$/, "") || "0";
+    return `${head} wNEAR plus 1 yocto`;
+  }
+  if (/[A-Za-z]/.test(value)) return value;
+  return `${value} wNEAR`;
+}
+
 export function receiptFromRun({ scenario, chain, action, amountDisplay, payee }) {
   if (!chain || !chain.submitted) return null;
   let kind = "refused";
@@ -79,7 +91,7 @@ export function receiptFromRun({ scenario, chain, action, amountDisplay, payee }
     kind,
     code,
     tried: (scenario && (scenario.narrative || scenario.title)) || "The agent asked the wallet to pay.",
-    amount: amountDisplay || (scenario && scenario.amountDisplay) || null,
+    amount: presentAmount(amountDisplay || (scenario && scenario.amountDisplay) || "") ,
     payee: payee || (scenario && scenario.payee) || null,
     txHash: chain.txHash || null,
     explorerUrl: chain.explorerUrl || null,
