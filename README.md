@@ -37,7 +37,7 @@ This project was built at NEAR HACKATHON, in the `security` and `agents` tracks.
 
 ## Screenshots
 
-Live demo: [triagepay-demo.vercel.app](https://triagepay-demo.vercel.app). Captured 14 Nov 2026 (Europe/Budapest).
+Live demo: [triagepay-demo.vercel.app](https://triagepay-demo.vercel.app). Screenshots captured 14 Nov 2026 (Europe/Budapest) from the live demo. HEAD `1df52d8` tightens Mainnet-label typography and brings the `/app` form on screen; those UI fixes are in this repository but were not yet deployed to the live demo when the screenshots were taken, so the live page may still look slightly older.
 
 <p align="center"><img src="docs/screenshots/home-attack-refused.png" alt="TriagePay home: the agent signs a prompt-injected payment and the contract refuses it on testnet with ERR_PAYEE_NOT_ALLOWED" width="900"></p>
 
@@ -61,7 +61,11 @@ Mobile home (390×844).
 
 ## Promo video
 
-Coming soon.
+<!-- PROMO_VIDEO_SLOT: keep this heading. Replace the placeholder line below with a 16:9 embed (or a link to the file) when the final render is ready. The 9:16 cut is for the X submission post. Do not delete these markers. -->
+
+_Official 16:9 demo video will be embedded here._
+
+<!-- /PROMO_VIDEO_SLOT -->
 
 
 
@@ -410,7 +414,7 @@ everywhere: `{"error":{"code","message"}}`.
 
 ## Sister project
 
-I also built [VibeWallet](https://vibe-wallet-flame.vercel.app) at NEAR HACKATHON. TriagePay and VibeWallet are the two projects from the same team. Falsara is not a separate submission: its NEAR integration is part of TriagePay (see above).
+The same team also built [Vibe Wallet](https://vibe-wallet-flame.vercel.app) ([repository](https://github.com/KhomDev/vibe-wallet)) at NEAR HACKATHON. TriagePay and Vibe Wallet are the two projects from this team; both are submitted by Yura (Yuriy Khomenkov). Falsara is not a separate submission: its NEAR integration is part of TriagePay (see above).
 
 ## More
 
@@ -423,6 +427,12 @@ I also built [VibeWallet](https://vibe-wallet-flame.vercel.app) at NEAR HACKATHO
 [engine](docs/engine/overview.md) |
 [hosted demo](docs/demo/hosted.md) |
 [decisions](docs/decisions/)
+
+## Team
+
+Hackathon submitter (this project and [Vibe Wallet](https://github.com/KhomDev/vibe-wallet)):
+
+- **Yura (Yuriy Khomenkov)** — team lead · email [yuriykhomekov@gmail.com](mailto:yuriykhomekov@gmail.com) · GitHub [@KhomDev](https://github.com/KhomDev) · X [@YKhomenkov](https://x.com/YKhomenkov)
 
 ## License
 
