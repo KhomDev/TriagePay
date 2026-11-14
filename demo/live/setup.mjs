@@ -10,6 +10,9 @@
 //
 //   node setup.mjs
 //   TRIAGEPAY_WALLET_WASM=path/to/policy_wallet.wasm node setup.mjs
+//
+// verifiedCodeHashes keeps its reviewed entries. A newly deployed code hash
+// is added only with TRIAGEPAY_TRUST_CODE_HASH=<that exact base58 hash>.
 
 import { createHash } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -286,6 +289,22 @@ async function main() {
 
   const injected = idFor("injected");
   const previous = JSON.parse(readFileSync(join(ROOT, "config.json"), "utf8"));
+  // The trusted-code list is a reviewed set, not whatever was just deployed:
+  // a re-run against a modified wasm must not certify it (ToB C-VA-5). A new
+  // hash joins only when the operator names that exact hash out of band.
+  const reviewed = new Set(previous.verifiedCodeHashes || []);
+  const vouched = String(process.env.TRIAGEPAY_TRUST_CODE_HASH || "").trim();
+  if (vouched) {
+    if (vouched !== walletAccount.code_hash) {
+      fail(`TRIAGEPAY_TRUST_CODE_HASH ${vouched} is not the deployed code hash ${walletAccount.code_hash}`);
+    }
+    reviewed.add(vouched);
+  } else if (!reviewed.has(walletAccount.code_hash)) {
+    console.warn(
+      `wallet code hash ${walletAccount.code_hash} is not in verifiedCodeHashes; ` +
+        "review the build, then re-run with TRIAGEPAY_TRUST_CODE_HASH set to it",
+    );
+  }
   const config = {
     ...previous,
     ready: true,
@@ -310,7 +329,7 @@ async function main() {
       payees: [accounts.payee],
     },
     flaggedAccounts: [accounts.flagged],
-    verifiedCodeHashes: [walletAccount.code_hash],
+    verifiedCodeHashes: [...reviewed],
   };
   assertPublicConfig(config);
   writeFileSync(join(ROOT, "config.json"), JSON.stringify(config, null, 2) + "\n");
