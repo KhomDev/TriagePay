@@ -63,7 +63,9 @@ Mobile home (390×844).
 
 <!-- PROMO_VIDEO_SLOT: keep this heading. Replace the placeholder line below with a 16:9 embed (or a link to the file) when the final render is ready. The 9:16 cut is for the X submission post. Do not delete these markers. -->
 
-_Official 16:9 demo video will be embedded here._
+https://github.com/user-attachments/assets/78101ac0-9213-4063-8978-b1a584b4a62c
+
+Also on X: https://x.com/YKhomenkov/status/2121675577342284032
 
 <!-- /PROMO_VIDEO_SLOT -->
 
