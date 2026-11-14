@@ -1,9 +1,9 @@
 # Changelog
 
 All notable changes to this project are documented here. The format
-follows Keep a Changelog; the project has not shipped a tagged release.
+follows Keep a Changelog; the first tagged release is 1.0.0 (2026-11-14, the NEAR HACKATHON submission).
 
-## [Unreleased]
+## [1.0.0] - 2026-11-14
 
 ### Changed
 - Hosted demo redesign: a midnight palette with colour only for paid,
