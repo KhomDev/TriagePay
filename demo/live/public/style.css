@@ -1,5 +1,13 @@
-/* Geist and IBM Plex Mono, latin subsets, SIL Open Font License.
-   Plex Mono is used only for literal chain strings: accounts, hashes, codes. */
+/* Syne, Geist and IBM Plex Mono, latin subsets, SIL Open Font License.
+   Syne sets the headings and the buttons. Plex Mono is used only for
+   literal chain strings: accounts, hashes, codes. */
+@font-face {
+  font-family: Syne;
+  src: url("fonts/syne-latin-wght-normal.woff2") format("woff2");
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+}
 @font-face {
   font-family: Geist;
   src: url("fonts/geist-latin-wght-normal.woff2") format("woff2");
@@ -22,21 +30,25 @@
   font-display: swap;
 }
 
-/* A payment order on a dark desk. The page is the desk: blue-ink ground,
-   quiet type, colour only for a decision. The one lit object is the order
-   itself, set on bond paper, which the contract stamps. */
+/* A payment order on a black desk. The ground is near-black, the type is
+   warm white, and one loud colour, volt yellow, marks what you can press
+   and what the page is arguing. The one lit object is the order itself,
+   set on bond paper, which the contract stamps. The names below are kept
+   from the earlier blue palette; the values are what matter. */
 :root {
-  --midnight: #0e1622;
-  --slate: #141f2f;
-  --slate-2: #1b293d;
-  --rule: #233146;
-  --rule-strong: #34455f;
-  --paper: #e8edf3;
-  --fog: #94a2b6;
-  --link: #a8beff;
-  --settled: #74d4ae;
-  --refused: #f2907f;
-  --held: #e6c46e;
+  --midnight: #07080c;
+  --slate: #0f1218;
+  --slate-2: #181c25;
+  --rule: #22252d;
+  --rule-strong: #393d48;
+  --paper: #f6f3ea;
+  --fog: #b5b0a2;
+  --volt: #e2ff54;
+  --volt-ink: #14160a;
+  --link: var(--volt);
+  --settled: #8fe8b0;
+  --refused: #ff8d8d;
+  --held: #ffb84d;
 
   /* Bond paper and the inks that go on it. */
   --bond: #eceee5;
@@ -58,14 +70,14 @@
   --muted: var(--fog);
   --faint: var(--fog);
   --line: var(--rule);
-  --accent: var(--paper);
-  --accent-ink: var(--midnight);
+  --accent: var(--volt);
+  --accent-ink: var(--volt-ink);
   --ok: var(--settled);
   --warn: var(--held);
   --bad: var(--refused);
 
   --sans: Geist, "Segoe UI", system-ui, sans-serif;
-  --display: var(--sans);
+  --display: Syne, Geist, "Segoe UI", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
 
   --r-lg: 18px;
@@ -89,16 +101,33 @@ body {
   margin: 0;
   min-height: 100vh;
   color: var(--paper);
-  /* The lamp: one pool of light over the place the order sits. */
+  position: relative;
+  /* The lamp: one pool of volt light over the place the order sits. */
   background:
-    radial-gradient(900px 620px at 76% 150px, rgba(92, 124, 186, 0.16), rgba(92, 124, 186, 0) 70%) no-repeat,
+    radial-gradient(880px 600px at 78% 130px, rgba(226, 255, 84, 0.11), rgba(226, 255, 84, 0) 70%) no-repeat,
     var(--midnight);
   font: 400 16px/1.55 var(--sans);
   font-feature-settings: "ss01" on, "cv11" on;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
-::selection { background: #3a55b8; color: #ffffff; }
+/* Ledger ruling behind the top of the page. It fades out before the
+   sections below, which carry their own rules. */
+body::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1100px;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(246, 243, 234, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(246, 243, 234, 0.045) 1px, transparent 1px);
+  background-size: 72px 72px;
+  -webkit-mask-image: linear-gradient(#000 35%, transparent);
+  mask-image: linear-gradient(#000 35%, transparent);
+}
+::selection { background: var(--volt); color: var(--volt-ink); }
 
 a { color: var(--link); text-decoration-thickness: 1px; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); }
 a:hover { color: var(--paper); text-decoration-color: currentColor; }
@@ -140,9 +169,10 @@ code { font-family: var(--mono); font-size: 0.9em; overflow-wrap: anywhere; }
   gap: 10px;
   color: var(--paper);
   text-decoration: none;
-  font-weight: 650;
-  letter-spacing: -0.02em;
-  font-size: 1.08rem;
+  font-family: var(--display);
+  font-weight: 750;
+  letter-spacing: -0.04em;
+  font-size: 1.16rem;
 }
 .brand img { border-radius: 7px; }
 /* Geist's light, antialiased "i" on this dark ground loses its tittle, so "Mainnet" reads as "Malnnet".
@@ -174,23 +204,25 @@ main { padding-bottom: var(--space-5); }
 /* ---------- type ---------- */
 h1 {
   margin: 0;
-  font-weight: 680;
-  font-size: clamp(2.5rem, 4.5vw, 3.6rem);
+  font-family: var(--display);
+  font-weight: 740;
+  font-size: clamp(2.3rem, 4.1vw, 3.3rem);
   line-height: 1;
   letter-spacing: -0.045em;
   text-wrap: balance;
 }
-/* The headline is the product's argument set in weight. The agent's
-   sentence is thin, because a signature proves nothing. The contract's
-   sentence is heavy, because it is the one that binds. */
-.h1-agent { display: block; color: var(--fog); font-weight: 300; letter-spacing: -0.04em; }
-.h1-contract { display: block; margin-top: 0.06em; font-weight: 720; }
+/* The headline is the product's argument set in weight and colour. The
+   agent's sentence is plain, because a signature proves nothing. The
+   contract's sentence is heavy and volt, because it is the one that binds. */
+.h1-agent { display: block; color: var(--fog); font-weight: 480; letter-spacing: -0.04em; }
+.h1-contract { display: block; margin-top: 0.08em; color: var(--volt); font-weight: 760; }
 h2 {
   margin: 0 0 var(--space-1);
-  font-weight: 640;
+  font-family: var(--display);
+  font-weight: 720;
   font-size: clamp(1.6rem, 2.6vw, 2.125rem);
   line-height: 1.12;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.04em;
   text-wrap: balance;
 }
 h3 { margin: var(--space-3) 0 var(--space-1); font-weight: 620; font-size: 1.05rem; letter-spacing: -0.015em; }
@@ -203,11 +235,11 @@ h3 { margin: var(--space-3) 0 var(--space-1); font-weight: 620; font-size: 1.05r
 
 /* ---------- buttons ---------- */
 button, .text-btn {
-  font: 600 0.96rem/1 var(--sans);
-  letter-spacing: -0.01em;
+  font: 700 0.96rem/1 var(--display);
+  letter-spacing: -0.02em;
   min-height: 46px;
-  padding: 0 20px;
-  border-radius: 10px;
+  padding: 0 22px;
+  border-radius: 999px;
   border: 1px solid transparent;
   cursor: pointer;
   text-decoration: none;
@@ -216,32 +248,34 @@ button, .text-btn {
   justify-content: center;
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.08s ease;
 }
-button, a.primary, .text-btn { background: var(--paper); color: var(--midnight); }
-.text-btn:hover, a.primary:hover { color: var(--midnight); background: #ffffff; }
-button:hover { background: #ffffff; }
+button, a.primary, .text-btn { background: var(--accent); color: var(--accent-ink); }
+.text-btn:hover, a.primary:hover { color: var(--accent-ink); background: #f0ff8f; }
+button:hover:not([disabled]) { background: #f0ff8f; }
 button:active:not([disabled]), .text-btn:active { transform: translateY(1px); }
 button.secondary, .text-btn.ghost {
   background: transparent;
   color: var(--paper);
   border-color: var(--rule-strong);
 }
-button.secondary:hover, .text-btn.ghost:hover { border-color: var(--fog); background: color-mix(in srgb, var(--paper) 5%, transparent); color: var(--paper); }
+button.secondary:hover:not([disabled]), .text-btn.ghost:hover { border-color: var(--link); background: color-mix(in srgb, var(--link) 8%, transparent); color: var(--paper); }
 button[disabled] { opacity: 0.4; cursor: not-allowed; }
 a.primary {
   min-height: 52px;
   padding: 0 24px;
-  border-radius: 10px;
+  border-radius: 999px;
   text-decoration: none;
   display: inline-flex;
   align-items: center;
   font-weight: 600;
 }
-#btn-launch { min-height: 54px; padding: 0 28px; font-size: 1.02rem; border-radius: 12px; }
+/* The one button the page is built around. */
+#btn-launch { min-height: 56px; padding: 0 30px; font-size: 1.06rem; box-shadow: 0 0 0 1px rgba(226, 255, 84, 0.4), 0 14px 44px rgba(226, 255, 84, 0.18); }
+#btn-launch[disabled] { box-shadow: none; }
 .cta-row, .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: var(--space-3) 0 var(--space-2); }
-.net-toggle { display: inline-flex; border: 1px solid var(--rule-strong); border-radius: 12px; padding: 3px; gap: 2px; }
-.net-toggle button { min-height: 40px; padding: 0 14px; border: 0; border-radius: 9px; font-size: 0.9rem; }
-.net-toggle button[aria-pressed="true"] { background: var(--slate-2); color: var(--paper); box-shadow: inset 0 0 0 1px var(--rule-strong); }
-.net-toggle button[aria-pressed="false"] { color: var(--fog); }
+.net-toggle { display: inline-flex; border: 1px solid var(--rule-strong); border-radius: 999px; padding: 3px; gap: 2px; }
+.net-toggle button { min-height: 40px; padding: 0 16px; border: 0; border-radius: 999px; font-size: 0.86rem; }
+.net-toggle button[aria-pressed="true"], .net-toggle button[aria-pressed="true"]:hover { background: var(--paper); color: var(--midnight); }
+.net-toggle button[aria-pressed="false"] { background: transparent; color: var(--fog); }
 .net-toggle button[aria-pressed="false"]:hover { color: var(--paper); background: transparent; }
 .live-opt { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--fog); font-size: 0.9rem; font-weight: 500; cursor: pointer; }
 .live-opt input { accent-color: var(--link); width: 16px; height: 16px; margin: 0; }
@@ -290,12 +324,12 @@ button.is-busy::after {
   position: absolute;
   left: 2px;
   top: 14px;
-  font-size: 1.9rem;
-  font-weight: 300;
-  line-height: 1.2;
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.25;
   letter-spacing: -0.04em;
   font-variant-numeric: tabular-nums;
-  color: var(--fog);
+  color: var(--volt);
 }
 .judge-title { margin: 0 0 4px; font-weight: 620; font-size: 1.06rem; letter-spacing: -0.015em; text-wrap: balance; }
 .judge-copy { margin: 0; color: var(--fog); font-size: 0.95rem; max-width: 54ch; }
@@ -361,13 +395,15 @@ button.is-busy::after {
   --settled: var(--ink-green);
   --refused: var(--ink-red);
   --held: var(--ink-amber);
+  --accent: var(--bond-ink);
+  --accent-ink: var(--bond-well);
   color: var(--bond-ink);
   background: var(--bond);
 }
-.slip button:hover, .receipt button:hover, .slip .text-btn:hover { background: #000a17; color: var(--bond-well); }
-.slip button.secondary:hover, .slip .text-btn.ghost:hover, .receipt .text-btn.ghost:hover { background: rgba(22, 33, 48, 0.06); color: var(--bond-ink); border-color: var(--bond-fog); }
+.slip button:hover:not([disabled]), .receipt button:hover:not([disabled]), .slip .text-btn:hover, .receipt .text-btn:hover { background: #000000; color: var(--bond-well); }
+.slip button.secondary:hover:not([disabled]), .slip .text-btn.ghost:hover, .receipt .text-btn.ghost:hover { background: rgba(22, 33, 48, 0.06); color: var(--bond-ink); border-color: var(--bond-ink); }
 
-.stage { position: sticky; top: 20px; filter: drop-shadow(0 28px 44px rgba(2, 6, 13, 0.6)) drop-shadow(0 2px 3px rgba(2, 6, 13, 0.5)); }
+.stage { position: sticky; top: 20px; filter: drop-shadow(0 28px 44px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 70px rgba(226, 255, 84, 0.07)); }
 .slip {
   padding: 30px 26px 22px;
   border-radius: 3px 3px 10px 10px;
@@ -513,6 +549,11 @@ button.is-busy::after {
 .live-verdict .verdict-word { margin: 0; }
 /* The stamp already says the word; under it only the code and the link. */
 .slip .live-verdict .verdict-word, .slip #verdict > .verdict-word { display: none; }
+/* The decision box already carries the error code and its link, so the
+   copy of that pair in the write-up below is dropped. */
+.slip #verdict > p:has(> .mono), .slip #verdict > p:has(> .mono) + p:has(> a) { display: none; }
+.slip-foot:has(#verdict:not(:empty)) #agent-mode { display: none; }
+.slip #verdict > .verdict-word + p { font-weight: 600; }
 
 .slip-foot { margin-top: 16px; padding-top: 14px; border-top: 3px double var(--rule-strong); font-size: 0.9rem; }
 .slip-foot p { margin: 4px 0; }
@@ -571,12 +612,14 @@ button.is-busy::after {
 .numbers article:first-child { padding-left: 0; border-left: 0; }
 .numbers .stat {
   margin: 0;
-  font: 300 clamp(2.4rem, 4.6vw, 3.75rem)/1 var(--sans);
-  letter-spacing: -0.05em;
+  /* Figures stay in Geist: Syne's heavy numerals are too wide to scan. */
+  font: 700 clamp(2.4rem, 4.6vw, 3.75rem)/1 var(--sans);
+  letter-spacing: -0.055em;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
-.numbers .is-drained .stat { color: var(--settled); font-weight: 560; }
+/* The number the whole page exists to keep at zero. */
+.numbers .is-drained .stat { color: var(--volt); }
 .numbers .stat-kicker { margin: 10px 0 0; color: var(--fog); font-size: 0.92rem; }
 #num-source { margin: var(--space-4) 0 var(--space-2); font-size: 0.86rem; }
 .tape {
@@ -651,7 +694,7 @@ button.is-busy::after {
 .stat { margin: 6px 0; font: 600 clamp(1.2rem, 2vw, 1.45rem)/1.2 var(--sans); letter-spacing: -0.025em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .stat-sub { margin: 0; font-size: 0.86rem; }
 .gauge { height: 4px; border-radius: 999px; background: var(--rule); overflow: hidden; margin-top: 14px; }
-.gauge > span { display: block; height: 100%; width: 0; border-radius: 999px; background: var(--settled); transition: width 0.4s ease; }
+.gauge > span { display: block; height: 100%; width: 0; border-radius: 999px; background: var(--volt); transition: width 0.4s ease; }
 .percent { margin: 6px 0 0; font-size: 0.84rem; color: var(--fog); font-variant-numeric: tabular-nums; }
 
 /* ---------- sections ---------- */
@@ -669,8 +712,8 @@ button.is-busy::after {
 .counters div { padding: 14px 16px; }
 .counters div + div { border-left: 1px solid var(--rule); }
 .counters dt { color: var(--fog); font-size: 0.86rem; }
-.counters dd { margin: 4px 0 0; font: 400 1.9rem/1.05 var(--sans); letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
-.counters div:last-child dd { color: var(--settled); font-weight: 600; }
+.counters dd { margin: 4px 0 0; font: 700 1.9rem/1.05 var(--sans); letter-spacing: -0.045em; font-variant-numeric: tabular-nums; }
+.counters div:last-child dd { color: var(--volt); }
 .challenge form { margin-top: var(--space-4); }
 #drain-prompt { font-family: var(--mono); font-size: 0.9rem; }
 .section-head { margin: var(--space-7) 0 var(--space-4); }
@@ -683,7 +726,9 @@ button.is-busy::after {
 #receipts-feed > .feed { font-size: 0.9rem; color: var(--fog); }
 #receipts-feed > .feed li:first-child { border-top: 0; padding-top: 4px; }
 .owner-console #review-panel { border-color: var(--rule-strong); padding: clamp(20px, 3vw, 30px); border-radius: var(--r-lg); }
-.panel-title { margin: 0 0 var(--space-1); font-size: 1.2rem; font-weight: 640; letter-spacing: -0.02em; }
+.panel-title { margin: 0 0 var(--space-1); font-family: var(--display); font-size: 1.25rem; font-weight: 720; letter-spacing: -0.035em; }
+/* A result painted under a set of buttons gets room and a rule of its own. */
+#review-result:not(:empty), #result:not(:empty), #drain-result:not(:empty), #kill-result:not(:empty), #owner-result:not(:empty), #policy-result:not(:empty), #attest-result:not(:empty) { margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--rule); }
 
 /* Disclosure rows. The tools under the owner console and the reference
    notes are ruled lines, not cards: they are the small print. */
@@ -724,7 +769,8 @@ details.panel[open] > summary { margin-bottom: var(--space-2); }
   border-radius: 0;
 }
 .console-tools > details.panel > summary, .reference > details.panel > summary { padding: 18px 0; color: var(--paper); }
-.console-tools > details.panel > summary:hover, .reference > details.panel > summary:hover { color: #ffffff; }
+.console-tools > details.panel > summary:hover, .reference > details.panel > summary:hover { color: var(--volt); }
+.console-tools > details.panel > summary:hover::after, .reference > details.panel > summary:hover::after { border-color: var(--volt); }
 .console-tools > details.panel[open], .reference > details.panel[open] { padding-bottom: 22px; }
 .console-tools > details.panel[open] > summary, .reference > details.panel[open] > summary { margin-bottom: 0; }
 
@@ -779,7 +825,7 @@ textarea { min-height: 72px; resize: vertical; }
   mask: radial-gradient(circle at 9px 0, transparent 4.5px, #000 5px) -9px 0 / 18px 100% repeat-x;
 }
 .slip .receipt { max-width: none; padding: 0; margin-top: 12px; border-radius: 0; background: transparent; -webkit-mask: none; mask: none; }
-.receipt h3 { margin: 0; font-size: 1.5rem; font-weight: 700; letter-spacing: -0.03em; }
+.receipt h3 { margin: 0; font-family: var(--display); font-size: 1.5rem; font-weight: 760; letter-spacing: -0.035em; }
 .receipt .kicker { margin: 0 0 4px; color: var(--fog); }
 .receipt dl { display: grid; grid-template-columns: 7rem 1fr; gap: 5px 10px; margin: 12px 0; padding: 12px 0; border-top: 1px dashed var(--rule-strong); border-bottom: 1px dashed var(--rule-strong); font-size: 0.92rem; }
 .receipt dt { color: var(--fog); }
@@ -816,7 +862,7 @@ textarea { min-height: 72px; resize: vertical; }
 .notice { border: 1px solid color-mix(in srgb, var(--held) 40%, transparent); padding: 10px 14px; margin: 8px 0; background: color-mix(in srgb, var(--held) 7%, transparent); border-radius: var(--r-sm); }
 .notice.bad { border-color: color-mix(in srgb, var(--refused) 40%, transparent); background: color-mix(in srgb, var(--refused) 7%, transparent); }
 span.notice { display: inline-block; }
-.verdict-word { margin: 8px 0; font-weight: 700; font-size: clamp(2rem, 4.4vw, 3rem); line-height: 1; letter-spacing: -0.045em; }
+.verdict-word { margin: 8px 0; font-family: var(--display); font-weight: 780; font-size: clamp(2rem, 4.4vw, 3rem); line-height: 1; letter-spacing: -0.045em; }
 .verdict-word.bad { color: var(--refused); }
 .verdict-word.warn { color: var(--held); }
 .verdict-word.ok { color: var(--settled); }
