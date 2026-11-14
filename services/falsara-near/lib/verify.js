@@ -3,12 +3,16 @@
 // finalized receipts, following the rules TriagePay's Rust verifier uses
 // (crates/near-adapter/src/verify.rs):
 //
-// - the transaction is FINAL;
+// - the transaction is FINAL and its top-level status is SuccessValue;
 // - the funding receipt was executed by the asset contract itself and
 //   succeeded, so no other contract's log can count;
-// - that receipt's own NEP-141 ft_transfer event pays the payee, with the
-//   server-issued memo, for exactly the price;
-// - the block it executed in is not later than the requirement's expiry.
+// - that receipt's body (from `result.receipts`) is a FunctionCall named
+//   ft_transfer with exactly 1 yoctoNEAR, and carries no ft_transfer_call:
+//   an ft_transfer_call logs the outgoing event first and the token may
+//   refund it later, so it never funds;
+// - that receipt logs exactly one NEP-141 ft_transfer event that pays the
+//   payee with the server-issued memo, for exactly the price;
+// - the block it executed in is strictly before the requirement's expiry.
 
 const EVENT_PREFIX = "EVENT_JSON:";
 
@@ -40,32 +44,69 @@ function succeeded(status) {
  * time. Returns { status, ... } where status is one of
  * "confirmed" | "pending" | "failed" | "mismatch".
  */
+/** The FunctionCall actions of a receipt body, as [method, deposit] pairs. */
+function functionCalls(body) {
+  const actions = body && body.receipt && body.receipt.Action && body.receipt.Action.actions;
+  if (!Array.isArray(actions)) return null;
+  const calls = [];
+  for (const action of actions) {
+    const call = action && action.FunctionCall;
+    if (call) calls.push([String(call.method_name), String(call.deposit)]);
+  }
+  return calls;
+}
+
 export function matchTransaction(result, terms, memo) {
   if (!result || typeof result !== "object") return { status: "pending" };
   if (result.final_execution_status && result.final_execution_status !== "FINAL") return { status: "pending" };
   if (result.status && result.status.Failure) return { status: "failed", reason: "the transaction failed" };
+  if (!result.status || !Object.prototype.hasOwnProperty.call(result.status, "SuccessValue")) {
+    return { status: "mismatch", code: "invalid_payload", reason: "the transaction did not finish with SuccessValue" };
+  }
   const receipts = Array.isArray(result.receipts_outcome) ? result.receipts_outcome : [];
+  const bodies = new Map();
+  for (const body of Array.isArray(result.receipts) ? result.receipts : []) {
+    if (body && typeof body.receipt_id === "string") bodies.set(body.receipt_id, body);
+  }
   let wrongAmount = null;
+  let sawTransferCall = false;
+  let ambiguous = false;
   for (const receipt of receipts) {
     const outcome = receipt && receipt.outcome;
     if (!outcome || outcome.executor_id !== terms.asset || !succeeded(outcome.status)) continue;
-    for (const transfer of nep141Transfers(outcome.logs)) {
-      if (transfer.new_owner_id !== terms.payTo || transfer.memo !== memo) continue;
-      if (String(transfer.amount) !== terms.amount) {
-        wrongAmount = String(transfer.amount);
-        continue;
-      }
-      return {
-        status: "confirmed",
-        receiptId: receipt.id,
-        blockHash: receipt.block_hash,
-        payer: String(transfer.old_owner_id || ""),
-        amount: String(transfer.amount),
-      };
+    // The receipt body decides what kind of call logged the event.
+    const calls = functionCalls(bodies.get(receipt.id));
+    if (!calls) continue;
+    if (calls.some(([method]) => method === "ft_transfer_call")) {
+      sawTransferCall = true;
+      continue;
     }
+    if (!calls.some(([method, deposit]) => method === "ft_transfer" && deposit === "1")) continue;
+    const matching = nep141Transfers(outcome.logs)
+      .filter((transfer) => transfer.new_owner_id === terms.payTo && transfer.memo === memo);
+    if (matching.length === 0) continue;
+    if (matching.length > 1) {
+      // One ft_transfer cannot emit two transfers; none of them funds.
+      ambiguous = true;
+      continue;
+    }
+    const [transfer] = matching;
+    if (String(transfer.amount) !== terms.amount) {
+      wrongAmount = String(transfer.amount);
+      continue;
+    }
+    return {
+      status: "confirmed",
+      receiptId: receipt.id,
+      blockHash: receipt.block_hash,
+      payer: String(transfer.old_owner_id || ""),
+      amount: String(transfer.amount),
+    };
   }
   if (wrongAmount) return { status: "mismatch", code: "amount_mismatch", reason: `the transfer moved ${wrongAmount}, the price is ${terms.amount}` };
-  return { status: "mismatch", code: "invalid_payload", reason: "no transfer from the asset contract pays this payee with this memo" };
+  if (sawTransferCall) return { status: "mismatch", code: "invalid_payload", reason: "ft_transfer_call is refundable and never pays; send ft_transfer" };
+  if (ambiguous) return { status: "mismatch", code: "invalid_payload", reason: "one token receipt carries more than one matching transfer" };
+  return { status: "mismatch", code: "invalid_payload", reason: "no ft_transfer from the asset contract pays this payee with this memo" };
 }
 
 async function rpc(url, method, params, fetchImpl) {
@@ -140,6 +181,6 @@ export async function verifyPayment({ endpoints, terms, memo, txHash, signerId, 
   if (matched.status !== "confirmed") return matched;
   const landed = await blockTimeUnix(endpoints, matched.blockHash, fetchImpl);
   if (landed == null) return { status: "unavailable" };
-  if (landed > expiresAt) return { status: "expired", landed };
+  if (landed >= expiresAt) return { status: "expired", landed };
   return { ...matched, landed };
 }

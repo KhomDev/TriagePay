@@ -74,6 +74,57 @@ test("a perfect event logged by any other contract does not count", () => {
   assert.equal(nep141Transfers(["EVENT_JSON:not json", "plain"]).length, 0);
 });
 
+// ---- parity with the Rust verifier, on its own fixtures ------------------------------
+
+const RUST_FIXTURES = join(HERE, "..", "..", "..", "crates", "near-adapter", "tests", "fixtures");
+const SYNTH_TERMS = { asset: "usdc.fixture.testnet", payTo: "gateway.fixture.testnet", amount: "1000000" };
+const SYNTH_MEMO = "aps2_fixture_00001";
+const synthetic = (name) => JSON.parse(readFileSync(join(RUST_FIXTURES, `synthetic_${name}.json`), "utf8")).response.result;
+
+test("a refunded ft_transfer_call never pays (ToB C-DR-1)", () => {
+  const refund = synthetic("ft_transfer_call_refund");
+  const out = matchTransaction(refund, SYNTH_TERMS, SYNTH_MEMO);
+  assert.equal(out.status, "mismatch");
+  assert.match(out.reason, /ft_transfer_call/);
+});
+
+test("the token receipt must be an ft_transfer with exactly 1 yoctoNEAR", () => {
+  const terms = { asset: USDC_MAINNET, payTo: "gateway.hlpok1lad.tg", amount: "1000" };
+  const tokenBody = (fixture) => fixture.receipts.find((b) => b.receiver_id === USDC_MAINNET);
+  const asCall = structuredClone(FIXTURE);
+  tokenBody(asCall).receipt.Action.actions[0].FunctionCall.method_name = "ft_transfer_call";
+  assert.equal(matchTransaction(asCall, terms, FIXTURE_MEMO).status, "mismatch");
+  const noYocto = structuredClone(FIXTURE);
+  tokenBody(noYocto).receipt.Action.actions[0].FunctionCall.deposit = "0";
+  assert.equal(matchTransaction(noYocto, terms, FIXTURE_MEMO).status, "mismatch");
+  const noBodies = structuredClone(FIXTURE);
+  delete noBodies.receipts;
+  assert.equal(matchTransaction(noBodies, terms, FIXTURE_MEMO).status, "mismatch");
+});
+
+test("the JS verifier agrees with the Rust fixtures", () => {
+  const expect = {
+    wallet_pay: "confirmed",
+    batch_storage_and_transfer: "confirmed",
+    two_matching_transfers: "confirmed",
+    failed_transfer: "failed",
+    not_final: "pending",
+    spoofed_event: "mismatch",
+    spoofed_event_with_dust: "mismatch",
+    wrong_memo: "mismatch",
+    wrong_amount: "mismatch",
+    wrong_recipient: "mismatch",
+    one_receipt_two_events: "mismatch",
+    top_level_success_receipt_id: "mismatch",
+    // Rust reports Failed; the gateway has no receipt-level failure state
+    // and refuses it as a mismatch. Either way it never pays.
+    wallet_pay_transfer_failed: "mismatch",
+  };
+  for (const [name, status] of Object.entries(expect)) {
+    assert.equal(matchTransaction(synthetic(name), SYNTH_TERMS, SYNTH_MEMO).status, status, name);
+  }
+});
+
 // ---- the handler, with a fake core and a fake chain --------------------------------
 
 function fakeFetch({ verdict = "NO_REFUSAL", chain = null, blockTimeSec = Math.floor(NOW / 1000) } = {}) {
