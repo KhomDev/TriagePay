@@ -531,6 +531,7 @@ async fn created_wallet_pays_holds_and_rejects_a_queue_fill() -> TestResult {
         .await?;
     assert_refused(&revoked, "ERR_AGENT_INACTIVE");
 
+    // Tightening limits does not undo a revoke (ToB C-SE-1).
     world
         .user
         .call(&wallet, "set_token_limits")
@@ -539,6 +540,33 @@ async fn created_wallet_pays_holds_and_rejects_a_queue_fill() -> TestResult {
             "token": world.usdc.id(),
             "per_call_max": "50000",
             "daily_max": "200000",
+        }))
+        .deposit(ONE_YOCTO)
+        .transact()
+        .await?
+        .into_result()?;
+    let still_revoked = pay_key
+        .call(&wallet, "pay")
+        .args_json(json!({
+            "token": world.usdc.id(),
+            "receiver_id": gateway.id(),
+            "amount": "1",
+            "memo": null,
+        }))
+        .gas(Gas::from_tgas(80))
+        .transact()
+        .await?;
+    assert_refused(&still_revoked, "ERR_AGENT_INACTIVE");
+
+    // set_agent is the explicit way back; per-token limits are kept.
+    world
+        .user
+        .call(&wallet, "set_agent")
+        .args_json(json!({
+            "agent_id": agent.id(),
+            "per_call_max": "0",
+            "daily_max": "0",
+            "payees": [gateway.id()],
         }))
         .deposit(ONE_YOCTO)
         .transact()

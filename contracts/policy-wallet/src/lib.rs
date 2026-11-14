@@ -46,7 +46,7 @@ use near_sdk::{
 };
 use policy_core::{
     next_window_start, window_index, AgentPolicy, HoldQuota, PolicyError, ReleaseOutcome,
-    Reservation, WalletGate, MAX_DAILY_HOLDS_PER_AGENT, MAX_OPEN_HOLDS_PER_AGENT,
+    Reservation, WalletGate, MAX_DAILY_HOLDS_PER_AGENT, MAX_OPEN_HOLDS_PER_AGENT, MAX_PAYEES,
 };
 
 /// The caller is not the wallet owner.
@@ -162,25 +162,23 @@ pub struct TokenBudget {
     window_index: u64,
 }
 
-/// An agent's stored policy. The legacy fields are the budget of the
-/// wallet's single token. `budgets` holds per-token limits when the
-/// allowlist has more than one token. Hold counters never move spend.
+/// An agent's stored policy. Limits and spend live in `budgets`, one entry
+/// per token, keyed by the token id, on single-token and multi-token
+/// wallets alike. Changing the allowlist therefore never moves, resets or
+/// re-labels a token's spend window (ToB C-SC-4, C-VA-2). Hold counters
+/// never move spend.
 #[near(serializers = [borsh])]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoredAgent {
-    per_call_max: u128,
-    daily_max: u128,
     payees: Vec<AccountId>,
     active: bool,
-    spent_in_window: u128,
-    window_index: u64,
     /// Open holds. Mirrors [`HoldQuota::open`].
     holds_open: u32,
     /// Holds opened in `holds_window`. Rejecting one does not decrease it.
     holds_created: u32,
     /// UTC day `holds_created` belongs to.
     holds_window: u64,
-    /// Per-token budgets. Empty when the legacy fields are the only budget.
+    /// Per-token limits and spend. A token without an entry cannot be spent.
     budgets: Vec<TokenBudget>,
 }
 
@@ -196,16 +194,8 @@ struct TokenCap {
 }
 
 impl StoredAgent {
-    fn policy(&self) -> AgentPolicy {
-        AgentPolicy::from_parts(
-            self.per_call_max,
-            self.daily_max,
-            self.payees.iter().map(ToString::to_string).collect(),
-            self.active,
-            self.spent_in_window,
-            self.window_index,
-        )
-        .unwrap_or_else(|e| fail(e))
+    fn budget(&self, token: &AccountId) -> Option<&TokenBudget> {
+        self.budgets.iter().find(|b| &b.token == token)
     }
 
     fn hold_quota(&self) -> HoldQuota {
@@ -530,14 +520,13 @@ impl PolicyWallet {
                     "the owner still has payments waiting",
                 );
             }
-            let tokens = self.tokens.clone();
             let open_now = self.open_holds(&agent_id);
             let (policy, mut quota) = {
                 let stored = self
                     .agents
                     .get(&agent_id)
                     .unwrap_or_else(|| fail(PolicyError::AgentInactive));
-                let policy = load_policy(&tokens, stored, &token).unwrap_or_else(|| {
+                let policy = load_policy(stored, &token).unwrap_or_else(|| {
                     fail_with(
                         ERR_TOKEN_LIMITS_UNSET,
                         "set a per-token limit before paying this token",
@@ -599,12 +588,11 @@ impl PolicyWallet {
         if env::prepaid_gas() < GAS_MIN_PREPAID {
             fail_with(ERR_INSUFFICIENT_GAS, "attach at least 35 TGas");
         }
-        let tokens = self.tokens.clone();
         let stored = self
             .agents
             .get_mut(&agent_id)
             .unwrap_or_else(|| fail(PolicyError::AgentInactive));
-        let mut policy = load_policy(&tokens, stored, &token).unwrap_or_else(|| {
+        let mut policy = load_policy(stored, &token).unwrap_or_else(|| {
             fail_with(
                 ERR_TOKEN_LIMITS_UNSET,
                 "set a per-token limit before paying this token",
@@ -629,7 +617,8 @@ impl PolicyWallet {
     /// Completion callback for `pay`. Emits `pay_settled` on success; on
     /// failure releases the reservation and emits `pay_failed`. Never
     /// panics, so its state change is never reverted. Returns true when the
-    /// transfer settled.
+    /// transfer settled. A settled payment lowers the token's beta custody
+    /// counter, so paying out frees deposit headroom (ToB C-SC-6).
     #[private]
     pub fn on_pay_complete(
         &mut self,
@@ -641,6 +630,9 @@ impl PolicyWallet {
         window_index: U64,
     ) -> bool {
         if transfer_succeeded() {
+            if let Some(cap) = self.caps.iter_mut().find(|c| c.token == token) {
+                cap.custody = cap.custody.saturating_sub(amount.0);
+            }
             WalletEvent::PaySettled {
                 payment_id,
                 agent_id,
@@ -651,9 +643,8 @@ impl PolicyWallet {
             .emit();
             return true;
         }
-        let tokens = self.tokens.clone();
         let release = match self.agents.get_mut(&agent_id) {
-            Some(stored) => match load_policy(&tokens, stored, &token) {
+            Some(stored) => match load_policy(stored, &token) {
                 Some(mut policy) => {
                     let reservation = Reservation {
                         amount: amount.0,
@@ -688,7 +679,9 @@ impl PolicyWallet {
 
     /// Create or reconfigure an agent and mark it active. An existing
     /// agent keeps its spend window, so reconfiguring inside a day cannot
-    /// reset the daily total.
+    /// reset the daily total. With exactly one allowlisted token the limits
+    /// apply to that token; otherwise pass zero limits and call
+    /// `set_token_limits` once per token. At most `MAX_PAYEES` payees.
     #[payable]
     pub fn set_agent(
         &mut self,
@@ -705,50 +698,32 @@ impl PolicyWallet {
         let mut payees = payees;
         payees.sort();
         payees.dedup();
-        let names = payee_names(&payees);
-        let previous = self.agents.get(&agent_id).cloned();
-        if self.tokens.len() > 1 {
-            if per_call_max.0 != 0 || daily_max.0 != 0 {
-                fail_with(ERR_AMBIGUOUS_LIMITS, "call set_token_limits once per token");
-            }
-            let mut stored = previous.unwrap_or_else(empty_agent);
-            stored.payees.clone_from(&payees);
-            stored.active = true;
-            self.agents.insert(agent_id.clone(), stored);
-            WalletEvent::AgentSet {
-                agent_id,
-                per_call_max: U128(0),
-                daily_max: U128(0),
-                payees,
-            }
-            .emit();
-            return;
+        // Both branches refuse an oversized payee list (ToB C-ACB-2).
+        if payees.len() > MAX_PAYEES {
+            fail(PolicyError::InvalidPolicy);
         }
-        let policy = match &previous {
-            Some(existing) if existing.per_call_max > 0 => {
-                let mut policy = existing.policy();
-                policy
-                    .reconfigure(per_call_max.0, daily_max.0, names)
-                    .map(|()| policy)
-            }
-            _ => AgentPolicy::new(per_call_max.0, daily_max.0, names),
+        let now = env::block_timestamp();
+        let tokens = self.tokens.clone();
+        let mut stored = self
+            .agents
+            .get(&agent_id)
+            .cloned()
+            .unwrap_or_else(empty_agent);
+        stored.payees.clone_from(&payees);
+        if let [token] = tokens.as_slice() {
+            set_limits(
+                &mut stored,
+                &tokens,
+                token,
+                per_call_max.0,
+                daily_max.0,
+                now,
+            )
+            .unwrap_or_else(|e| fail(e));
+        } else if per_call_max.0 != 0 || daily_max.0 != 0 {
+            fail_with(ERR_AMBIGUOUS_LIMITS, "call set_token_limits once per token");
         }
-        .unwrap_or_else(|e| fail(e));
-        let (holds_open, holds_created, holds_window) = previous.as_ref().map_or((0, 0, 0), |p| {
-            (p.holds_open, p.holds_created, p.holds_window)
-        });
-        let stored = StoredAgent {
-            per_call_max: policy.per_call_max(),
-            daily_max: policy.daily_max(),
-            payees: payees.clone(),
-            active: policy.active(),
-            spent_in_window: policy.spent_in_window(),
-            window_index: policy.window_index(),
-            holds_open,
-            holds_created,
-            holds_window,
-            budgets: Vec::new(),
-        };
+        stored.active = true;
         self.agents.insert(agent_id.clone(), stored);
         WalletEvent::AgentSet {
             agent_id,
@@ -772,9 +747,10 @@ impl PolicyWallet {
     }
 
     /// Set one token's per-call and daily limits for an agent that already
-    /// exists. Spend in the current window is kept. The token must be on
-    /// the wallet allowlist. With a single allowlisted token this writes
-    /// the same fields `set_agent` writes.
+    /// exists. That token's spend in the current window is kept. The token
+    /// must be on the wallet allowlist. This does not change whether the
+    /// agent is active: a revoked agent stays revoked until `set_agent`
+    /// (ToB C-SE-1).
     #[payable]
     pub fn set_token_limits(
         &mut self,
@@ -787,73 +763,14 @@ impl PolicyWallet {
         if !self.tokens.contains(&token) {
             fail(PolicyError::TokenNotAllowed);
         }
+        let now = env::block_timestamp();
+        let tokens = self.tokens.clone();
         let stored = self
             .agents
             .get_mut(&agent_id)
             .unwrap_or_else(|| fail(PolicyError::AgentInactive));
-        let names = payee_names(&stored.payees);
-        if self.tokens.len() == 1 {
-            let policy = if stored.per_call_max > 0 {
-                let mut policy = stored.policy();
-                policy
-                    .reconfigure(per_call_max.0, daily_max.0, names)
-                    .map(|()| policy)
-            } else {
-                AgentPolicy::new(per_call_max.0, daily_max.0, names)
-            }
+        set_limits(stored, &tokens, &token, per_call_max.0, daily_max.0, now)
             .unwrap_or_else(|e| fail(e));
-            stored.per_call_max = policy.per_call_max();
-            stored.daily_max = policy.daily_max();
-            stored.active = true;
-            stored.spent_in_window = policy.spent_in_window();
-            stored.window_index = policy.window_index();
-            stored.budgets.clear();
-            return;
-        }
-        let names = payee_names(&stored.payees);
-        let previous = stored.budgets.iter().find(|b| b.token == token).map(|b| {
-            (
-                b.per_call_max,
-                b.daily_max,
-                b.spent_in_window,
-                b.window_index,
-            )
-        });
-        let policy = match previous {
-            Some((per_call, daily, spent, window)) => {
-                let mut policy = AgentPolicy::from_parts(
-                    per_call,
-                    daily,
-                    names.clone(),
-                    stored.active,
-                    spent,
-                    window,
-                )
-                .unwrap_or_else(|e| fail(e));
-                policy
-                    .reconfigure(per_call_max.0, daily_max.0, names)
-                    .unwrap_or_else(|e| fail(e));
-                policy
-            }
-            None => {
-                AgentPolicy::new(per_call_max.0, daily_max.0, names).unwrap_or_else(|e| fail(e))
-            }
-        };
-        stored.active = true;
-        if let Some(budget) = stored.budgets.iter_mut().find(|b| b.token == token) {
-            budget.per_call_max = policy.per_call_max();
-            budget.daily_max = policy.daily_max();
-            budget.spent_in_window = policy.spent_in_window();
-            budget.window_index = policy.window_index();
-        } else {
-            stored.budgets.push(TokenBudget {
-                token,
-                per_call_max: policy.per_call_max(),
-                daily_max: policy.daily_max(),
-                spent_in_window: policy.spent_in_window(),
-                window_index: policy.window_index(),
-            });
-        }
     }
 
     /// Replace the token allowlist (at most [`MAX_TOKENS`]).
@@ -977,7 +894,6 @@ impl PolicyWallet {
             self.pending.get(&payment_id.0).cloned().unwrap_or_else(|| {
                 fail_with(ERR_NOT_PENDING, "no payment is waiting with that id")
             });
-        let tokens = self.tokens.clone();
         let now = env::block_timestamp();
         let gate = WalletGate {
             paused: self.paused,
@@ -991,7 +907,7 @@ impl PolicyWallet {
             if !stored.active {
                 fail(PolicyError::AgentInactive);
             }
-            let mut policy = load_policy(&tokens, stored, &pending.token).unwrap_or_else(|| {
+            let mut policy = load_policy(stored, &pending.token).unwrap_or_else(|| {
                 fail_with(
                     ERR_TOKEN_LIMITS_UNSET,
                     "set a per-token limit before approving this token",
@@ -1248,25 +1164,22 @@ impl PolicyWallet {
         let now = env::block_timestamp();
         self.agents.get(&agent_id).map(|stored| {
             let budgets = self.budget_views(stored, now);
-            let (spent, remaining, window) = if stored.per_call_max == 0 {
-                (0, 0, stored.window_index)
-            } else {
-                let policy = stored.policy();
-                (
-                    policy.spent_at(now),
-                    policy.remaining_at(now),
-                    window_index(now).max(stored.window_index),
-                )
-            };
+            // The top-level numbers describe the single allowlisted token;
+            // they are zero when limits are per token.
+            let single = self
+                .single_budget(stored)
+                .map(|b| budget_view(stored, b, now));
             let holds_today = holds_today(stored, now);
             AgentView {
-                per_call_max: U128(stored.per_call_max),
-                daily_max: U128(stored.daily_max),
+                per_call_max: single.as_ref().map_or(U128(0), |v| v.per_call_max),
+                daily_max: single.as_ref().map_or(U128(0), |v| v.daily_max),
                 payees: stored.payees.clone(),
                 active: stored.active,
-                spent_in_window: U128(spent),
-                remaining: U128(remaining),
-                window_index: U64(window),
+                spent_in_window: single.as_ref().map_or(U128(0), |v| v.spent_in_window),
+                remaining: single.as_ref().map_or(U128(0), |v| v.remaining),
+                window_index: single
+                    .as_ref()
+                    .map_or(U64(window_index(now)), |v| v.window_index),
                 resets_at_ns: U64(next_window_start(now)),
                 budgets,
                 open_holds: stored.holds_open,
@@ -1280,12 +1193,12 @@ impl PolicyWallet {
     /// for one token.
     pub fn get_spent(&self, agent_id: AccountId) -> U128 {
         let now = env::block_timestamp();
-        U128(
-            self.agents
-                .get(&agent_id)
-                .filter(|stored| stored.per_call_max > 0)
-                .map_or(0, |stored| stored.policy().spent_at(now)),
-        )
+        let Some(stored) = self.agents.get(&agent_id) else {
+            return U128(0);
+        };
+        U128(self.single_budget(stored).map_or(0, |budget| {
+            budget_view(stored, budget, now).spent_in_window.0
+        }))
     }
 
     /// Spent in the current UTC day by `agent_id` on `token`.
@@ -1294,7 +1207,7 @@ impl PolicyWallet {
         let Some(stored) = self.agents.get(&agent_id) else {
             return U128(0);
         };
-        U128(load_policy(&self.tokens, stored, &token).map_or(0, |policy| policy.spent_at(now)))
+        U128(load_policy(stored, &token).map_or(0, |policy| policy.spent_at(now)))
     }
 
     /// Payments waiting for the owner, oldest first.
@@ -1434,29 +1347,23 @@ impl PolicyWallet {
         }
     }
 
+    /// Budgets of the tokens on the allowlist. A budget kept for a removed
+    /// token (it still carries that day's spend) is not shown.
     fn budget_views(&self, stored: &StoredAgent, now: u64) -> Vec<TokenBudgetView> {
-        if !stored.budgets.is_empty() {
-            return stored
-                .budgets
-                .iter()
-                .map(|budget| budget_view(stored, budget, now))
-                .collect();
+        stored
+            .budgets
+            .iter()
+            .filter(|budget| self.tokens.contains(&budget.token))
+            .map(|budget| budget_view(stored, budget, now))
+            .collect()
+    }
+
+    /// The budget of the wallet's only token, when it has exactly one.
+    fn single_budget<'a>(&self, stored: &'a StoredAgent) -> Option<&'a TokenBudget> {
+        match self.tokens.as_slice() {
+            [token] => stored.budget(token),
+            _ => None,
         }
-        if stored.per_call_max == 0 {
-            return Vec::new();
-        }
-        let Some(token) = self.tokens.first() else {
-            return Vec::new();
-        };
-        let policy = stored.policy();
-        vec![TokenBudgetView {
-            token: token.clone(),
-            per_call_max: U128(stored.per_call_max),
-            daily_max: U128(stored.daily_max),
-            spent_in_window: U128(policy.spent_at(now)),
-            remaining: U128(policy.remaining_at(now)),
-            window_index: U64(window_index(now).max(stored.window_index)),
-        }]
     }
 
     fn schedule_transfer(transfer: ScheduledTransfer) -> Promise {
@@ -1518,12 +1425,8 @@ fn payee_names(payees: &[AccountId]) -> Vec<String> {
 
 fn empty_agent() -> StoredAgent {
     StoredAgent {
-        per_call_max: 0,
-        daily_max: 0,
         payees: Vec::new(),
         active: true,
-        spent_in_window: 0,
-        window_index: 0,
         holds_open: 0,
         holds_created: 0,
         holds_window: 0,
@@ -1554,49 +1457,60 @@ fn initial_caps(tokens: &[AccountId]) -> Vec<TokenCap> {
 }
 
 /// The policy that applies to `token`, or `None` when that token has no limits.
-fn load_policy(
-    tokens: &[AccountId],
-    stored: &StoredAgent,
-    token: &AccountId,
-) -> Option<AgentPolicy> {
-    if let Some(budget) = stored.budgets.iter().find(|b| &b.token == token) {
-        return AgentPolicy::from_parts(
-            budget.per_call_max,
-            budget.daily_max,
-            payee_names(&stored.payees),
-            stored.active,
-            budget.spent_in_window,
-            budget.window_index,
-        )
-        .ok();
-    }
-    if tokens.len() == 1 && &tokens[0] == token && stored.per_call_max > 0 {
-        return AgentPolicy::from_parts(
-            stored.per_call_max,
-            stored.daily_max,
-            payee_names(&stored.payees),
-            stored.active,
-            stored.spent_in_window,
-            stored.window_index,
-        )
-        .ok();
-    }
-    None
+fn load_policy(stored: &StoredAgent, token: &AccountId) -> Option<AgentPolicy> {
+    let budget = stored.budget(token)?;
+    AgentPolicy::from_parts(
+        budget.per_call_max,
+        budget.daily_max,
+        payee_names(&stored.payees),
+        stored.active,
+        budget.spent_in_window,
+        budget.window_index,
+    )
+    .ok()
 }
 
+/// Write back the spend of a policy loaded by [`load_policy`]. Limits are
+/// changed only by [`set_limits`].
 fn write_spend(stored: &mut StoredAgent, token: &AccountId, policy: &AgentPolicy) {
     stored.active = policy.active();
     if let Some(budget) = stored.budgets.iter_mut().find(|b| &b.token == token) {
-        budget.per_call_max = policy.per_call_max();
-        budget.daily_max = policy.daily_max();
         budget.spent_in_window = policy.spent_in_window();
         budget.window_index = policy.window_index();
-        return;
     }
-    stored.per_call_max = policy.per_call_max();
-    stored.daily_max = policy.daily_max();
-    stored.spent_in_window = policy.spent_in_window();
-    stored.window_index = policy.window_index();
+}
+
+/// Set `token`'s limits for one agent. The token's spend window is kept
+/// (a lowered `daily_max` applies at once), and `active` is not touched.
+/// When a new budget is added, budgets of tokens that left the allowlist
+/// and carry no spend today are dropped, which bounds the list.
+fn set_limits(
+    stored: &mut StoredAgent,
+    tokens: &[AccountId],
+    token: &AccountId,
+    per_call_max: u128,
+    daily_max: u128,
+    now: u64,
+) -> Result<(), PolicyError> {
+    // Validates per_call_max > 0, daily_max >= per_call_max and the payees.
+    AgentPolicy::new(per_call_max, daily_max, payee_names(&stored.payees))?;
+    if let Some(budget) = stored.budgets.iter_mut().find(|b| &b.token == token) {
+        budget.per_call_max = per_call_max;
+        budget.daily_max = daily_max;
+        return Ok(());
+    }
+    let today = window_index(now);
+    stored.budgets.retain(|b| {
+        tokens.contains(&b.token) || (b.window_index >= today && b.spent_in_window > 0)
+    });
+    stored.budgets.push(TokenBudget {
+        token: token.clone(),
+        per_call_max,
+        daily_max,
+        spent_in_window: 0,
+        window_index: 0,
+    });
+    Ok(())
 }
 
 fn holds_today(stored: &StoredAgent, now: u64) -> u32 {

@@ -54,13 +54,13 @@ pub const WALLET_STATE_BYTES: u64 = 1_000;
 pub const WORKING_BALANCE: u128 = 300_000_000_000_000_000_000_000;
 
 /// Length of the wasm-opt `-Oz` policy-wallet binary that `create_wallet` deploys.
-pub const WALLET_CODE_LEN: u64 = 221_884;
+pub const WALLET_CODE_LEN: u64 = 219_653;
 /// sha256 of that binary. The factory stores it compressed and inflates it
 /// in `create_wallet`, so the factory account does not lock a second full copy.
 /// The cargo registry directory name is remapped away, so two machines with
 /// different `index.crates.io-*` folders produce this same hash.
 pub const WALLET_CODE_SHA256: &str =
-    "17acbefc65151683d5a37771b785ec0e5a9fa6debfbdc566084370a714e25b7e";
+    "cb4f94697d30bf18b3f887694ec78b9eeb6992a508e02ea4c3cb39b212fc5974";
 #[cfg(not(feature = "global-contracts"))]
 const WALLET_CODE_ZLIB: &[u8] = include_bytes!("../res/policy_wallet.wasm.zlib");
 
@@ -190,9 +190,27 @@ pub fn embedded_wallet_code() -> Vec<u8> {
     }
     #[cfg(not(feature = "global-contracts"))]
     {
-        miniz_oxide::inflate::decompress_to_vec_zlib(WALLET_CODE_ZLIB)
-            .unwrap_or_else(|_| env::panic_str("ERR_BAD_CODE: wallet wasm"))
+        let code = miniz_oxide::inflate::decompress_to_vec_zlib(WALLET_CODE_ZLIB)
+            .unwrap_or_else(|_| env::panic_str("ERR_BAD_CODE: wallet wasm"));
+        // Fail closed if the committed blob and the published digest ever
+        // disagree: the stake is priced from WALLET_CODE_LEN, and users are
+        // told WALLET_CODE_SHA256 (ToB C-SE-4).
+        if code.len() as u64 != WALLET_CODE_LEN || !digest_matches(&env::sha256(&code)) {
+            env::panic_str("ERR_BAD_CODE: wallet wasm does not match WALLET_CODE_SHA256");
+        }
+        code
     }
+}
+
+#[cfg(not(feature = "global-contracts"))]
+fn digest_matches(digest: &[u8]) -> bool {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let expected = WALLET_CODE_SHA256.as_bytes();
+    digest.len() * 2 == expected.len()
+        && digest.iter().enumerate().all(|(i, byte)| {
+            expected[2 * i] == HEX[usize::from(byte >> 4)]
+                && expected[2 * i + 1] == HEX[usize::from(byte & 0x0f)]
+        })
 }
 
 /// NEAR locked on the new wallet: code, initial state, and working balance.

@@ -1604,3 +1604,175 @@ fn unapproved_holds_should_not_block_an_allowlisted_payment() {
         policy_core::MAX_OPEN_HOLDS_PER_AGENT as usize
     );
 }
+
+// ----- Trail of Bits skill run, 2026-11-14 ----------------------------------------
+
+/// Pay `amount` of `token` to the gateway as the agent.
+fn pay_token(w: &mut PolicyWallet, token: AccountId, amount: u128) {
+    as_agent().set();
+    settle(w.pay(token, gateway(), U128(amount), None));
+}
+
+/// A two-token wallet whose agent has `PER_CALL`/`DAILY` on both tokens.
+fn setup_two_tokens() -> PolicyWallet {
+    as_self().set();
+    let mut w = PolicyWallet::new(owner(), vec![usdc(), dai()]);
+    as_owner().set();
+    w.set_agent(agent(), U128(0), U128(0), vec![gateway()]);
+    w.set_token_limits(agent(), usdc(), U128(PER_CALL), U128(DAILY));
+    w.set_token_limits(agent(), dai(), U128(PER_CALL), U128(DAILY));
+    w
+}
+
+// C-SC-4: one token -> two tokens kept the token's spend in fields the
+// multi-token path ignored, so set_token_limits started a fresh window.
+#[test]
+#[should_panic(expected = "ERR_DAILY_LIMIT")]
+fn adding_a_token_does_not_reset_the_daily_cap() {
+    let mut w = setup();
+    for _ in 0..4 {
+        pay_token(&mut w, usdc(), PER_CALL);
+    }
+    as_owner().set();
+    w.set_tokens(vec![usdc(), dai()]);
+    assert_eq!(w.get_token_spent(agent(), usdc()), U128(DAILY));
+    w.set_token_limits(agent(), usdc(), U128(PER_CALL), U128(DAILY));
+    assert_eq!(w.get_token_spent(agent(), usdc()), U128(DAILY));
+    pay_token(&mut w, usdc(), PER_CALL);
+}
+
+// C-VA-2: two tokens -> one token rebuilt the policy from empty legacy
+// fields and dropped the per-token spend.
+#[test]
+#[should_panic(expected = "ERR_DAILY_LIMIT")]
+fn dropping_to_one_token_does_not_reset_the_daily_cap() {
+    let mut w = setup_two_tokens();
+    for _ in 0..4 {
+        pay_token(&mut w, usdc(), PER_CALL);
+    }
+    as_owner().set();
+    w.set_tokens(vec![usdc()]);
+    w.set_agent(agent(), U128(PER_CALL), U128(DAILY), vec![gateway()]);
+    w.set_token_limits(agent(), usdc(), U128(PER_CALL), U128(DAILY));
+    assert_eq!(w.get_spent(agent()), U128(DAILY));
+    assert_eq!(w.get_agent(agent()).unwrap().remaining, U128(0));
+    pay_token(&mut w, usdc(), PER_CALL);
+}
+
+#[test]
+fn a_removed_tokens_spend_survives_the_day_it_was_spent() {
+    let mut w = setup_two_tokens();
+    pay_token(&mut w, dai(), PER_CALL);
+    as_owner().set();
+    w.set_tokens(vec![usdc()]);
+    assert!(w
+        .get_agent(agent())
+        .unwrap()
+        .budgets
+        .iter()
+        .all(|b| b.token == usdc()));
+    // A new token's budget does not prune a removed token that spent today.
+    let other = acc("other.near");
+    w.set_tokens(vec![usdc(), other.clone()]);
+    w.set_token_limits(agent(), other, U128(PER_CALL), U128(DAILY));
+    w.set_tokens(vec![usdc(), dai()]);
+    assert_eq!(w.get_token_spent(agent(), dai()), U128(PER_CALL));
+}
+
+#[test]
+fn a_removed_token_with_no_spend_today_is_pruned() {
+    let mut w = setup_two_tokens();
+    as_owner().set();
+    w.set_tokens(vec![usdc()]);
+    let other = acc("other.near");
+    w.set_tokens(vec![usdc(), other.clone()]);
+    w.set_token_limits(agent(), other, U128(PER_CALL), U128(DAILY));
+    w.set_tokens(vec![usdc(), dai()]);
+    // dai's budget was dropped, so dai has no limits until the owner sets them.
+    assert!(w
+        .get_agent(agent())
+        .unwrap()
+        .budgets
+        .iter()
+        .all(|b| b.token != dai()));
+}
+
+#[test]
+#[should_panic(expected = "ERR_TOKEN_LIMITS_UNSET")]
+fn switching_the_single_token_does_not_carry_limits_across_units() {
+    let mut w = setup();
+    as_owner().set();
+    w.set_tokens(vec![dai()]);
+    pay_token(&mut w, dai(), PER_CALL);
+}
+
+// C-SE-1: set_token_limits wrote active = true and silently undid a revoke.
+#[test]
+#[should_panic(expected = "ERR_AGENT_INACTIVE")]
+fn set_token_limits_does_not_reactivate_a_revoked_agent() {
+    let mut w = setup();
+    as_owner().set();
+    w.revoke_agent(agent());
+    w.set_token_limits(agent(), usdc(), U128(1_000), U128(1_000));
+    assert!(!w.get_agent(agent()).unwrap().active);
+    pay_token(&mut w, usdc(), 1_000);
+}
+
+#[test]
+fn set_agent_still_reactivates() {
+    let mut w = setup();
+    as_owner().set();
+    w.revoke_agent(agent());
+    w.set_agent(agent(), U128(PER_CALL), U128(DAILY), vec![gateway()]);
+    assert!(w.get_agent(agent()).unwrap().active);
+}
+
+// C-ACB-2: the multi-token branch stored any number of payees.
+#[test]
+#[should_panic(expected = "ERR_INVALID_POLICY")]
+fn multi_token_set_agent_refuses_too_many_payees() {
+    as_self().set();
+    let mut w = PolicyWallet::new(owner(), vec![usdc(), dai()]);
+    as_owner().set();
+    let payees = (0..=MAX_PAYEES)
+        .map(|i| acc(&format!("p{i}.near")))
+        .collect();
+    w.set_agent(agent(), U128(0), U128(0), payees);
+}
+
+// C-SC-6: custody only rose on deposits, so paying out never freed room.
+#[test]
+fn a_settled_payment_frees_deposit_headroom() {
+    let mut w = setup();
+    as_owner().set();
+    w.set_deposit_cap(usdc(), U128(DAILY));
+    Ctx::new(usdc()).set();
+    let _ = w.ft_on_transfer(owner(), U128(DAILY), String::new());
+    pay_token(&mut w, usdc(), PER_CALL);
+    assert!(complete(
+        &mut w,
+        PromiseResult::Successful(vec![]),
+        PER_CALL,
+        DAY0,
+        T0
+    ));
+    assert_eq!(
+        w.get_config().deposit_caps[0].custody,
+        U128(DAILY - PER_CALL)
+    );
+    Ctx::new(usdc()).set();
+    let _ = w.ft_on_transfer(owner(), U128(PER_CALL), String::new());
+    assert_eq!(w.get_config().deposit_caps[0].custody, U128(DAILY));
+}
+
+#[test]
+fn a_failed_payment_leaves_custody_alone() {
+    let mut w = setup();
+    as_owner().set();
+    w.set_deposit_cap(usdc(), U128(DAILY));
+    Ctx::new(usdc()).set();
+    let _ = w.ft_on_transfer(owner(), U128(DAILY), String::new());
+    pay_token(&mut w, usdc(), PER_CALL);
+    assert!(!complete(&mut w, PromiseResult::Failed, PER_CALL, DAY0, T0));
+    assert_eq!(w.get_config().deposit_caps[0].custody, U128(DAILY));
+}

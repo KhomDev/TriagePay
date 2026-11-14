@@ -115,6 +115,17 @@ fn embedded_code_is_the_optimized_wallet() {
 }
 
 #[test]
+fn the_digest_check_refuses_other_bytes() {
+    as_factory().set();
+    let code = embedded_wallet_code();
+    assert!(digest_matches(&env::sha256(&code)));
+    let mut other = code;
+    other[0] ^= 1;
+    assert!(!digest_matches(&env::sha256(&other)));
+    assert!(!digest_matches(&[]));
+}
+
+#[test]
 fn new_starts_with_one_near_and_the_default_recipient() {
     let f = setup();
     let view = f.get_config();
