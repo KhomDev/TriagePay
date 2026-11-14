@@ -145,6 +145,13 @@ code { font-family: var(--mono); font-size: 0.9em; overflow-wrap: anywhere; }
   font-size: 1.08rem;
 }
 .brand img { border-radius: 7px; }
+/* Geist's light, antialiased "i" on this dark ground loses its tittle, so "Mainnet" reads as "Malnnet". */
+.tag, .live-badge, .net-toggle button {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  -webkit-font-smoothing: auto;
+  font-feature-settings: "ss01" 0, "cv11" 0;
+}
 .tag { margin: 0; padding-left: 18px; border-left: 1px solid var(--rule-strong); color: var(--fog); font-size: 0.9rem; }
 .nav-links { margin-left: auto; display: flex; align-items: center; gap: 26px; flex-wrap: wrap; }
 .nav-links a:not(.text-btn) { color: var(--fog); text-decoration: none; font-size: 0.92rem; font-weight: 500; transition: color 0.15s ease; }
@@ -258,6 +265,12 @@ button.is-busy::after {
 }
 .hero-copy { min-width: 0; }
 .hero .lead { margin-top: var(--space-4); }
+.hero-app { grid-template-columns: minmax(0, 1fr); padding: var(--space-4) 0 var(--space-4); }
+.hero-app .lead { margin-top: var(--space-2); }
+.create-details { margin: var(--space-3) 0; max-width: 58ch; }
+.create-details > summary { color: var(--paper); font-size: 0.98rem; font-weight: 600; }
+.create-details[open] > summary { margin-bottom: var(--space-2); }
+.create-details .lead, .create-details .hint { margin-top: var(--space-2); }
 
 .judge { margin-top: var(--space-5); }
 .judge h2 { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; color: var(--fog); margin-bottom: var(--space-2); }
