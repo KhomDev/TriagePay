@@ -22,15 +22,19 @@
   <a class="text-btn" href="/">Sandbox</a>
 </header>
 <main id="main">
-  <section class="hero" aria-labelledby="h-app">
+  <section class="hero hero-app" aria-labelledby="h-app">
     <div class="hero-copy">
       <p class="eyebrow">Your account, your key</p>
       <h1 id="h-app">Create a wallet on mainnet.</h1>
       <p class="lead">Beta, unaudited, use small amounts. I have not had this contract audited. A raw <code>ft_transfer</code> can move tokens without the deposit cap the wallet enforces on <code>ft_transfer_call</code>.</p>
-      <p class="lead">The create cost is a <strong>1 NEAR fee</strong> plus <strong>2.52884 NEAR of refundable storage</strong>. The storage is the wallet code (221,884 bytes, 2.21884 NEAR), 0.01000 NEAR of state, and a 0.30000 NEAR working balance so a few holds do not fail with <code>LackBalanceForState</code>. You sign <code>create_wallet</code> on <code>triagepay.hlpok1lad.tg</code>. Anything above that total comes back at once. The fee goes to <code>hlpok1lad.tg</code> only after <code>new</code> succeeds. A failed create refunds the fee and the storage.</p>
-      <p class="lead">The storage comes back when you pause the wallet, withdraw every token, and call <code>close</code> with a beneficiary account that already exists. That deletes the wallet and returns the code stake, the state, and the working balance.</p>
-      <p class="hint">Circle native USDC on NEAR is <code>17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1</code> (6 decimals). Wrapped NEAR is <code>wrap.near</code>. The beta deposit ceiling is 100 USDC and 10 wNEAR. You can set a lower ceiling. You cannot raise it past that.</p>
-      <p class="hint">Each wallet gets its own copy of the code. There is no global contract on this deploy. The factory account itself locks about 2.5 NEAR for its code, and that stays until the factory account is deleted.</p>
+      <p class="lead">The create cost is a <strong>1 NEAR fee</strong> plus <strong>2.52884 NEAR of refundable storage</strong>. You sign <code>create_wallet</code> on <code>triagepay.hlpok1lad.tg</code>. A failed create refunds the fee and the storage.</p>
+      <details class="create-details">
+        <summary>Fee, storage, and how close works</summary>
+        <p class="lead">The storage is the wallet code (221,884 bytes, 2.21884 NEAR), 0.01000 NEAR of state, and a 0.30000 NEAR working balance so a few holds do not fail with <code>LackBalanceForState</code>. Anything above that total comes back at once. The fee goes to <code>hlpok1lad.tg</code> only after <code>new</code> succeeds.</p>
+        <p class="lead">The storage comes back when you pause the wallet, withdraw every token, and call <code>close</code> with a beneficiary account that already exists. That deletes the wallet and returns the code stake, the state, and the working balance.</p>
+        <p class="hint">Circle native USDC on NEAR is <code>17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1</code> (6 decimals). Wrapped NEAR is <code>wrap.near</code>. The beta deposit ceiling is 100 USDC and 10 wNEAR. You can set a lower ceiling. You cannot raise it past that.</p>
+        <p class="hint">Each wallet gets its own copy of the code. There is no global contract on this deploy. The factory account itself locks about 2.5 NEAR for its code, and that stays until the factory account is deleted.</p>
+      </details>
       <p><a class="primary" href="/">Back to the sandbox</a></p>
     </div>
   </section>
