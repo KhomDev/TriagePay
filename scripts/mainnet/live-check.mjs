@@ -316,6 +316,29 @@ function printProblems(title, problems) {
   return 1;
 }
 
+/** Falsara on NEAR: the gateway is up, on mainnet, with its core and pinned gates. */
+export function checkFalsara(spec, health, pricing) {
+  const problems = [];
+  const body = health && health.body;
+  if (!health || health.status !== 200 || !body || body.ok !== true) {
+    problems.push(`health is ${health && health.status}, ok ${body && body.ok}`);
+    return problems;
+  }
+  if (body.network !== spec.network) problems.push(`network is ${body.network}, expected ${spec.network}`);
+  if (body.payTo !== spec.payTo) problems.push(`payTo is ${body.payTo}, expected ${spec.payTo}`);
+  const pins = (body.core && body.core.pins) || {};
+  for (const [gate, version] of Object.entries(spec.pins || {})) {
+    if (pins[gate] !== version) problems.push(`${gate} pin is ${pins[gate]}, expected ${version}`);
+  }
+  const route = pricing && pricing.body && Array.isArray(pricing.body.routes)
+    ? pricing.body.routes.find((row) => row.path === "/v1/check-finding")
+    : null;
+  if (!route || route.amountAtomic !== spec.priceAtomic) {
+    problems.push(`check price is ${route && route.amountAtomic}, expected ${spec.priceAtomic}`);
+  }
+  return problems;
+}
+
 export async function run(spec, io = { log: console.log }) {
   let failed = 0;
   for (const wallet of spec.wallets) {
@@ -329,6 +352,11 @@ export async function run(spec, io = { log: console.log }) {
   }
   const health = await observeHealth(spec.healthUrl);
   failed += printProblems(spec.healthUrl, checkHealth(spec.health, health));
+  if (spec.falsara) {
+    const falsaraHealth = await observeHealth(`${spec.falsara.url}/health`).catch(() => null);
+    const falsaraPricing = await observeHealth(`${spec.falsara.url}/pricing`).catch(() => null);
+    failed += printProblems(`falsara ${spec.falsara.url}`, checkFalsara(spec.falsara, falsaraHealth, falsaraPricing));
+  }
   if (spec.factory && spec.factory.live === true) {
     const observed = await observeFactory(spec.mainnetRpc, spec.factory);
     failed += printProblems(`mainnet ${spec.factory.accountId}`, checkFactory(spec.factory, observed));

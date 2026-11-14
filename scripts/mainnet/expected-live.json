@@ -23,13 +23,17 @@
       "config": {
         "owner": "hlpok1lad.tg",
         "paused": false,
-        "tokens": ["wrap.near"]
+        "tokens": [
+          "wrap.near"
+        ]
       },
       "agent": {
         "accountId": "tp-agent2.hlpok1lad.tg",
         "perCallMax": "1000000",
         "dailyMax": "4000000",
-        "payees": ["gateway.hlpok1lad.tg"],
+        "payees": [
+          "gateway.hlpok1lad.tg"
+        ],
         "active": true,
         "keys": "pay-only",
         "publicKey": "ed25519:69i3HGAR51MzFSvGLjQqnZhk6Dpo39VGnaNU9LJscCdn"
@@ -47,13 +51,17 @@
       "config": {
         "owner": "tpd-e947e7-owner.testnet",
         "paused": false,
-        "tokens": ["wrap.testnet"]
+        "tokens": [
+          "wrap.testnet"
+        ]
       },
       "agent": {
         "accountId": "tpd-e947e7-agent.testnet",
         "perCallMax": "1000000000000000000000",
         "dailyMax": "20000000000000000000000",
-        "payees": ["tpd-e947e7-payee.testnet"],
+        "payees": [
+          "tpd-e947e7-payee.testnet"
+        ],
         "active": true
       },
       "review": {
@@ -69,7 +77,10 @@
       "hash": "2RH77VLsLHovF3m4kzR76jk71X8tYKAyugxQ9YJMXLJJ",
       "signerId": "tp-agent2.hlpok1lad.tg",
       "outcome": "success",
-      "events": ["pay_requested", "pay_settled"]
+      "events": [
+        "pay_requested",
+        "pay_settled"
+      ]
     },
     {
       "network": "mainnet",
@@ -85,7 +96,9 @@
       "hash": "CFutaZM9XMLBBcfm2jwH2JnQQJA8ReNGyTRhH1PZLzFh",
       "signerId": "hlpok1lad.tg",
       "outcome": "success",
-      "events": ["agent_revoked"]
+      "events": [
+        "agent_revoked"
+      ]
     },
     {
       "network": "mainnet",
@@ -95,5 +108,15 @@
       "outcome": "failure",
       "errorCode": "ERR_AGENT_INACTIVE"
     }
-  ]
+  ],
+  "falsara": {
+    "url": "https://falsara-near.vercel.app",
+    "network": "near:mainnet",
+    "payTo": "gateway.hlpok1lad.tg",
+    "priceAtomic": "250000",
+    "pins": {
+      "viability-gate": "0.7.0",
+      "realism-gate": "0.6.0"
+    }
+  }
 }

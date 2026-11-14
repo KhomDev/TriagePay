@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { checkFactory, checkHealth, checkKeys, checkProof, checkWallet } from "./live-check.mjs";
+import { checkFactory, checkFalsara, checkHealth, checkKeys, checkProof, checkWallet } from "./live-check.mjs";
 
 const wallet = {
   accountId: "wallet.near",
@@ -137,4 +137,14 @@ test("proof transactions keep their outcome and health must report ok", () => {
     codeHash: "factory-hash",
     config: { code_hash_hex: "other" },
   }).some((line) => line.includes("global contract hash")));
+});
+
+test("the Falsara check wants a live mainnet gateway with its pins and price", () => {
+  const spec = { network: "near:mainnet", payTo: "gateway.hlpok1lad.tg", priceAtomic: "250000", pins: { "viability-gate": "0.7.0" } };
+  const health = { status: 200, body: { ok: true, network: "near:mainnet", payTo: "gateway.hlpok1lad.tg", core: { pins: { "viability-gate": "0.7.0" } } } };
+  const pricing = { status: 200, body: { routes: [{ path: "/v1/check-finding", amountAtomic: "250000" }] } };
+  assert.deepEqual(checkFalsara(spec, health, pricing), []);
+  assert.equal(checkFalsara(spec, { status: 503, body: { ok: false } }, pricing).length, 1);
+  assert.ok(checkFalsara(spec, { ...health, body: { ...health.body, payTo: "x.near" } }, pricing).some((p) => p.includes("payTo")));
+  assert.ok(checkFalsara(spec, health, { status: 200, body: { routes: [{ path: "/v1/check-finding", amountAtomic: "1" }] } }).some((p) => p.includes("price")));
 });
