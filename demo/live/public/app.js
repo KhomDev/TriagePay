@@ -265,6 +265,22 @@
       left.hidden = !showLeft;
       if (showLeft) left.textContent = state.mainnetRemaining + " mainnet runs left today";
     }
+    // The testnet count sits under Launch; on mainnet the order shows the
+    // mainnet count instead.
+    var testnetLeft = $("attempt-left");
+    if (testnetLeft) testnetLeft.hidden = state.network === "mainnet";
+    // A verdict from the other network no longer describes what Launch does.
+    if (!state.busy) {
+      state.holdStatus = false;
+      if (state.ready) setStatus(networkStatus());
+    }
+  }
+
+  function networkStatus() {
+    if (state.network !== "mainnet") return state.testnetStatus || "";
+    if (!state.mainnetSigning) return "Mainnet signing is off. The proof links stay on the page.";
+    if (state.mainnetRemaining === 0) return "No mainnet runs left today. The proof links stay on the page.";
+    return "Live on NEAR mainnet. Each run signs a real transaction and pays its gas.";
   }
 
   function paintSpend(data) {
@@ -730,7 +746,7 @@
     var status = $("status");
     if (!state.holdStatus) {
       clear(status);
-      status.appendChild(document.createTextNode("Reading the wallet on testnet…"));
+      status.appendChild(document.createTextNode("Reading the wallet…"));
     }
     var result = await apiRead("/api/dashboard");
     if (state.holdStatus) {
@@ -754,17 +770,18 @@
       status.appendChild(document.createTextNode(data.message || "Demo wallet is not configured."));
     } else if (!state.holdStatus && !data.signing) {
       status.appendChild(document.createTextNode("I can read the chain. Signing is off, so Launch the attack stays off."));
-    } else if (!state.holdStatus) {
+    } else {
       var wait = Number(data.cooldownRemainingSeconds || 0);
-      status.appendChild(document.createTextNode(
-        "Live on NEAR testnet. " +
+      state.testnetStatus = "Live on NEAR testnet. " +
         (wait > 0 ? ("Next signature in " + wait + "s. ") : ("Cooldown " + data.cooldownSeconds + "s. ")) +
-        data.maxAttemptsPerDay + " signed attempts per UTC day."
-      ));
+        data.maxAttemptsPerDay + " signed attempts per UTC day.";
     }
     state.mainnetSigning = Boolean(data.mainnet && data.mainnet.signing);
     state.mainnetProofs = (data.mainnet && data.mainnet.proofs) || [];
     state.mainnetRemaining = data.mainnet && data.mainnet.remaining != null ? data.mainnet.remaining : null;
+    // The live line names the network the toggle shows, so it is painted
+    // after both networks' state is known.
+    if (data.configured && data.signing && !state.holdStatus) setStatus(networkStatus());
     state.maxAttempts = data.maxAttemptsPerDay || state.maxAttempts;
     noteRemaining(data.attemptsRemaining);
     raiseBoard(data.scoreboard);
