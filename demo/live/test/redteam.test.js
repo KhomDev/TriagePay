@@ -171,3 +171,32 @@ test("Falsara: an undecidable finding is reported without paying", async () => {
   assert.equal(result.charged, false);
   assert.equal(result.verdict, "INCOMPLETE");
 });
+
+test("Falsara: a payment the wallet holds for review is not reported as paid (ToB C-SE-2)", async () => {
+  const { buyFalsaraCheck } = await import("../lib/falsara.js");
+  const accepted = {
+    scheme: "exact",
+    network: "near:mainnet",
+    asset: "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+    payTo: "gateway.hlpok1lad.tg",
+    amount: "250000",
+    extra: { memo: "fal1_1794624471_f3740123456789abcdef0123_0123456789abcdef0123456789abcdef" },
+  };
+  const header = Buffer.from(JSON.stringify({ x402Version: 2, resource: { url: "https://falsara.test/v1/check-finding" }, accepts: [accepted] })).toString("base64");
+  let proofs = 0;
+  const fetchImpl = async (_url, init) => {
+    if (init.headers["payment-signature"]) proofs += 1;
+    return new Response(JSON.stringify({ error: "payment_required" }), { status: 402, headers: { "payment-required": header } });
+  };
+  const chain = {
+    viewCall: async () => ({ payees: ["gateway.hlpok1lad.tg"], budgets: [{ token: accepted.asset, per_call_max: "250000", remaining: "1500000" }] }),
+    signCall: async () => ({ txHash: "HeLd111", outcome: "success", errorCode: null, held: true, rejected: false }),
+  };
+  const result = await buyFalsaraCheck({ env: { TRIAGEPAY_MAINNET_AGENT_SECRET_KEY: "ed25519:" + "1".repeat(60), FALSARA_URL: "https://falsara.test" }, fetchImpl, chain });
+  assert.equal(result.charged, false);
+  assert.equal(result.verdict, null);
+  assert.equal(result.pay.held, true);
+  assert.equal(proofs, 0, "a held payment is never presented to Falsara as proof");
+  assert.ok(!result.steps.some((step) => /then paid/.test(step.result)));
+  assert.ok(result.steps.some((step) => /Held the payment/.test(step.result)));
+});

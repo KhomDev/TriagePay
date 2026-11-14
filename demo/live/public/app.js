@@ -1173,7 +1173,7 @@
         hit.quote || hit.rule || ""));
     });
     var links = el("p", { class: "proof-links" });
-    if (result.pay && result.pay.explorerUrl) links.appendChild(el("a", { href: result.pay.explorerUrl, rel: "noopener", target: "_blank" }, "USDC payment on NearBlocks"));
+    if (result.pay && result.pay.explorerUrl) links.appendChild(el("a", { href: result.pay.explorerUrl, rel: "noopener", target: "_blank" }, result.pay.held ? "Held payment order on NearBlocks" : "USDC payment on NearBlocks"));
     if (result.sample && result.sample.label) links.appendChild(document.createTextNode(" Finding checked: " + result.sample.label + "."));
     root.appendChild(links);
   }

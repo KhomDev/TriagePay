@@ -84,7 +84,9 @@ function usdc(atomic) {
   return `${whole}${frac ? "." + frac : ""} USDC`;
 }
 
-export async function buyFalsaraCheck({ sample = "admin-drain", env = process.env, fetchImpl = fetch, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
+export async function buyFalsaraCheck({ sample = "admin-drain", env = process.env, fetchImpl = fetch, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), chain = {} } = {}) {
+  const view = chain.viewCall || viewCall;
+  const sign = chain.signCall || signCall;
   const chosen = SAMPLES[sample];
   if (!chosen) throw new DemoError("unknown_sample", "Pick one of the sample findings.", 400);
   const secretKey = mainnetAgentKey(env);
@@ -102,7 +104,7 @@ export async function buyFalsaraCheck({ sample = "admin-drain", env = process.en
   const accepted = quote.required.accepts[0];
   steps.push({ name: "Falsara asks for payment", result: `${usdc(accepted.amount)} on NEAR mainnet to ${accepted.payTo}` });
 
-  const agent = await viewCall(MAINNET.rpcUrl, MAINNET.accounts.wallet, "get_agent", { agent_id: MAINNET.accounts.agent });
+  const agent = await view(MAINNET.rpcUrl, MAINNET.accounts.wallet, "get_agent", { agent_id: MAINNET.accounts.agent });
   const budget = agent && Array.isArray(agent.budgets) ? agent.budgets.find((row) => row.token === USDC_MAINNET) : null;
   const problem = acceptableRequirement(accepted, { payees: agent && agent.payees, perCallMax: budget && budget.per_call_max });
   if (problem) throw new DemoError("requirement_refused", `The agent did not pay: ${problem}.`, 409);
@@ -116,7 +118,7 @@ export async function buyFalsaraCheck({ sample = "admin-drain", env = process.en
     amount: String(accepted.amount),
     memo: accepted.extra.memo,
   }, 50, 0n);
-  const signed = await signCall({
+  const signed = await sign({
     rpcUrl: MAINNET.rpcUrl,
     signerId: MAINNET.accounts.agent,
     secretKey,
@@ -128,6 +130,7 @@ export async function buyFalsaraCheck({ sample = "admin-drain", env = process.en
     explorerUrl: signed.txHash ? MAINNET.explorerTxBase + signed.txHash : null,
     outcome: signed.outcome,
     errorCode: signed.errorCode || null,
+    held: Boolean(signed.held),
   };
   if (signed.rejected) {
     steps.push({ name: "NEAR", result: `The node rejected the transaction before it ran, so nothing moved.${signed.detail ? ` ${signed.detail}` : ""}` });
@@ -135,6 +138,11 @@ export async function buyFalsaraCheck({ sample = "admin-drain", env = process.en
   }
   if (signed.outcome !== "success" || signed.errorCode) {
     steps.push({ name: "The wallet", result: `Refused the payment${signed.errorCode ? ` (${signed.errorCode})` : ""}. Nothing moved.` });
+    return { steps, verdict: null, charged: false, pay: payTx };
+  }
+  if (signed.held) {
+    // pay() returned success but queued the payment for the owner: no USDC moved.
+    steps.push({ name: "The wallet", result: `Held the payment of ${usdc(accepted.amount)} for the owner's review. No USDC moved, so Falsara was not paid and no check ran.` });
     return { steps, verdict: null, charged: false, pay: payTx };
   }
   steps.push({ name: "The wallet", result: `Checked the payee and the caps, then paid ${usdc(accepted.amount)}.` });
