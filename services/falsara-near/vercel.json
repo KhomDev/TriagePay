@@ -1,0 +1,42 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 60
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/health",
+      "destination": "/api/index?path=health"
+    },
+    {
+      "source": "/pricing",
+      "destination": "/api/index?path=pricing"
+    },
+    {
+      "source": "/.well-known/x402",
+      "destination": "/api/index?path=.well-known/x402"
+    },
+    {
+      "source": "/v1/:rest*",
+      "destination": "/api/index?path=v1/:rest*"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "x-content-type-options",
+          "value": "nosniff"
+        },
+        {
+          "key": "referrer-policy",
+          "value": "no-referrer"
+        }
+      ]
+    }
+  ]
+}

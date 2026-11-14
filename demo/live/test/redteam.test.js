@@ -144,3 +144,30 @@ test("the ticker says why, in words, and escapes chain text", async () => {
   assert.match(html, /Refused by the contract/);
   assert.match(tapeHtml([{ hash: "C".repeat(44), network: "mainnet", paid: true }]), /Allowlisted payee, inside the caps/);
 });
+
+test("Falsara: the agent checks the requirement before it pays", async () => {
+  const { acceptableRequirement, USDC_MAINNET } = await import("../lib/falsara.js");
+  const good = {
+    scheme: "exact",
+    network: "near:mainnet",
+    asset: USDC_MAINNET,
+    payTo: "gateway.hlpok1lad.tg",
+    amount: "250000",
+    extra: { memo: "fal1_1794624471_f3740123456789abcdef0123_0123456789abcdef0123456789abcdef" },
+  };
+  const wallet = { payees: ["gateway.hlpok1lad.tg"], perCallMax: "250000" };
+  assert.equal(acceptableRequirement(good, wallet), null);
+  assert.match(acceptableRequirement({ ...good, network: "near:testnet" }, wallet), /mainnet/);
+  assert.match(acceptableRequirement({ ...good, asset: "wrap.near" }, wallet), /USDC/);
+  assert.match(acceptableRequirement({ ...good, payTo: "attacker.near" }, wallet), /allowlist/);
+  assert.match(acceptableRequirement({ ...good, amount: "250001" }, wallet), /per-call cap/);
+  assert.match(acceptableRequirement({ ...good, extra: {} }, wallet), /memo/);
+});
+
+test("Falsara: an undecidable finding is reported without paying", async () => {
+  const { buyFalsaraCheck } = await import("../lib/falsara.js");
+  const fetchImpl = async () => new Response(JSON.stringify({ error: "INCOMPLETE_NOT_CHARGED", missing_evidence: ["G1"] }), { status: 422 });
+  const result = await buyFalsaraCheck({ env: { TRIAGEPAY_MAINNET_AGENT_SECRET_KEY: "ed25519:" + "1".repeat(60), FALSARA_URL: "https://falsara.test" }, fetchImpl });
+  assert.equal(result.charged, false);
+  assert.equal(result.verdict, "INCOMPLETE");
+});

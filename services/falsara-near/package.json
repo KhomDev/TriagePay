@@ -1,0 +1,12 @@
+{
+  "name": "falsara-near",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Falsara on NEAR: an x402 gateway that takes USDC on NEAR mainnet for Falsara's finding check and verifies each payment from the token's own event",
+  "license": "MIT",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

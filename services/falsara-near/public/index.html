@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0e1622">
+<meta name="description" content="Falsara checks a security finding against pinned public gates before you submit it. On NEAR, an agent pays 0.25 USDC per check over x402, and only decisions are charged.">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Falsara — check a finding before you submit it</title>
+<link rel="icon" href="/mark.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/site.css">
+<script src="/status.js" defer></script>
+</head>
+<body>
+<header class="nav">
+  <a class="brand" href="/"><img src="/mark.svg" width="24" height="24" alt=""><span>Falsara</span></a>
+  <p class="tag">Pre-submission checks for security findings</p>
+  <p id="status" class="status" aria-live="polite">Checking the service</p>
+</header>
+
+<main>
+  <section class="hero" aria-labelledby="h-hero">
+    <h1 id="h-hero">Check a finding before you submit it.</h1>
+    <p class="lead">Falsara runs one candidate security finding through pinned public gates and tells you whether they refuse it, and why. Bug-hunting agents use it to drop the findings a bounty program would reject, before a person reads them.</p>
+    <div class="price">
+      <p class="price-figure">0.25 USDC</p>
+      <p class="price-copy">per check, paid on NEAR mainnet over x402. A finding the gates cannot decide is not charged.</p>
+    </div>
+    <p class="links"><a class="button" href="https://triagepay-demo.vercel.app/#top">Watch an agent pay for a check</a> <a href="#api">Call the API</a></p>
+  </section>
+
+  <section aria-labelledby="h-verdict">
+    <h2 id="h-verdict">What you get back</h2>
+    <dl class="verdicts">
+      <div><dt class="is-refuse">REFUSE</dt><dd>A pinned gate refused the text. Every hit is quoted from that gate, with the rejection category it belongs to.</dd></div>
+      <div><dt class="is-pass">NO_REFUSAL</dt><dd>The gates did not refuse it, and every evidence gate was given an input. This is not an acceptance and not a promise that a program will pay.</dd></div>
+      <div><dt class="is-incomplete">INCOMPLETE</dt><dd>The gates cannot decide yet. The answer lists the missing evidence. On NEAR you are told this before any payment is asked, so it is never charged.</dd></div>
+    </dl>
+    <p class="hint">The gates are <a href="https://github.com/KhomDev/viability-gate">viability-gate</a> and, for a Foundry proof, <a href="https://github.com/KhomDev/realism-gate">realism-gate</a>, pinned to exact commits. Detection stays inside those public tools.</p>
+  </section>
+
+  <section aria-labelledby="h-pay">
+    <h2 id="h-pay">How payment works on NEAR</h2>
+    <ol class="steps">
+      <li><strong>Ask.</strong> <code>POST /v1/check-finding</code> with the finding. If the gates can decide it, the answer is <code>402</code> with a <code>PAYMENT-REQUIRED</code> header: USDC on <code>near:mainnet</code>, the payee, the amount and a memo.</li>
+      <li><strong>Pay.</strong> Send that USDC with the memo, from any NEAR account or from a <a href="https://triagepay-demo.vercel.app/">TriagePay policy wallet</a>, where the contract checks the payee and the agent's caps first.</li>
+      <li><strong>Retry.</strong> Send the same request with <code>PAYMENT-SIGNATURE</code> naming the transaction. Falsara reads the finalized receipt and accepts it only when the USDC contract's own transfer event pays the payee with that memo and that amount, in time.</li>
+    </ol>
+    <p class="hint">The memo is bound to the exact finding. The same proof returns the same verdict again; it cannot buy a check of a different finding.</p>
+  </section>
+
+  <section id="api" aria-labelledby="h-api">
+    <h2 id="h-api">Call the API</h2>
+    <pre><code>curl -i https://api.falsara.online/v1/check-finding \
+  -H 'content-type: application/json' \
+  -d '{"schema_version":"1.0.0","title":"Share price inflation",
+       "severity":"high","protocol":"ExampleVault","contract":"src/Vault.sol",
+       "impact":"An unprivileged attacker donates to an empty vault and takes 4 tokens from the next depositor.",
+       "preconditions":"The vault has no shares yet. The caller is not an admin."}'</code></pre>
+    <table>
+      <thead><tr><th>Route</th><th>What it does</th><th>Price</th></tr></thead>
+      <tbody>
+        <tr><td><code>POST /v1/check-finding</code></td><td>Check one finding</td><td>0.25 USDC</td></tr>
+        <tr><td><code>POST /v1/check-finding-poc</code></td><td>Check a finding with its Foundry proof</td><td>0.75 USDC</td></tr>
+        <tr><td><code>POST /v1/preflight</code></td><td>Say whether a check would decide, without the verdict</td><td>Free</td></tr>
+        <tr><td><code>GET /pricing</code>, <code>/.well-known/x402</code>, <code>/health</code></td><td>Terms and status</td><td>Free</td></tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+
+<footer class="site">
+  <p>Falsara is operated by khomdev. It ran first on Base. Its NEAR integration, the x402 gateway that takes USDC on NEAR and verifies each payment from the token's own event, was built at NEAR HACKATHON as part of <a href="https://github.com/KhomDev/TriagePay">TriagePay</a> (<code>services/falsara-near</code>). @NEARProtocol #NEARHackathon</p>
+</footer>
+</body>
+</html>

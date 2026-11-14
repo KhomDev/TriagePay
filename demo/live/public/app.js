@@ -577,6 +577,10 @@
     if ($("btn-attest")) $("btn-attest").disabled = busy;
     if ($("btn-queue")) $("btn-queue").disabled = !state.queueScenario || busy;
     if ($("btn-hero-queue")) $("btn-hero-queue").disabled = !state.queueScenario || busy || !ready;
+    if ($("btn-falsara")) {
+      var f = state.falsara || {};
+      $("btn-falsara").disabled = busy || !f.live || !f.signing || f.checksLeft === 0;
+    }
   }
 
   function showLiveVerdict(word, payload) {
@@ -1122,6 +1126,81 @@
     paintResult($("review-result"), "Walkthrough only. No transaction was sent. Queue a payment above the threshold, then Approve it. That hold is the owner-review path.", false);
   }
 
+  // Falsara on mainnet: the agent buys one real check through its wallet.
+  state.falsara = { live: false, signing: false, checksLeft: null };
+
+  function paintFalsaraStatus(data) {
+    var node = $("falsara-status");
+    if (!node || !data) return;
+    state.falsara = {
+      live: Boolean(data.live),
+      signing: Boolean(data.signing),
+      checksLeft: data.budget ? data.budget.checksLeft : null
+    };
+    clear(node);
+    if (!data.live) {
+      node.appendChild(document.createTextNode("Falsara is not answering right now. The recorded checks are in the proof links."));
+    } else if (!data.budget) {
+      node.appendChild(document.createTextNode("Falsara is live. The wallet's USDC budget could not be read."));
+    } else {
+      node.appendChild(el("span", { class: "falsara-live" }, "Falsara is live on mainnet."));
+      node.appendChild(document.createTextNode(" Wallet budget today: " + data.budget.remaining + " of " + data.budget.daily +
+        ", " + data.budget.perCall + " per check (" + data.budget.checksLeft + " left)."));
+    }
+    syncControls();
+  }
+
+  function paintFalsaraResult(result, failed) {
+    var root = clear($("falsara-result"));
+    if (!root) return;
+    if (failed) {
+      root.appendChild(el("p", { class: "notice bad", role: "alert" }, result));
+      return;
+    }
+    var verdict = result.verdict;
+    if (verdict) {
+      var kind = verdict === "REFUSE" ? "bad" : verdict === "NO_REFUSAL" ? "ok" : "warn";
+      root.appendChild(el("p", { class: "verdict-word " + kind }, verdict === "REFUSE" ? "Refused by Falsara." : verdict === "NO_REFUSAL" ? "No refusal." : "Incomplete."));
+    }
+    var list = el("ol", { class: "falsara-steps" });
+    (result.steps || []).forEach(function (step) {
+      list.appendChild(el("li", null, el("span", { class: "falsara-step-name" }, step.name), " " + step.result));
+    });
+    root.appendChild(list);
+    (result.hits || []).forEach(function (hit) {
+      root.appendChild(el("blockquote", { class: "falsara-hit" },
+        hit.category ? el("span", { class: "falsara-hit-cat" }, hit.category) : null,
+        hit.quote || hit.rule || ""));
+    });
+    var links = el("p", { class: "proof-links" });
+    if (result.pay && result.pay.explorerUrl) links.appendChild(el("a", { href: result.pay.explorerUrl, rel: "noopener", target: "_blank" }, "USDC payment on NearBlocks"));
+    if (result.sample && result.sample.label) links.appendChild(document.createTextNode(" Finding checked: " + result.sample.label + "."));
+    root.appendChild(links);
+  }
+
+  async function refreshFalsara() {
+    var result = await api("/api/falsara");
+    if (result.ok && result.json) paintFalsaraStatus(result.json);
+  }
+
+  async function onFalsara() {
+    if (state.busy) return;
+    state.busy = true;
+    syncControls();
+    var button = $("btn-falsara");
+    if (button) button.classList.add("is-busy");
+    paintFalsaraResult({ steps: [{ name: "Agent", result: "Asking Falsara, paying through the wallet, waiting for the final receipt. This takes about fifteen seconds." }] }, false);
+    try {
+      var result = await api("/api/falsara", { sample: "admin-drain" });
+      if (!result.ok) paintFalsaraResult(errorText(result), true);
+      else paintFalsaraResult(result.json, false);
+    } finally {
+      if (button) button.classList.remove("is-busy");
+      state.busy = false;
+      await refreshFalsara();
+    }
+  }
+
   async function onAttest() {
     if (state.busy) return;
     state.busy = true;
@@ -1226,12 +1305,15 @@
   var policyApply = $("btn-policy-apply");
   if (policyApply) policyApply.addEventListener("click", function () { onPolicy(null, "apply"); });
   $("btn-kill").addEventListener("click", onKill);
+  var falsaraButton = $("btn-falsara");
+  if (falsaraButton) falsaraButton.addEventListener("click", onFalsara);
 
   seedFromDom();
   loadFloor();
   paintAttemptLeft();
   loadLiveBoard();
   refresh().then(function () { return refreshDrain(); });
+  refreshFalsara();
   setInterval(function () {
     if (state.busy || document.visibilityState === "hidden") return;
     refresh();

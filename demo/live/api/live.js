@@ -15,8 +15,9 @@ import { GET as passport, og as passportOg } from "../routes/passport.js";
 import { GET as siteOg } from "../routes/site-og.js";
 import { passportPage, replayPage } from "../routes/pages.js";
 import { GET as home, boardGet } from "../routes/home.js";
+import { GET as falsaraGet, POST as falsaraPost } from "../routes/falsara.js";
 
-const NAMES = new Set(["agent", "drain", "kill", "og", "share", "replay", "honeypot", "policy", "passport", "passport-og", "site-og", "replay-page", "passport-page", "home", "board"]);
+const NAMES = new Set(["agent", "drain", "kill", "og", "share", "replay", "honeypot", "policy", "passport", "passport-og", "site-og", "replay-page", "passport-page", "home", "board", "falsara"]);
 
 const GETS = {
   drain: drainGet,
@@ -32,6 +33,7 @@ const GETS = {
   "passport-page": passportPage,
   home,
   board: boardGet,
+  falsara: falsaraGet,
 };
 
 const POSTS = {
@@ -39,6 +41,7 @@ const POSTS = {
   drain: drainPost,
   kill: killPost,
   policy,
+  falsara: falsaraPost,
 };
 
 export function routeOf(request) {

@@ -8,39 +8,103 @@
     }
   },
   "rewrites": [
-    { "source": "/", "destination": "/api/live?route=home" },
-    { "source": "/api/board", "destination": "/api/live?route=board" },
-    { "source": "/api/agent", "destination": "/api/live?route=agent" },
-    { "source": "/api/drain", "destination": "/api/live?route=drain" },
-    { "source": "/api/kill", "destination": "/api/live?route=kill" },
-    { "source": "/api/og", "destination": "/api/live?route=og" },
-    { "source": "/api/share", "destination": "/api/live?route=share" },
-    { "source": "/api/replay", "destination": "/api/live?route=replay" },
-    { "source": "/api/honeypot", "destination": "/api/live?route=honeypot" },
-    { "source": "/api/policy", "destination": "/api/live?route=policy" },
-    { "source": "/api/passport/:account", "destination": "/api/live?route=passport&account=:account" },
-    { "source": "/api/passport", "destination": "/api/live?route=passport" },
-    { "source": "/api/passport-og", "destination": "/api/live?route=passport-og" },
-    { "source": "/api/site-og", "destination": "/api/live?route=site-og" },
-    { "source": "/replay/:tx", "destination": "/api/live?route=replay-page&tx=:tx" },
-    { "source": "/agent/:account", "destination": "/api/live?route=passport-page&account=:account" }
+    {
+      "source": "/",
+      "destination": "/api/live?route=home"
+    },
+    {
+      "source": "/api/falsara",
+      "destination": "/api/live?route=falsara"
+    },
+    {
+      "source": "/api/board",
+      "destination": "/api/live?route=board"
+    },
+    {
+      "source": "/api/agent",
+      "destination": "/api/live?route=agent"
+    },
+    {
+      "source": "/api/drain",
+      "destination": "/api/live?route=drain"
+    },
+    {
+      "source": "/api/kill",
+      "destination": "/api/live?route=kill"
+    },
+    {
+      "source": "/api/og",
+      "destination": "/api/live?route=og"
+    },
+    {
+      "source": "/api/share",
+      "destination": "/api/live?route=share"
+    },
+    {
+      "source": "/api/replay",
+      "destination": "/api/live?route=replay"
+    },
+    {
+      "source": "/api/honeypot",
+      "destination": "/api/live?route=honeypot"
+    },
+    {
+      "source": "/api/policy",
+      "destination": "/api/live?route=policy"
+    },
+    {
+      "source": "/api/passport/:account",
+      "destination": "/api/live?route=passport&account=:account"
+    },
+    {
+      "source": "/api/passport",
+      "destination": "/api/live?route=passport"
+    },
+    {
+      "source": "/api/passport-og",
+      "destination": "/api/live?route=passport-og"
+    },
+    {
+      "source": "/api/site-og",
+      "destination": "/api/live?route=site-og"
+    },
+    {
+      "source": "/replay/:tx",
+      "destination": "/api/live?route=replay-page&tx=:tx"
+    },
+    {
+      "source": "/agent/:account",
+      "destination": "/api/live?route=passport-page&account=:account"
+    }
   ],
   "headers": [
     {
       "source": "/scoreboard.json",
       "headers": [
-        { "key": "cache-control", "value": "public, max-age=60" }
+        {
+          "key": "cache-control",
+          "value": "public, max-age=60"
+        }
       ]
     },
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "x-vercel-enable-toolbar", "value": "false" },
-        { "key": "x-vercel-skip-toolbar", "value": "1" }
+        {
+          "key": "x-vercel-enable-toolbar",
+          "value": "false"
+        },
+        {
+          "key": "x-vercel-skip-toolbar",
+          "value": "1"
+        }
       ]
     }
   ],
   "crons": [
-    { "path": "/api/cron", "schedule": "17 4 * * *" }
+    {
+      "path": "/api/cron",
+      "schedule": "17 4 * * *"
+    }
   ]
 }

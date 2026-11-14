@@ -1,0 +1,63 @@
+/* Falsara on NEAR. System fonts; colour only for the three verdicts. */
+:root {
+  --midnight: #0e1622;
+  --slate: #152031;
+  --rule: #26344a;
+  --rule-strong: #33445e;
+  --paper: #e8edf3;
+  --fog: #95a3b7;
+  --link: #a8beff;
+  --pass: #74d4ae;
+  --refuse: #f2907f;
+  --incomplete: #e6c46e;
+  --sans: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  --mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--midnight); color: var(--paper); font: 16px/1.6 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: var(--link); text-underline-offset: 3px; }
+a:hover { color: var(--paper); }
+a:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; border-radius: 4px; }
+code, pre { font-family: var(--mono); font-size: 0.9em; }
+.nav, main, .site { width: min(920px, calc(100% - 32px)); margin: 0 auto; }
+.nav { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 22px 0; border-bottom: 1px solid var(--rule); }
+.brand { display: flex; align-items: center; gap: 10px; color: var(--paper); text-decoration: none; font-weight: 650; letter-spacing: -0.01em; font-size: 1.05rem; }
+.tag { margin: 0; color: var(--fog); font-size: 0.92rem; }
+.status { margin: 0 0 0 auto; font-size: 0.88rem; color: var(--fog); }
+.status.is-up::before, .status.is-down::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; }
+.status.is-up::before { background: var(--pass); }
+.status.is-down::before { background: var(--refuse); }
+main { padding-bottom: 48px; }
+section { padding: 40px 0 8px; }
+.hero { padding-top: 64px; }
+h1 { margin: 0; max-width: 16ch; font-size: clamp(2.3rem, 5vw, 3.6rem); line-height: 1.02; letter-spacing: -0.035em; font-weight: 650; }
+h2 { margin: 0 0 14px; font-size: 1.4rem; letter-spacing: -0.02em; font-weight: 620; }
+.lead { max-width: 62ch; color: var(--fog); font-size: 1.08rem; margin: 18px 0; }
+.hint { color: var(--fog); font-size: 0.94rem; max-width: 68ch; }
+.price { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin: 26px 0 10px; padding: 18px 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+.price-figure { margin: 0; font-size: 2rem; font-weight: 650; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.price-copy { margin: 0; color: var(--fog); max-width: 46ch; }
+.links { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; margin: 22px 0 0; }
+.button { display: inline-flex; align-items: center; min-height: 46px; padding: 0 20px; border-radius: 10px; background: var(--paper); color: var(--midnight); text-decoration: none; font-weight: 600; }
+.button:hover { background: #fff; color: var(--midnight); }
+.verdicts { margin: 0; border-top: 1px solid var(--rule); }
+.verdicts div { display: grid; grid-template-columns: 9rem 1fr; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--rule); }
+.verdicts dt { font-family: var(--mono); font-weight: 600; font-size: 0.92rem; }
+.verdicts dd { margin: 0; color: var(--paper); }
+.is-refuse { color: var(--refuse); }
+.is-pass { color: var(--pass); }
+.is-incomplete { color: var(--incomplete); }
+.steps { margin: 0; padding-left: 1.3rem; display: grid; gap: 12px; max-width: 72ch; }
+pre { overflow-x: auto; padding: 16px 18px; background: var(--slate); border: 1px solid var(--rule); border-radius: 12px; line-height: 1.5; }
+table { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 0.94rem; }
+th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { color: var(--fog); font-weight: 560; }
+.site { padding: 24px 0 48px; border-top: 1px solid var(--rule); color: var(--fog); font-size: 0.9rem; }
+@media (max-width: 640px) {
+  .status { margin-left: 0; }
+  .verdicts div { grid-template-columns: 1fr; gap: 4px; }
+  table, thead, tbody, tr, th, td { display: block; }
+  thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  tr { padding: 10px 0; border-bottom: 1px solid var(--rule); }
+  td { border: 0; padding: 2px 0; }
+}

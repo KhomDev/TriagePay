@@ -69,13 +69,16 @@
             <p class="proof-links"><a href="https://testnet.nearblocks.io/txns/8nvs4X4jWrzEzsbUj2ziS5qEdTTi6wvRwfUTBxftdcJi" rel="noopener" target="_blank">Testnet hold</a> <a href="https://testnet.nearblocks.io/txns/CwEo7ec8uk25XQbKHNmS3naUhqM9FPbRJzEAjVf223Hp" rel="noopener" target="_blank">Then approve</a></p>
           </li>
           <li class="judge-step">
-            <p class="judge-title">Mainnet: a factory-created wallet, a paid call and a refusal</p>
-            <p class="judge-copy">The same contract on NEAR mainnet, with real USDC.</p>
-            <a class="usdc-card" href="https://nearblocks.io/txns/CwLaJmaX8K2jYaTBvM1kyYfMumiUwFTfx49Pra5uPEgG" rel="noopener" target="_blank">
-              <span class="usdc-title">Paid on mainnet in USDC</span>
-              <span class="usdc-copy">An agent paid 0.001 USDC for one API call over x402. The server accepted it only after reading the USDC contract's own transfer event.</span>
-            </a>
-            <p class="proof-links"><a href="https://nearblocks.io/txns/EYnoWhUdJsxMLQN5aj1GBuwMeRGuGMPMjMBfhNARwioP" rel="noopener" target="_blank">Created</a> <a href="https://nearblocks.io/txns/9YCqzVgVNvaED7twQgtJvhUeCHMrnDiDAwKdbRHxnQWp" rel="noopener" target="_blank">Paid</a> <a href="https://nearblocks.io/txns/FfmGZyE4j8LK3uPzQCAcXbLwuzTgPNy76LasjoHVamHH" rel="noopener" target="_blank">Refused</a> <a href="https://github.com/KhomDev/TriagePay/blob/main/docs/demo/mainnet-x402/2026-11-14/README.md" rel="noopener" target="_blank">x402 evidence</a></p>
+            <p class="judge-title">Mainnet: the agent buys a real Falsara check in USDC</p>
+            <p class="judge-copy"><a href="https://falsara-near.vercel.app/" rel="noopener" target="_blank">Falsara</a> checks a security finding before it is submitted. The agent asks it, gets a 402, pays 0.25 USDC through its policy wallet, and gets the verdict. The wallet's daily cap limits what this button can spend.</p>
+            <div class="falsara" id="falsara">
+              <p id="falsara-status" class="falsara-status">Reading Falsara and the wallet</p>
+              <div class="cta-row">
+                <button id="btn-falsara" type="button" disabled>Ask Falsara on mainnet</button>
+              </div>
+              <div id="falsara-result" aria-live="polite"></div>
+            </div>
+            <p class="proof-links"><a href="https://nearblocks.io/txns/EYnoWhUdJsxMLQN5aj1GBuwMeRGuGMPMjMBfhNARwioP" rel="noopener" target="_blank">Created</a> <a href="https://nearblocks.io/txns/9YCqzVgVNvaED7twQgtJvhUeCHMrnDiDAwKdbRHxnQWp" rel="noopener" target="_blank">Paid</a> <a href="https://nearblocks.io/txns/FfmGZyE4j8LK3uPzQCAcXbLwuzTgPNy76LasjoHVamHH" rel="noopener" target="_blank">Refused</a> <a href="https://nearblocks.io/txns/CwLaJmaX8K2jYaTBvM1kyYfMumiUwFTfx49Pra5uPEgG" rel="noopener" target="_blank">First x402 USDC payment</a> <a href="https://github.com/KhomDev/TriagePay/blob/main/docs/demo/falsara-near/README.md" rel="noopener" target="_blank">Falsara evidence</a></p>
           </li>
         </ol>
       </section>

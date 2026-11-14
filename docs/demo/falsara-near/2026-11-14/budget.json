@@ -1,0 +1,75 @@
+{
+  "owner": "hlpok1lad.tg",
+  "wallet": "e2e044e80.triagepay.hlpok1lad.tg",
+  "agent": "tp-e2e-agent.hlpok1lad.tg",
+  "fundAtomic": "1500000",
+  "perCallAtomic": "250000",
+  "dailyAtomic": "1500000",
+  "before": {
+    "ownerUsdc": "2113629",
+    "walletUsdc": "0",
+    "agent": {
+      "per_call_max": "0",
+      "daily_max": "0",
+      "payees": [
+        "gateway.hlpok1lad.tg"
+      ],
+      "active": true,
+      "spent_in_window": "0",
+      "remaining": "0",
+      "window_index": "0",
+      "resets_at_ns": "1794700800000000000",
+      "budgets": [
+        {
+          "token": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+          "per_call_max": "1000",
+          "daily_max": "2000",
+          "spent_in_window": "1000",
+          "remaining": "1000",
+          "window_index": "20771"
+        }
+      ],
+      "open_holds": 0,
+      "holds_today": 0
+    }
+  },
+  "at": "2026-11-14T02:20:29.813Z",
+  "fund": {
+    "tx": "DovzA8JbY9DaPtjSVEJnag6CB512Mwvns2miwP24RQXP",
+    "ok": true,
+    "error": null
+  },
+  "limits": {
+    "tx": "CJoUnumdCYJcjit9gTEdp8jrdMLsDRMsDFWv8mR8pPK2",
+    "ok": true,
+    "error": null
+  },
+  "after": {
+    "ownerUsdc": "613629",
+    "walletUsdc": "1500000",
+    "agent": {
+      "per_call_max": "0",
+      "daily_max": "0",
+      "payees": [
+        "gateway.hlpok1lad.tg"
+      ],
+      "active": true,
+      "spent_in_window": "0",
+      "remaining": "0",
+      "window_index": "0",
+      "resets_at_ns": "1794700800000000000",
+      "budgets": [
+        {
+          "token": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+          "per_call_max": "250000",
+          "daily_max": "1500000",
+          "spent_in_window": "1000",
+          "remaining": "1499000",
+          "window_index": "20771"
+        }
+      ],
+      "open_holds": 0,
+      "holds_today": 0
+    }
+  }
+}

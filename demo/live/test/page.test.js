@@ -97,7 +97,9 @@ test("app.min.js is built from the current app.js", async () => {
 test("the redesigned page keeps the judge path and drops the stale chrome", () => {
   assert.match(html, /id="btn-hero-queue"/);
   assert.match(html, /id="num-drained"/);
-  assert.match(html, /Paid on mainnet in USDC/);
+  assert.match(html, /Ask Falsara on mainnet/);
+  assert.match(html, /id="btn-falsara"/);
+  assert.match(script, /\/api\/falsara/);
   assert.match(html, /CwLaJmaX8K2jYaTBvM1kyYfMumiUwFTfx49Pra5uPEgG/);
   assert.match(html, /Agent key can call <span class="mono">pay<\/span> only/);
   assert.match(html, /docs\/security\/redteam-2026-11-13\.md/);

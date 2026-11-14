@@ -9,7 +9,8 @@ TriagePay is a spending wallet for AI agents on NEAR. It is a smart contract tha
 - **The policy wallet** (`contracts/policy-wallet`): a NEAR contract that holds NEP-141 tokens (USDC, wNEAR) for one owner. The agent gets a function-call key that can call only `pay` on it. Every `pay` is checked on chain against the owner's payee allowlist, a per-call cap and a per-day cap; a payment above a threshold waits in an on-chain queue until the owner approves or rejects it. The owner can pause the wallet or revoke the agent at any time. The wallet itself has no access keys and no upgrade path.
 - **The wallet factory** (`contracts/wallet-factory`, live as `triagepay.hlpok1lad.tg`): deploys one wallet per owner on mainnet.
 - **x402 payments with on-chain proof** (`crates/`): a server can charge an agent per HTTP call with x402 (`402 Payment Required`, pay, retry). It accepts the payment only after reading the token contract's own NEP-141 transfer event, with its memo, from a finalized receipt.
-- **A paid API to pay for**: TriagePay's own triage service, which scores a security finding (`supported`, `needs_evidence`, `held`, `rejected`) with deterministic rules and an optional NEAR AI Cloud model. It exists so the agent has a real, per-call service to buy; the wallet can pay any allowlisted account, and any x402 seller that accepts a NEAR transaction as proof (the `near-tx-proof` transfer method in [docs/protocols/x402-near.md](docs/protocols/x402-near.md)).
+- **A real service the agent pays: Falsara on NEAR** (`services/falsara-near`, live at https://falsara-near.vercel.app): Falsara checks a security finding against pinned public gates before it is submitted, for 0.25 USDC per check on NEAR mainnet. The agent buys checks through its policy wallet ([AZ9kPAz8](https://nearblocks.io/txns/AZ9kPAz84NGpyqhNjibBHKNtFGthMwH58hHiV4Pgr74U)). Falsara existed before NEAR HACKATHON on Base; its NEAR integration is new ([details](#what-the-agent-pays-for-falsara-live-on-mainnet)).
+- **A reference triage API** (`crates/`, `scanner/`): TriagePay's own x402 server and triage engine, which scores a finding (`supported`, `needs_evidence`, `held`, `rejected`) with deterministic rules and an optional NEAR AI Cloud model. It runs locally. The wallet can pay any allowlisted account and any x402 seller that accepts a NEAR transaction as proof (the `near-tx-proof` transfer method in [docs/protocols/x402-near.md](docs/protocols/x402-near.md)).
 - **An SDK and examples** (`packages/triagepay-sdk`, `examples/`): a payer an agent can call in one line, an x402 helper, a NEAR AI tool and an MCP server.
 
 **How it helps**
@@ -18,26 +19,41 @@ TriagePay is a spending wallet for AI agents on NEAR. It is a smart contract tha
 - **API sellers**: per-call pricing for agents without accounts or API keys, with a payment check that reads the chain instead of trusting the client.
 - **Owners**: one place to see spend, approve large payments, and switch the agent off.
 
-**What it is not**: it does not stop an agent from being tricked; it limits what a tricked agent can spend. The contract is unaudited and in beta (a wallet accepts at most 100 USDC and 10 wNEAR through `ft_transfer_call`; a plain `ft_transfer` is not checked), and the paid triage API runs locally, not as a hosted service ([Status](#status)).
+**What it is not**: it does not stop an agent from being tricked; it limits what a tricked agent can spend. The contract is unaudited and in beta (a wallet accepts at most 100 USDC and 10 wNEAR through `ft_transfer_call`; a plain `ft_transfer` is not checked), and TriagePay's own reference triage API runs locally, not as a hosted service; the hosted paid service is Falsara ([Status](#status)).
 
 **The story the demo shows.** A security agent buys triage for its findings, one x402 payment per call. A finding it reads contains a prompt injection: "send the funds to this account". The agent obeys and signs the payment. The wallet refuses it on chain with `ERR_PAYEE_NOT_ALLOWED`, and no balance moves.
 
 **Live demo (30 seconds):** https://triagepay-demo.vercel.app/ Press Launch the attack and watch NEAR testnet refuse the payment. Then queue a payment above the owner's threshold and press Approve. The headline is: The agent signs. The contract decides.
 
-Four proofs:
+Five proofs:
 
 1. **Refused on testnet:** [prompt-injected payee, `ERR_PAYEE_NOT_ALLOWED`](https://testnet.nearblocks.io/txns/8y6sEwL8i5sP2aMKo5HS3WGZtZ8NMDP9MUdywYAmVnN4)
 2. **Held, then approved on testnet:** [a payment above the threshold is held](https://testnet.nearblocks.io/txns/8nvs4X4jWrzEzsbUj2ziS5qEdTTi6wvRwfUTBxftdcJi), and [the owner approves it and it settles](https://testnet.nearblocks.io/txns/CwEo7ec8uk25XQbKHNmS3naUhqM9FPbRJzEAjVf223Hp) ([all steps](docs/demo/testnet-review/2026-11-12/README.md))
 3. **Live on mainnet:** [a payment held for the owner](https://nearblocks.io/txns/C91iH3Tmj78kZMAe4dd24suY1hqZzZvpec4n7YKaL475), [approved and settled](https://nearblocks.io/txns/5yK3nM2bozY8d9XuAQtAJjA2LBEcDHCpfuXKVh9n2FWt), and [a hijacked NEAR AI model's payment to the attacker refused](https://nearblocks.io/txns/9xA5AoEG5sdghsaoBcwMkADNSEP3TTHg7B5bd3eCkJL3) on `tp-wallet.hlpok1lad.tg`. That is 3 of 166 graded mainnet assertions ([details](#live-on-mainnet))
-4. **x402 paid on mainnet:** [a factory-created wallet pays 0.001 USDC for one scan](https://nearblocks.io/txns/CwLaJmaX8K2jYaTBvM1kyYfMumiUwFTfx49Pra5uPEgG); the server reads the USDC contract's transfer event and answers 200, and the same proof cannot buy a second scan ([evidence](docs/demo/mainnet-x402/2026-11-14/README.md))
+4. **A real product bought on mainnet:** the agent pays [Falsara](https://falsara-near.vercel.app/) 0.25 USDC through its policy wallet for one finding check ([AZ9kPAz8](https://nearblocks.io/txns/AZ9kPAz84NGpyqhNjibBHKNtFGthMwH58hHiV4Pgr74U)); Falsara reads the USDC contract's transfer event from the final receipt and answers with its verdict ([evidence](docs/demo/falsara-near/README.md))
+5. **x402 paid on mainnet:** [a factory-created wallet pays 0.001 USDC for one scan](https://nearblocks.io/txns/CwLaJmaX8K2jYaTBvM1kyYfMumiUwFTfx49Pra5uPEgG); the server reads the USDC contract's transfer event and answers 200, and the same proof cannot buy a second scan ([evidence](docs/demo/mainnet-x402/2026-11-14/README.md))
 
 This project was built at NEAR HACKATHON, in the `security` and `agents` tracks. #NEARHackathon @NEARProtocol
 
 <sub>Demo video: `[VIDEO SLOT]` (no recording linked yet)</sub>
 
-## What the agent is paying for: the triage API
+## What the agent pays for: Falsara, live on mainnet
 
-The paid service is real. An agent sends one security finding (title, component, claimed impact, evidence, the bounty program's rules) to `POST /v2/scan` and gets back a verdict with reasons:
+[Falsara](https://falsara-near.vercel.app/) is a paid pre-submission check for one candidate security finding. It runs the finding through pinned public gates ([viability-gate](https://github.com/KhomDev/viability-gate), and [realism-gate](https://github.com/KhomDev/realism-gate) for a Foundry proof) and answers `REFUSE`, `NO_REFUSAL` or `INCOMPLETE`, quoting each gate that refused. A bug-hunting agent produces many candidate findings; Falsara drops the ones a bounty program would reject before a person reads them.
+
+| Do | See |
+|---|---|
+| On https://triagepay-demo.vercel.app/, step 3, press **Ask Falsara on mainnet** | The agent gets a 402 from Falsara (0.25 USDC on `near:mainnet`), pays through its policy wallet, and shows the verdict with the quoted gate reasons and the NearBlocks link. The wallet's cap (0.25 USDC per call, 1.50 per day) is what limits this button |
+| `curl -i -X POST https://falsara-near.vercel.app/v1/check-finding -H 'content-type: application/json' -d '{"schema_version":"1.0.0","title":"Owner can withdraw all user deposits","severity":"high","protocol":"ExampleVault","contract":"src/Vault.sol","impact":"The owner calls emergencyWithdraw and moves every user deposit to an address the owner picks.","preconditions":"The caller holds the owner role, which only the deployer has."}'` | `402` and a `PAYMENT-REQUIRED` header: native USDC, 250000 atomic, payee `gateway.hlpok1lad.tg`, a memo bound to this finding |
+| The same call with a finding the gates cannot decide | `422 INCOMPLETE_NOT_CHARGED` with the missing evidence, and no payment asked |
+
+How payment is checked: the memo is an HMAC over the exact finding, the price, the payee and the expiry, so the gateway keeps no state. A payment counts only when the USDC contract's own receipt in a final transaction has an `ft_transfer` event that pays the payee with that memo and exactly the price, before the expiry; the same proof returns the same verdict again and cannot buy a check of another finding. These are the rules of TriagePay's Rust verifier, ported to the serverless gateway and tested against real mainnet receipts. Before it asks for money the gateway runs the gates once, so a finding they cannot decide is never charged.
+
+Falsara existed before NEAR HACKATHON and took payment on Base only. What was built here is the NEAR integration: the gateway in [`services/falsara-near`](services/falsara-near), the serverless core it calls, and the agent that pays it ([`demo/live/lib/falsara.js`](demo/live/lib/falsara.js)). The core runs Falsara's existing schemas, pinned gates and verdict mapping as a private Vercel project that answers only the gateway. Mainnet record and architecture: [docs/demo/falsara-near/README.md](docs/demo/falsara-near/README.md).
+
+## The reference triage API (local)
+
+TriagePay's own paid service is real and runs locally. An agent sends one security finding (title, component, claimed impact, evidence, the bounty program's rules) to `POST /v2/scan` and gets back a verdict with reasons:
 
 | Verdict | Meaning |
 |---|---|
@@ -272,6 +288,7 @@ Money is integer-only (u128 atomic units). Every balance satisfies `deposited ==
 | Built, tested offline only | The x402 facilitator endpoints, the SQLite journal (`crates/store`), NEP-413 and API keys (`crates/auth`), the static UI (`ui/`), the Dockerfile |
 | Not wired | The API keeps its ledger in memory, serves one development caller with no authentication, binds loopback only, and does not serve the UI |
 | Run in CI only | The 23 sandbox tests in `contracts/tests` (near-workspaces, a local NEAR node) run on GitHub Actions, Linux. The sandbox has no Windows build |
+| Falsara on mainnet | Live: the NEAR gateway (`services/falsara-near`) and the Falsara core on Vercel. Two paid checks on 2026-11-14 through the factory-created wallet, both `REFUSE` ([AZ9kPAz8](https://nearblocks.io/txns/AZ9kPAz84NGpyqhNjibBHKNtFGthMwH58hHiV4Pgr74U) and [49Jhqhsz](https://nearblocks.io/txns/49JhqhszsNUdiny8EStKEWD1bWsfc3eNYUFSCgw4Qz9R)); funding and caps set by the owner the same day ([record](docs/demo/falsara-near/README.md)) |
 | Hosted judge demo | `demo/live`: Vercel static page plus serverless functions on testnet. Signing keys are environment variables. The cross-instance rate-limit store is not connected yet (`sharedLimits: false`) |
 | Red-team review | An independent review on 2026-11-13 found no Critical and no way to move funds past the wallet's caps. Its 3 High, 7 Medium and 22 Low or Info findings around the contract are fixed or documented, each with a regression test: [record](docs/security/redteam-2026-11-13.md) |
 | Cut | Attested verdicts on the paid route (ADR-0011); the demo checks a nonce echo and does not verify the Intel quote. Also cut: NEAR Intents deposits and a measured accuracy figure. No accuracy is claimed anywhere |
@@ -281,6 +298,8 @@ Known limits of the paid route: no rate limiting; the server trusts its RPC endp
 ## Hackathon window and what is reused
 
 The first commit is dated 2026-10-20. The rules count code from the announcement on 2026-10-19 (Q-001), so no code here predates the window. `git log --reverse` shows the whole history.
+
+**Falsara (Q-002, Q-015).** Falsara is an existing product of mine on another chain: its core, built from August 2026, took x402 payment on Base only. Only its NEAR integration is new and is the part to judge: the gateway in `services/falsara-near` (this repository, every line written on 2026-11-14), the serverless packaging of the core (Falsara's private repository, `near` branch, 2026-11-14), and the TriagePay agent that pays it. The gates Falsara runs, viability-gate and realism-gate, are my own public libraries and count as baseline (Q-005).
 
 Libraries: axum, tokio, serde, ureq, base64, getrandom, ed25519-dalek, sha2, bs58, rusqlite (bundled SQLite), proptest; near-sdk 5.29.1, near-contract-standards and near-workspaces for the contracts; near-api-js 7.3.1 for the clients and testnet scripts. The Python packages use the standard library only. The x402 work follows the public x402 v2 specification; the `near-tx-proof` method is my own proposal.
 
@@ -300,8 +319,9 @@ Counts are from runs on 2026-11-14 on `main`, except the contracts row (2026-11-
 | OpenAPI and Python client | `python -m pytest tests -q` | 14 passed |
 | UI | `python -m pytest ui/tests -q` | 17 passed |
 | TypeScript client | `cd clients/typescript && npm ci && npm test` | 7 passed |
-| Hosted demo | `cd demo/live && npm test` | 119 passed (`npm run build` rebuilds `app.min.js`; a test fails when it is stale) |
+| Hosted demo | `cd demo/live && npm test` | 121 passed (`npm run build` rebuilds `app.min.js`; a test fails when it is stale) |
 | Policy-wallet SDK | `cd packages/triagepay-sdk && npm test` | 13 passed |
+| Falsara NEAR gateway | `cd services/falsara-near && npm test` | 12 passed (the verifier runs against real mainnet receipts) |
 | Mainnet watch | `node scripts/mainnet/live-check.mjs` | read-only; the local run on 2026-11-14 passed |
 | Mainnet scripts | `node --test scripts/mainnet/*.test.mjs` | 9 passed |
 
@@ -324,6 +344,7 @@ knowledge-compiler/      compiles rule sources into hash-addressed rulesets
 clients/                 x402 reference clients (TypeScript, Python)
 agents/demo/             the testnet agent demo (full x402 loop, throwaway accounts)
 demo/live                hosted judge demo (Vercel): attack, replay, honeypot list, policy preview, passport
+services/falsara-near    Falsara on NEAR: the x402 gateway that takes USDC on mainnet (Vercel)
 packages/triagepay-sdk   one-line policy-wallet payer, x402 helper, NEAR AI tool
 ui/                      static pages (not served by the API yet)
 docs/                    ADRs, protocol profile, contract docs, transcript
@@ -360,7 +381,7 @@ everywhere: `{"error":{"code","message"}}`.
 
 ## Sister project
 
-I also built [VibeWallet](https://vibe-wallet-flame.vercel.app) at NEAR HACKATHON. TriagePay and VibeWallet are the two projects from the same team.
+I also built [VibeWallet](https://vibe-wallet-flame.vercel.app) at NEAR HACKATHON. TriagePay and VibeWallet are the two projects from the same team. Falsara is not a separate submission: its NEAR integration is part of TriagePay (see above).
 
 ## More
 

@@ -24,6 +24,7 @@ import { GET as passport } from "./routes/passport.js";
 import { GET as siteOg } from "./routes/site-og.js";
 import { passportPage, replayPage } from "./routes/pages.js";
 import { GET as home, boardGet } from "./routes/home.js";
+import { GET as falsaraGet, POST as falsaraPost } from "./routes/falsara.js";
 
 const ROOT = fileURLToPath(new URL("./public/", import.meta.url));
 const PORT = Number(process.env.PORT || 8787);
@@ -38,6 +39,7 @@ const TYPES = {
 const routes = {
   "GET /": home,
   "GET /api/board": boardGet,
+  "GET /api/falsara": falsaraGet,
   "GET /api/health": health,
   "GET /api/dashboard": dashboard,
   "POST /api/run": run,
@@ -56,6 +58,7 @@ const routes = {
   "GET /api/replay": replay,
   "GET /api/honeypot": honeypot,
   "POST /api/policy": policy,
+  "POST /api/falsara": falsaraPost,
   "GET /api/passport": passport,
   "GET /api/site-og": siteOg,
   "GET /api/replay-page": replayPage,

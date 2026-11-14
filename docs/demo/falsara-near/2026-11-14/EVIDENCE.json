@@ -1,0 +1,81 @@
+{
+  "run": "Falsara on NEAR mainnet",
+  "at": "2026-11-14T02:49:39.243Z",
+  "network": "near:mainnet",
+  "services": {
+    "gateway": "https://falsara-near.vercel.app",
+    "gatewayDomain": "https://api.falsara.online",
+    "core": "private Vercel project falsara-core (internal token only)"
+  },
+  "wallet": "e2e044e80.triagepay.hlpok1lad.tg",
+  "agent": "tp-e2e-agent.hlpok1lad.tg",
+  "payTo": "gateway.hlpok1lad.tg",
+  "asset": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+  "priceAtomic": "250000",
+  "setup": [
+    {
+      "step": "fund",
+      "tx": "DovzA8JbY9DaPtjSVEJnag6CB512Mwvns2miwP24RQXP",
+      "what": "owner ft_transfer_call 1.50 USDC to the wallet"
+    },
+    {
+      "step": "caps",
+      "tx": "CJoUnumdCYJcjit9gTEdp8jrdMLsDRMsDFWv8mR8pPK2",
+      "what": "set_token_limits: 0.25 USDC per call, 1.50 USDC per day"
+    },
+    {
+      "step": "agent_key",
+      "tx": "26zT6eNF67bxvhcu5LPYzhf5R28Z4sQf3VRfU6DBd4qx",
+      "what": "add a pay-only function-call key (receiver: the wallet, method: pay) for the hosted demo"
+    }
+  ],
+  "purchases": [
+    {
+      "via": "scripts and lib/falsara.js run locally",
+      "tx": "49JhqhszsNUdiny8EStKEWD1bWsfc3eNYUFSCgw4Qz9R",
+      "verdict": "REFUSE"
+    },
+    {
+      "via": "the hosted demo POST /api/falsara",
+      "tx": "AZ9kPAz84NGpyqhNjibBHKNtFGthMwH58hHiV4Pgr74U",
+      "verdict": "REFUSE",
+      "steps": [
+        {
+          "name": "Falsara asks for payment",
+          "result": "0.25 USDC on NEAR mainnet to gateway.hlpok1lad.tg"
+        },
+        {
+          "name": "The wallet",
+          "result": "Checked the payee and the caps, then paid 0.25 USDC."
+        },
+        {
+          "name": "Falsara",
+          "result": "Verified the USDC transfer on chain and ran the gates: REFUSE."
+        }
+      ],
+      "hits": [
+        {
+          "rule": "P2",
+          "category": "G2_exclusion_clause",
+          "quote": "Privileged-role-gated against a program exclusion: Check whether an unprivileged attacker can trigger the bug without role compromise. If not: hold. The one escape is UNKNOWING admin harm - a reasonable admin action with a non-obvious destructive second-order effect."
+        },
+        {
+          "rule": "P25",
+          "category": null,
+          "quote": "Impact missing or not quantified: Quantify the loss, freeze, or theft in units, percent, or currency. A year or a count of hours is not an impact figure. finding.yaml impact_usd above zero answers this."
+        }
+      ],
+      "payment": {
+        "success": true,
+        "network": "near:mainnet",
+        "transaction": "AZ9kPAz84NGpyqhNjibBHKNtFGthMwH58hHiV4Pgr74U",
+        "payer": "e2e044e80.triagepay.hlpok1lad.tg",
+        "amount": "250000",
+        "asset": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+        "payTo": "gateway.hlpok1lad.tg",
+        "memo": "fal1_1794625449_53b067654d7d09d22045a542_4306721e5b7030982b90f482b6067709",
+        "explorerUrl": "https://nearblocks.io/txns/AZ9kPAz84NGpyqhNjibBHKNtFGthMwH58hHiV4Pgr74U"
+      }
+    }
+  ]
+}
