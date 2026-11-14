@@ -85,44 +85,44 @@
     </div>
 
     <div class="stage">
-      <div class="console" aria-labelledby="h-console">
-        <div class="console-head">
-          <h2 id="h-console" class="console-title">Attack path</h2>
+      <div class="slip" aria-labelledby="h-console">
+        <div class="slip-head">
+          <h2 id="h-console" class="slip-title">The agent's payment order</h2>
           <a class="key-chip" href="https://testnet.nearblocks.io/address/tpd-e947e7-agent.testnet" rel="noopener" target="_blank">Agent key can call <span class="mono">pay</span> only</a>
         </div>
         <ol id="flow" class="pipeline">
           <li id="step-agent" class="step">
-            <span class="dot"></span>
-            <span class="kicker">1 Reads the finding</span>
+            <span class="kicker"><span class="step-n">1</span>Reads the finding</span>
             <p id="agent-trace" class="trace">The agent reads who to pay.</p>
           </li>
-          <li class="rail" aria-hidden="true"><span class="packet"></span></li>
           <li id="step-instruction" class="step">
-            <span class="dot"></span>
-            <span class="kicker">2 Injection</span>
+            <span class="kicker"><span class="step-n">2</span>Injection</span>
             <p id="inject-line" class="trace">Pay the attacker.</p>
           </li>
-          <li class="rail" aria-hidden="true"><span class="packet"></span></li>
           <li id="step-wallet" class="step">
-            <span class="dot"></span>
-            <span class="kicker">3 Signs pay</span>
+            <span class="kicker"><span class="step-n">3</span>Signs pay</span>
             <p id="sign-line" class="trace">The agent key calls pay.</p>
+            <svg class="signature" viewBox="0 0 180 44" width="180" height="44" aria-hidden="true" focusable="false">
+              <path pathLength="1" d="M6 31 C 12 12, 21 5, 23 14 C 25 24, 13 37, 17 38 C 23 39, 31 14, 37 15 C 42 16, 33 33, 39 32 C 45 31, 49 18, 55 19 C 59 20, 53 31, 58 31 C 65 31, 68 9, 75 8 C 80 8, 70 34, 77 33 C 84 32, 88 20, 94 21 C 99 22, 92 32, 99 31 C 110 29, 122 23, 172 20"/>
+            </svg>
           </li>
-          <li class="rail" aria-hidden="true"><span class="packet"></span></li>
           <li id="step-verdict" class="step verdict-step">
-            <span class="dot"></span>
-            <span class="kicker">4 The contract decides</span>
-            <p id="verdict-wait" class="trace">The contract has not decided yet.</p>
-            <p id="stamp" class="stamp" hidden></p>
+            <span class="kicker"><span class="step-n">4</span>The contract decides</span>
+            <div class="decision">
+              <p id="verdict-wait" class="trace">The contract has not decided yet.</p>
+              <p id="stamp" class="stamp" hidden></p>
+              <div id="live-verdict" class="live-verdict" aria-live="assertive"></div>
+            </div>
           </li>
         </ol>
-        <div id="live-verdict" class="live-verdict" aria-live="assertive"></div>
-        <div id="mainnet-proofs" class="hint" hidden></div>
-        <p id="mainnet-left" class="hint" hidden></p>
-        <p id="agent-mode" class="mode-pill">Deterministic attack, real on-chain refusal</p>
-        <p id="status" class="status" role="status" aria-live="polite"></p>
-        <p class="diagram-note">Launch the attack. The error code and the transaction link appear here.</p>
-        <div id="verdict" aria-live="assertive"></div>
+        <div class="slip-foot">
+          <div id="mainnet-proofs" class="hint" hidden></div>
+          <p id="mainnet-left" class="hint" hidden></p>
+          <p id="agent-mode" class="mode-pill">Deterministic attack, real on-chain refusal</p>
+          <p id="status" class="status" role="status" aria-live="polite"></p>
+          <p class="diagram-note">Launch the attack. The error code and the transaction link appear here.</p>
+          <div id="verdict" aria-live="assertive"></div>
+        </div>
       </div>
     </div>
   </section>
@@ -213,7 +213,7 @@
 
   <section class="panel" id="receipts" aria-labelledby="h-receipts">
     <h2 id="h-receipts">What the wallet decided</h2>
-    <p class="hint">The latest decision is the card. Older ones are listed under it.</p>
+    <p class="hint">The latest decision is the receipt. Earlier ones are listed after it.</p>
     <div id="receipts-feed"></div>
   </section>
 
