@@ -35,7 +35,35 @@ Five proofs:
 
 This project was built at NEAR HACKATHON, in the `security` and `agents` tracks. #NEARHackathon @NEARProtocol
 
-<sub>Demo video: `[VIDEO SLOT]` (no recording linked yet)</sub>
+## Screenshots
+
+Live demo: [triagepay-demo.vercel.app](https://triagepay-demo.vercel.app). Captured 14 Nov 2026 (Europe/Budapest).
+
+<p align="center"><img src="docs/screenshots/home-attack-refused.png" alt="TriagePay home: the agent signs a prompt-injected payment and the contract refuses it on testnet with ERR_PAYEE_NOT_ALLOWED" width="900"></p>
+
+The live demo after pressing **Launch the attack**. The agent signs a payment to an injected payee; the policy wallet refuses it on NEAR testnet with `ERR_PAYEE_NOT_ALLOWED`.
+
+<p align="center"><img src="docs/screenshots/live-counts-falsara.png" alt="Live counts, Falsara on mainnet, and the on-chain refusal receipt" width="900"></p>
+
+Live counts from NearBlocks, the Falsara mainnet check, and the on-chain refusal receipt.
+
+<p align="center"><img src="docs/screenshots/drain-me.png" alt="Drain Me playground with spend stats and visitor injection attempts" width="900"></p>
+
+**Drain Me**: visitors can write their own injection. The contract still stops the payment (14 attempts, 14 refusals, 0 drained in this capture).
+
+<p align="center"><img src="docs/screenshots/agent-passport.png" alt="Agent passport showing pay-only key caps, allowlist, and recent on-chain pays and refusals" width="900"></p>
+
+Agent passport for `tpd-e947e7-agent.testnet`: pay-only key, caps, allowlist, and recent on-chain pays and refusals.
+
+<p align="center"><img src="docs/screenshots/home-mobile.png" alt="TriagePay mobile home" width="390"></p>
+
+Mobile home (390×844).
+
+## Promo video
+
+Coming soon.
+
+
 
 ## What the agent pays for: Falsara, live on mainnet
 
