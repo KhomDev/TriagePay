@@ -31,6 +31,7 @@ cargo test --workspace
 python -m pytest tests -q
 python -m ruff check scanner knowledge-compiler
 python scripts/voice-check.py
+python scripts/claims-check.py .
 ```
 
 All of these must pass before a commit lands; CI runs the same set plus

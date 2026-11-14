@@ -7,25 +7,37 @@ as they are.
 The owner turns review on with `set_review_policy(approval_threshold, review_unknown_payees)`,
 attaching 1 yoctoNEAR:
 
-- `review_unknown_payees`: a payee that is not on the allowlist is reserved
-  and queued with reason `new_payee`, instead of `ERR_PAYEE_NOT_ALLOWED`.
+- `review_unknown_payees`: a payee that is not on the allowlist is queued
+  with reason `new_payee`, instead of `ERR_PAYEE_NOT_ALLOWED`.
 - `approval_threshold`: an allowlisted amount strictly above this value is
   queued with reason `above_threshold`. Zero disables that rule. An amount
   equal to the threshold still pays.
 
 The per-call cap, the daily cap, the token allowlist, pause, and revocation
-still apply before anything is queued. The queued amount counts against the
-day. The queue holds 8 payments (`ERR_REVIEW_QUEUE_FULL` leaves the ninth
-unreserved).
+are checked before anything is queued. A hold is checked, not reserved: it
+does not count against the day. The queue holds 8 payments
+(`ERR_REVIEW_QUEUE_FULL`), one agent may have 3 open holds and open 6 per
+UTC day (`ERR_AGENT_OPEN_HOLDS`, `ERR_AGENT_DAILY_HOLDS`), and a hold
+expires after 24 hours (`expire_holds`, callable by anyone, drops expired
+rows; `pay` and `approve_payment` sweep them too).
 
-`approve_payment(id)` schedules the `ft_transfer` the queue skipped. It
-refuses while the wallet is paused or the agent is inactive, and it leaves
-the row in place so the owner can reject it instead.
-`reject_payment(id)` drops the row and restores the reservation when the
-UTC day is still the one it was reserved in. Reject works while paused.
+`approve_payment(id)` checks the caps again, reserves the amount, and
+schedules the `ft_transfer` the queue skipped. It refuses while the wallet
+is paused, the agent is inactive, or the caps no longer allow the amount,
+and it leaves the row in place so the owner can reject it instead.
+`reject_payment(id)`, `reject_payments(ids)` and `reject_all()` drop rows;
+nothing was reserved, so the agent's spend does not change. Reject works
+while paused.
 
 `get_review_policy` and `get_pending` are the views. The hosted page reads
 them.
+
+Builds differ here. The mainnet review-queue wallet `tp-wallet.hlpok1lad.tg`
+runs the build from `ef7472c`, where a hold reserved its amount against the
+day and a reject restored it. That is how the 2026-11-13 campaign could fill
+the day with junk holds. Every build from `94e62f1` on (the factory's
+wallets and this source) checks without reserving. This page described the
+older rule until the Trail of Bits skill run of 2026-11-14 (C-SC-2).
 
 ## Live on testnet
 

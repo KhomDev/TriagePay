@@ -85,6 +85,8 @@ jobs:
         run: python scripts/voice-check.py --self-test
       - name: No first-person plural in tracked Markdown
         run: python scripts/voice-check.py
+      - name: Every test the claims ledger cites exists
+        run: python scripts/claims-check.py .
   openapi:
     name: OpenAPI conformance
     runs-on: ubuntu-latest

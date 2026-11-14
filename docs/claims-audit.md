@@ -27,7 +27,7 @@ after those two suites were re-run. The other rows are still the
 | aps-store | 29 |
 | policy-core | 29 (26 unit, 3 property). The new unit test was re-run on 2026-11-12; the other 28 are from the audit date |
 | Rust workspace total | 226 passed, 3 ignored, counting that one new test on top of the 2026-11-12 workspace run |
-| contracts: policy-wallet / test-token | 94 passed, 1 ignored / 3. The ignored test is the open review-queue availability issue ([PR #7](https://github.com/KhomDev/TriagePay/pull/7)). Re-run 2026-11-13 |
+| contracts: policy-wallet / wallet-factory / test-token | 129 / 31 / 3 passed, re-run 2026-11-14 on the Windows build host after the Trail of Bits fixes (9 new wallet regression tests, 1 new factory test). The sandbox suites run on Linux CI only |
 | contracts: sandbox | 23 tests. 18 passed on Linux CI on 2026-11-12 (https://github.com/KhomDev/TriagePay/actions/runs/43181541598); five more were added 2026-11-13 (hold/approve, hold/reject, revoke/restore, pay-only review methods, x402 receipt verifier). Not runnable on Windows |
 | scanner | 319 |
 | knowledge-compiler | 71, plus 1 skipped (local private-denylist scan) |
@@ -82,7 +82,10 @@ hits against the operator's off-repo list).
 | Claim | Evidence | Status |
 |---|---|---|
 | Interface, events, error codes | 94 unit tests passed and 1 ignored, re-run 2026-11-13, including the review queue. The ignored test records the open availability issue from [PR #7](https://github.com/KhomDev/TriagePay/pull/7) and does not change the contract | GREEN |
-| One token per wallet | `new_rejects_a_second_token`, `set_tokens_rejects_a_second_token`, `limits_sized_for_one_token_cannot_move_another` | GREEN |
+| Up to 8 tokens per wallet, each with its own budget; changing the allowlist never resets or re-labels a token's daily total (source at HEAD; not the deployed builds) | `new_rejects_too_many_tokens`, `limits_sized_for_one_token_cannot_move_another`, `adding_a_token_does_not_reset_the_daily_cap`, `dropping_to_one_token_does_not_reset_the_daily_cap`, `switching_the_single_token_does_not_carry_limits_across_units`, `a_removed_tokens_spend_survives_the_day_it_was_spent` | GREEN |
+| `set_token_limits` never re-activates a revoked agent; multi-token `set_agent` refuses more than 32 payees; a settled payment frees custody headroom (source at HEAD) | `set_token_limits_does_not_reactivate_a_revoked_agent`, `multi_token_set_agent_refuses_too_many_payees`, `a_settled_payment_frees_deposit_headroom`; sandbox `factory.rs` revoke step (Linux CI) | GREEN |
+| The factory deploys only the wallet bytes it publishes | `embedded_code_is_the_optimized_wallet`, `the_digest_check_refuses_other_bytes`; `create_wallet` checks length and SHA-256 before deploying (source at HEAD; the deployed factory predates the check) | GREEN |
+| A held payment is not a paid one: review-queue holds are checked, not reserved | `docs/contracts/review-policy.md`; review-queue unit tests | GREEN for builds from `94e62f1` on. `tp-wallet.hlpok1lad.tg` (from `ef7472c`) still reserves on hold |
 | Testnet run of 2026-11-06, 28 steps | Evidence table in `policy-wallet.md`; step 12 re-read from an archival RPC on 2026-11-10 | GREEN for step 12; the other 27 rows are as recorded by the run |
 | Current build on testnet | Transcript: deployed, initialized, key deleted in one batch; wasm SHA-256 in the evidence equals `build.md` | GREEN |
 | The build is not reproducible | `build.md` says so; a third party cannot re-derive the hash from source | OPEN |
@@ -129,6 +132,7 @@ hits against the operator's off-repo list).
 | 2026-11-11 | `wrap.testnet` cannot be the settlement asset: it emits no NEP-297 events. The x402 example and the testnet runs use an event-emitting token |
 | 2026-11-14 | x402 ran on mainnet: native USDC through the factory-created wallet, one paid scan verified from the USDC contract's `ft_transfer` event, replay and reuse checks ([CwLaJmaX](https://nearblocks.io/txns/CwLaJmaX8K2jYaTBvM1kyYfMumiUwFTfx49Pra5uPEgG), `docs/demo/mainnet-x402/2026-11-14/README.md`). The server ran locally, not hosted |
 | 2026-11-14 | Falsara takes payment on NEAR mainnet and is live: the gateway (`services/falsara-near`) and the Falsara core on Vercel; the owner funded the factory wallet with 1.50 USDC and set caps of 0.25 per call and 1.50 per day; two paid checks through the policy wallet returned `REFUSE` (49Jhqhsz, AZ9kPAz8); `docs/demo/falsara-near/README.md`. Falsara's core predates the hackathon (Q-002); only its NEAR integration is new. The six-hour watch checks the gateway's health, payee, gate pins and price |
+| 2026-11-14 | Trail of Bits skill run (record `docs/security/tob-skills-2026-11-14.md`). The Falsara gateway counted a refunded `ft_transfer_call` as payment (fixed and deployed the same day). This ledger marked "One token per wallet" GREEN while citing two tests that did not exist and while the factory's wallets allowed 8 tokens; `scripts/claims-check.py` now fails CI when a cited test does not resolve. `review-policy.md` said holds reserve the day; builds from `94e62f1` on do not |
 | 2026-11-11 | The README described the 2026-10-21 state; rewritten |
 | 2026-11-12 | First GitHub CI run: `cargo audit` failed on RUSTSEC-2026-0459 (libsqlite3-sys via rusqlite 0.37) and RUSTSEC-2026-0384 (tokio 1.54.0); rusqlite moved to 0.41.0 and tokio to 1.54.1. The contracts workflow could not install cargo-near (missing libudev headers on the runner) |
 | 2026-11-12 | First live Stage B calls: every request was refused (HTTP 400 for `uniqueItems` in the output schema and for a model that left the catalogue) or came back empty (reasoning used the whole 1024-token budget). Fixed in the client; the spike then ran clean |

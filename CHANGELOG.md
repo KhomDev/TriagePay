@@ -3,6 +3,27 @@
 All notable changes to this project are documented here. The format
 follows Keep a Changelog; the first tagged release is 1.0.0 (2026-11-14, the NEAR HACKATHON submission).
 
+## [Unreleased]
+
+### Security
+- Remediated the Trail of Bits skill run of 2026-11-14 (record:
+  `docs/security/tob-skills-2026-11-14.md`). The Falsara gateway no longer
+  accepts a refunded `ft_transfer_call` as payment (deployed the same day),
+  and `/health` compares the core's gate pins to pinned versions.
+- Policy wallet (source only; the deployed contracts cannot be upgraded):
+  per-token budgets keep each token's daily total across allowlist changes;
+  `set_token_limits` no longer re-activates a revoked agent; multi-token
+  `set_agent` refuses more than 32 payees; a settled payment lowers custody.
+- Wallet factory: `create_wallet` checks the embedded wallet's length and
+  SHA-256 before deploying; the embedded wallet is rebuilt from the fixed
+  source.
+- Demo setup no longer certifies the wallet it just deployed.
+
+### Fixed
+- Docs: the wallet interface table lists every public method, event and
+  error code; the one-token and hold-reservation claims match each build;
+  CI fails when the claims ledger cites a test that does not exist.
+
 ## [1.0.0] - 2026-11-14
 
 ### Changed

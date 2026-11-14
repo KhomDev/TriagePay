@@ -19,9 +19,34 @@ build ran on testnet on 2026-11-11 in the agent demo
 one batch, then paid from, refused from and revoked. Later builds are
 deployed on mainnet; see `build.md` for which commit each deployment ran.
 
-One wallet holds one token. An agent's `per_call_max`, `daily_max` and
-daily total are plain integers in that token's atomic units, with no
-per-token bookkeeping, so a second token needs a second wallet.
+A wallet allowlists up to 8 tokens (`MAX_TOKENS`). Each agent has one
+budget per token, keyed by the token's account id: `per_call_max`,
+`daily_max` and the daily total are plain integers in that token's atomic
+units. With one allowlisted token, `set_agent` sets that token's budget; with
+several, `set_agent` takes zero limits and `set_token_limits` sets each
+token. A token without a budget cannot be spent (`ERR_TOKEN_LIMITS_UNSET`).
+Changing the allowlist never moves or resets a budget, so a token's spend
+in the current day survives being removed and re-added.
+
+Which build runs where matters. `tp-wallet.hlpok1lad.tg` (mainnet, from
+`ef7472c`) allows one token. Wallets the mainnet factory
+`triagepay.hlpok1lad.tg` creates run the multi-token build from `94e62f1`
+(byte-identical at `1b1a578`), which predates the 2026-11-14 fixes below.
+This page describes the source at HEAD; see "Changes after the deployed
+builds".
+
+## Changes after the deployed builds (Trail of Bits skill run, 2026-11-14)
+
+None of these is on mainnet: the deployed wallets and factory have no
+access keys and no upgrade method.
+
+| Finding | Deployed factory wallets | HEAD |
+|---|---|---|
+| C-SC-4, C-VA-2 | Adding a second token, or dropping back to one, could restart an agent's daily total for a token (up to 2 x `daily_max` in one day; owner action required) | Limits and spend live only in per-token budgets; allowlist changes keep them |
+| C-SE-1 | `set_token_limits` re-activated a revoked agent | `set_token_limits` leaves `active` alone; only `set_agent` re-activates |
+| C-ACB-2 | Multi-token `set_agent` accepted more than 32 payees, leaving the agent unusable | Refused with `ERR_INVALID_POLICY` |
+| C-SC-6 | Beta custody counted deposits minus withdrawals, never payments, so paying out did not free deposit headroom | A settled payment lowers custody |
+| C-SE-4 | `create_wallet` deployed whatever the committed blob inflated to | `create_wallet` refuses unless the bytes match `WALLET_CODE_LEN` and `WALLET_CODE_SHA256` |
 
 ## Interface
 
@@ -30,21 +55,30 @@ and ids are JSON strings (`U64`).
 
 | Method | Caller | Deposit | Prepaid gas (enforced minimum, or a planning value not yet measured) | Effect |
 |---|---|---|---|---|
-| `new(owner, tokens)` | the wallet account itself (`#[init]`, `#[private]`) | 0 | 30 TGas | Initialize once; `tokens` is the NEP-141 allowlist: at most one token, the unit every limit is read in |
-| `pay(token, receiver_id, amount, memo?)` | a registered agent (predecessor) | exactly 0 | >= 35 TGas (50 recommended) | Check policy, reserve, `ft_transfer` with 1 yocto, then `on_pay_complete`. Returns the promise |
-| `on_pay_complete(agent_id, token, receiver_id, amount, payment_id, window_index)` | the wallet itself (`#[private]`) | - | 10 TGas (static) | `pay_settled`, or release the reservation and `pay_failed`; returns `true` when settled |
-| `set_agent(agent_id, per_call_max, daily_max, payees)` | owner | exactly 1 yocto | 10 TGas | Create or reconfigure and activate an agent; an existing agent keeps its spend window |
-| `revoke_agent(agent_id)` | owner | exactly 1 yocto | 10 TGas | Deactivate; spend window kept |
-| `set_tokens(tokens)` | owner | exactly 1 yocto | 10 TGas | Replace the token allowlist (at most one token). A different token changes the unit of every agent's limits and current-day total: pause first, then `set_agent` each agent with limits in the new token's atomic units |
-| `pause()` / `unpause()` | owner | exactly 1 yocto | 10 TGas | Stop / resume every `pay` |
+| `new(owner, tokens)` | the wallet account itself or its parent (`#[init]`) | 0 | 30 TGas | Initialize once; `tokens` is the NEP-141 allowlist, at most 8. Native USDC and `wrap.near` get a built-in beta deposit cap |
+| `pay(token, receiver_id, amount, memo?)` | a registered agent (predecessor) | exactly 0 | >= 35 TGas (50 recommended) | Check policy. With review on and a new payee or an amount above the threshold: queue a hold, move no tokens, and return the payment id as a value (`payment_queued`). Otherwise reserve, `ft_transfer` with 1 yocto, then `on_pay_complete`, and return that promise (`pay_requested`). Call success alone does not mean paid: read the event or `get_pending` |
+| `on_pay_complete(agent_id, token, receiver_id, amount, payment_id, window_index)` | the wallet itself (`#[private]`) | - | 10 TGas (static) | `pay_settled` and lower the token's custody, or release the reservation and `pay_failed`; returns `true` when settled |
+| `set_agent(agent_id, per_call_max, daily_max, payees)` | owner | exactly 1 yocto | 10 TGas | Create or reconfigure and activate an agent; at most 32 payees. One allowlisted token: the limits are that token's budget. Several (or none): limits must be zero (`ERR_AMBIGUOUS_LIMITS`). Spend windows are kept |
+| `set_token_limits(agent_id, token, per_call_max, daily_max)` | owner | exactly 1 yocto | 10 TGas | Set one allowlisted token's limits for an existing agent; that token's spend window is kept; does not change `active` |
+| `revoke_agent(agent_id)` | owner | exactly 1 yocto | 10 TGas | Deactivate; spend windows kept |
+| `set_tokens(tokens)` | owner | exactly 1 yocto | 10 TGas | Replace the token allowlist (at most 8). Budgets are keyed by token, so no limit is re-read in another token's unit; a newly listed token has no budget until the owner sets one |
+| `set_deposit_cap(token, max_balance)` | owner | exactly 1 yocto | 10 TGas | Set or lower an allowlisted token's beta deposit cap; a built-in cap cannot be raised (`ERR_BETA_CAP`) |
+| `pause()` / `unpause()` | owner | exactly 1 yocto | 10 TGas | Stop / resume every `pay` and `approve_payment` |
+| `set_review_policy(approval_threshold, review_unknown_payees)` | owner | exactly 1 yocto | 10 TGas | Turn owner review on or off (`review-policy.md`) |
+| `approve_payment(payment_id)` | owner | exactly 1 yocto | >= 35 TGas | Re-check the caps, reserve, and transfer a held payment |
+| `reject_payment(payment_id)` / `reject_payments(payment_ids)` / `reject_all()` | owner | exactly 1 yocto | 10 TGas | Drop held payments (works while paused); `reject_all` returns how many |
+| `expire_holds()` | anyone | 0 | 10 TGas | Drop holds older than 24 hours; returns how many. Moves no tokens |
 | `withdraw(token, amount, to)` | owner | exactly 1 yocto | >= 35 TGas | `ft_transfer` any held token to `to` (works while paused) |
-| `on_withdraw_complete(token, amount, to)` | the wallet itself (`#[private]`) | - | 10 TGas (static) | `withdrawn` or `withdraw_failed` |
+| `on_withdraw_complete(token, amount, to)` | the wallet itself (`#[private]`) | - | 10 TGas (static) | `withdrawn` and lower custody, or `withdraw_failed` |
 | `close(beneficiary)` | owner, wallet paused | exactly 1 yocto | >= 25 TGas + 5 TGas per allowlisted token (50 recommended) | Query `ft_balance_of(wallet)` on every allowlisted token, then `on_close_check` |
 | `on_close_check(beneficiary, tokens)` | the wallet itself (`#[private]`) | - | 15 TGas (static) | All balances zero: emit `closed` and delete the wallet account to `beneficiary`. Otherwise emit `close_refused` and change nothing; returns `false` |
-| `ft_on_transfer(sender_id, amount, msg)` | an allowlisted token contract | - | - | Accept funding via `ft_transfer_call` (returns `"0"`); any other token is refused and refunded |
-| `get_agent(agent_id)` | anyone (view) | - | - | Limits, payees, active, spent and remaining in the current UTC day, window index, next reset time; `null` if unknown |
-| `get_spent(agent_id)` | anyone (view) | - | - | Spent in the current UTC day (`"0"` if unknown) |
-| `get_config()` | anyone (view) | - | - | Owner, paused, tokens, next payment id, event standard and version |
+| `ft_on_transfer(sender_id, amount, msg)` | an allowlisted token contract | - | - | Accept funding via `ft_transfer_call` (returns `"0"`) within the beta cap; any other token, or a deposit over the cap, is refused and refunded |
+| `get_agent(agent_id)` | anyone (view) | - | - | Payees, active, per-token `budgets`, open holds and holds today; the top-level limits and spend describe the single allowlisted token (zero with several); `null` if unknown |
+| `get_spent(agent_id)` | anyone (view) | - | - | Spent in the current UTC day on the single allowlisted token (`"0"` if unknown or with several tokens) |
+| `get_token_spent(agent_id, token)` | anyone (view) | - | - | Spent in the current UTC day on `token` |
+| `get_pending()` | anyone (view) | - | - | Held payments, oldest first |
+| `get_review_policy()` | anyone (view) | - | - | Threshold, unknown-payee switch, queue size and capacity |
+| `get_config()` | anyone (view) | - | - | Owner, paused, tokens, deposit caps and custody, next payment id, event standard and version |
 
 `pay` check order (first failure wins): paused, agent active, token
 allowlisted, payee allowlisted, non-zero amount, per-call limit, daily limit
@@ -69,6 +103,9 @@ Logged as `EVENT_JSON:{"standard":"aps_policy_wallet","version":"1.0.0","event":
 | `withdrawn` / `withdraw_failed` | `token`, `amount`, `to` |
 | `closed` | `beneficiary` (emitted just before the account deletion) |
 | `close_refused` | `tokens`: list of `{token, balance}` that blocked the close (`balance` is `null` when the query failed) |
+| `payment_queued` | `payment_id`, `agent_id`, `token`, `receiver_id`, `amount`, `reason` (`new_payee` or `above_threshold`); no tokens moved |
+| `payment_expired` | `payment_id`, `agent_id` |
+| `payment_rejected` | `payment_id`, `agent_id`, `release` (`unreserved`) |
 
 ## Error codes
 
@@ -77,20 +114,27 @@ Every refusal panics with `CODE: description`; the code is stable.
 | Code | Raised by | Meaning |
 |---|---|---|
 | `ERR_PAUSED` | `pay` | The owner paused the wallet |
-| `ERR_AGENT_INACTIVE` | `pay`, `revoke_agent` | Unknown or revoked agent |
+| `ERR_AGENT_INACTIVE` | `pay`, `approve_payment`, `revoke_agent`, `set_token_limits` | Unknown or revoked agent |
 | `ERR_TOKEN_NOT_ALLOWED` | `pay`, `ft_on_transfer` | Token not on the allowlist |
 | `ERR_PAYEE_NOT_ALLOWED` | `pay` | Receiver not on the agent's payee list |
 | `ERR_ZERO_AMOUNT` | `pay`, `withdraw` | Amount is zero |
 | `ERR_PER_CALL_LIMIT` | `pay` | Amount above `per_call_max` |
 | `ERR_DAILY_LIMIT` | `pay` | Window total would exceed `daily_max` |
 | `ERR_OVERFLOW` | `pay` | u128/u64 arithmetic would overflow |
-| `ERR_INVALID_POLICY` | `set_agent` | `per_call_max` is 0, `daily_max < per_call_max`, or more than 32 payees |
+| `ERR_INVALID_POLICY` | `set_agent`, `set_token_limits` | `per_call_max` is 0, `daily_max < per_call_max`, or more than 32 payees |
 | `ERR_RELEASE_MISMATCH` | policy core only | A release larger than the window (the contract logs `mismatch` instead of panicking) |
 | `ERR_NOT_OWNER` | owner methods | Predecessor is not the owner |
 | `ERR_DEPOSIT_NOT_ZERO` | `pay` | A deposit was attached. On chain this code is not reached: `pay` is not `#[payable]`, so near-sdk's entry point refuses any deposit first with `Smart contract panicked: Method pay doesn't accept deposit` (sandbox `agent_full_access_key_is_not_the_owner`). The check remains for direct calls, as in the unit tests |
 | `ERR_INSUFFICIENT_GAS` | `pay`, `withdraw` | Less than 35 TGas prepaid |
 | `ERR_MEMO_TOO_LONG` | `pay` | Memo over 256 bytes |
-| `ERR_TOO_MANY_TOKENS` | `new`, `set_tokens` | More than one token |
+| `ERR_TOO_MANY_TOKENS` | `new`, `set_tokens` | More than 8 tokens |
+| `ERR_AMBIGUOUS_LIMITS` | `set_agent` | Non-zero limits while the allowlist does not hold exactly one token; use `set_token_limits` |
+| `ERR_TOKEN_LIMITS_UNSET` | `pay`, `approve_payment` | The agent has no budget for that token |
+| `ERR_BETA_CAP` | `ft_on_transfer`, `set_deposit_cap` | A deposit would pass the token's cap, or the owner tried to raise a built-in cap |
+| `ERR_REVIEW_QUEUE_FULL` | `pay` | 8 holds are already waiting |
+| `ERR_AGENT_OPEN_HOLDS` / `ERR_AGENT_DAILY_HOLDS` | `pay` | The agent already has 3 open holds, or opened 6 today |
+| `ERR_NOT_PENDING` | `approve_payment`, `reject_payment`, `reject_payments` | No held payment with that id |
+| `ERR_INIT_NOT_ALLOWED` | `new` | Caller is neither the wallet account nor its parent |
 | `ERR_SELF_ACCOUNT` | `new`, `set_agent`, `set_tokens`, `withdraw`, `close` | The wallet itself used as owner, agent, payee, token, destination or beneficiary |
 | `ERR_NOT_PAUSED` | `close` | Pause the wallet before closing |
 | `Requires attached deposit of exactly 1 yoctoNEAR` | owner methods | near-sdk `assert_one_yocto`; what any function-call key hits |
@@ -108,8 +152,8 @@ Every refusal panics with `CODE: description`; the code is stable.
 | Redeploy or re-init by a third party | `new` is private and init-once; the wallet account keeps no access keys after the deploy batch | None while no key exists on the wallet account |
 | Callback failure (out of gas) | `pay` refuses less than 35 TGas; the callback never panics | If it did fail, the reservation stays counted (fails closed: budget lost for the day, no tokens lost) |
 | Downstream `ft_transfer` fails (receiver not storage-registered, token paused) | Callback releases the reservation and emits `pay_failed` | None; tokens never left |
-| Limits read in the wrong unit | Limits are plain integers in the token's atomic units. The allowlist holds at most one token, so a limit sized for one token can never be applied to another with different decimals | Owner error: `set_tokens` to a different token keeps every agent's numbers and re-reads them in the new unit; pause, then `set_agent` each agent |
-| Griefing via storage | Only the owner adds agents; payee and token lists are bounded (32, 1); a `pay` that the review queue holds stores its memo (at most 256 bytes) in one of at most 8 pending rows, staked by the wallet | Bounded: about 5 KB of wallet-staked state while the queue is full |
+| Limits read in the wrong unit | Limits are plain integers in each token's atomic units, stored per token and keyed by the token's account id, so replacing or adding a token never re-reads one token's numbers in another's unit | Owner error: the contract cannot tell whether a number was sized for 6 or 24 decimals when the owner sets it |
+| Griefing via storage | Only the owner adds agents; payee and token lists are bounded (32, 8); a `pay` that the review queue holds stores its memo (at most 256 bytes) in one of at most 8 pending rows, staked by the wallet | Bounded: about 5 KB of wallet-staked state while the queue is full |
 | Limit-window edge cases | UTC day from block timestamp; last nanosecond of a day is the same window; a release after midnight is a no-op (`window_expired`) instead of refunding the new day; a backwards clock keeps counting instead of resetting; revoke and re-add keeps the window | A burst across midnight can spend up to 2 x `daily_max` within minutes (one full limit per calendar day) |
 | Concurrent pays | NEAR executes one receipt at a time per account; each `pay` sees the previous reservation | None |
 | Non-standard token behaviour | Only allowlisted tokens are accepted or paid | Depends on the allowlisted token contracts |
@@ -138,8 +182,8 @@ sandbox suite (`contracts/tests/sandbox.rs`, Linux CI only; 18 passed on
 | Limit-window edge at UTC midnight | Window = UTC day of the block timestamp; a backwards clock keeps counting; revoke and re-add keeps the window | Unit `window_rolls_over_at_utc_midnight`, `set_agent_reconfigure_keeps_the_window`; sandbox `window_rolls_over_after_fast_forward`; property `rollover_resets_correctly` | Up to 2 x `daily_max` within minutes across midnight |
 | Premature or hostile `close` | Owner only, exactly 1 yocto, paused only; deletes only when every allowlisted token balance reads zero; a failed or unreadable query refuses | Unit `close_requires_paused`, `close_check_with_a_nonzero_balance_refuses`, `close_check_with_a_failed_query_refuses`; sandbox `close_is_owner_only_and_requires_paused`, `close_is_refused_while_tokens_remain`; testnet step 26 | Tokens held but no longer allowlisted are not checked (withdraw them first); a non-existent beneficiary loses the NEAR |
 | Storage stake locked forever in a keyless wallet | `close` deletes the account and returns its whole NEAR balance to the beneficiary | Unit `close_check_with_all_zero_balances_deletes_the_account`; sandbox `close_after_withdrawing_everything_deletes_the_wallet`; testnet step 28 (1.74951 NEAR stake returned) | The wallet's NEP-145 storage deposit on each token (0.00125 NEAR for USDC) stays with the token contract |
-| Limits sized for one token applied to another (for example 0.003 of a 24-decimal token is 3 x 10^21 atomic units, which is 3 x 10^15 whole units of a 6-decimal one) | The token allowlist holds at most one token; limits and the daily total are in that token's atomic units | Unit `new_rejects_a_second_token`, `set_tokens_rejects_a_second_token`, `limits_sized_for_one_token_cannot_move_another` | Owner error only: replacing the token with `set_tokens` re-reads every agent's limits in the new unit until `set_agent` is called again |
-| Storage griefing | Only the owner adds agents; payee and token lists are bounded (32, 1); held payments (with memo) are capped at 8 | Unit `set_agent_rejects_too_many_payees`, `new_rejects_too_many_tokens`, `pay_with_long_memo` | Bounded wallet-staked state for held rows |
+| Limits sized for one token applied to another (for example 0.003 of a 24-decimal token is 3 x 10^21 atomic units, which is 3 x 10^15 whole units of a 6-decimal one) | Budgets are stored per token and keyed by the token id; a token without a budget cannot be spent | Unit `limits_sized_for_one_token_cannot_move_another`, `switching_the_single_token_does_not_carry_limits_across_units`, `adding_a_token_does_not_reset_the_daily_cap`, `dropping_to_one_token_does_not_reset_the_daily_cap` | Owner error only: a number sized for the wrong decimals when it is set |
+| Storage griefing | Only the owner adds agents; payee and token lists are bounded (32, 8); held payments (with memo) are capped at 8 | Unit `set_agent_rejects_too_many_payees`, `new_rejects_too_many_tokens`, `pay_with_long_memo` | Bounded wallet-staked state for held rows |
 | Non-standard or hostile token | Only allowlisted tokens are accepted (`ft_on_transfer`) or paid | Unit `ft_on_transfer_refuses_other_tokens`, `pay_with_disallowed_token`; sandbox `disallowed_token_is_refused` | Depends on the allowlisted token contract; native USDC's account holds a full-access key, so its issuer can upgrade it |
 | Build-host details published with the code | The wasm is built with `--remap-path-prefix` for the cargo home, rustup home and checkout; CI fails if the runner's home path survives; both scripts refuse a wasm containing a host path | `docs/contracts/build.md` string scan (zero hits); the CI step "Print wasm size and SHA-256, and check for host paths"; testnet step 5 deployed the remapped build | The build is not reproducible yet, so a third party cannot re-derive the deployed hash from source |
 

@@ -68,8 +68,21 @@ for any wasm that is deployed; see "Host paths in the wasm" below.
 cargo-near force-appends `--cfg near` to these flags.
 
 The wallet bytes inside the factory are `contracts/wallet-factory/res/policy_wallet.wasm.zlib`.
-Inflated, that is 221,884 bytes, sha256
-`17acbefc65151683d5a37771b785ec0e5a9fa6debfbdc566084370a714e25b7e`.
+At HEAD, inflated, that is 219,653 bytes, sha256
+`cb4f94697d30bf18b3f887694ec78b9eeb6992a508e02ea4c3cb39b212fc5974`:
+the wallet with the 2026-11-14 Trail of Bits fixes, rebuilt on this host
+with the CI recipe (the remaps above, then binaryen `wasm-opt` version 108
+`-Oz --strip-debug --strip-producers --enable-bulk-memory
+--enable-nontrapping-float-to-int --enable-sign-ext`, then zlib level 9).
+`create_wallet` refuses to deploy bytes whose length or SHA-256 differ from
+`WALLET_CODE_LEN` and `WALLET_CODE_SHA256`. This build is not deployed.
+
+The deployed factory `triagepay.hlpok1lad.tg` embeds the previous blob
+(introduced at `94e62f1`, byte-identical at `1b1a578`): 221,884 bytes,
+sha256 `17acbefc65151683d5a37771b785ec0e5a9fa6debfbdc566084370a714e25b7e`,
+which is the code hash (`2bR9xosy...`) of the wallets it created.
+`scripts/mainnet/budget.mjs` keeps those numbers because it prices calls
+to that live factory. The rest of this paragraph is about that blob.
 The cargo registry folder `index.crates.io-<hash>` differs between machines
 and is the same length, so a remap of only the cargo home still produces
 two hashes. The build remaps that folder to `/cargo/registry/src` last,
