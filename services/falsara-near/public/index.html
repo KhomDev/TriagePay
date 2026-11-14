@@ -52,12 +52,13 @@
 
   <section id="api" aria-labelledby="h-api">
     <h2 id="h-api">Call the API</h2>
-    <pre><code>curl -i https://api.falsara.online/v1/check-finding \
+    <pre><code>curl -i https://falsara-near.vercel.app/v1/check-finding \
   -H 'content-type: application/json' \
-  -d '{"schema_version":"1.0.0","title":"Share price inflation",
+  -d '{"schema_version":"1.0.0","title":"Owner can withdraw all user deposits",
        "severity":"high","protocol":"ExampleVault","contract":"src/Vault.sol",
-       "impact":"An unprivileged attacker donates to an empty vault and takes 4 tokens from the next depositor.",
-       "preconditions":"The vault has no shares yet. The caller is not an admin."}'</code></pre>
+       "impact":"The owner calls emergencyWithdraw and moves every user deposit to an address the owner picks.",
+       "preconditions":"The caller holds the owner role, which only the deployer has."}'</code></pre>
+    <p class="hint">That answers <code>402</code> with the payment terms. A finding the gates cannot decide yet, for example one with no evidence pack and no role in its preconditions, answers <code>422 INCOMPLETE_NOT_CHARGED</code> for free.</p>
     <table>
       <thead><tr><th>Route</th><th>What it does</th><th>Price</th></tr></thead>
       <tbody>
