@@ -9,11 +9,11 @@ What was built at NEAR HACKATHON is its NEAR integration: an x402 gateway that t
 | Do | See |
 |---|---|
 | Open https://triagepay-demo.vercel.app/ and press **Ask Falsara on mainnet** in step 3 | The agent gets a 402 from Falsara, pays 0.25 USDC through its policy wallet, and shows Falsara's verdict with the quoted gate reasons and the NearBlocks link. The wallet's cap allows six checks a day |
-| `curl -i -X POST https://falsara-near.vercel.app/v1/check-finding -H 'content-type: application/json' -d @finding.json` | `402` with a `PAYMENT-REQUIRED` header: `near:mainnet`, native USDC, 250000 atomic, payee `gateway.hlpok1lad.tg`, a memo bound to this finding |
+| `curl -i -X POST https://api.falsara.online/v1/check-finding -H 'content-type: application/json' -d @finding.json` | `402` with a `PAYMENT-REQUIRED` header: `near:mainnet`, native USDC, 250000 atomic, payee `gateway.hlpok1lad.tg`, a memo bound to this finding |
 | The same request with a finding the gates cannot decide | `422 INCOMPLETE_NOT_CHARGED` with the missing evidence, and no payment requirement |
-| Open https://falsara-near.vercel.app/ | Falsara's page with live status |
+| Open https://api.falsara.online/ | Falsara's page with live status |
 
-`api.falsara.online` is the same gateway once its DNS record is in place.
+`falsara-near.vercel.app` is the same gateway under its Vercel name; earlier evidence files name it.
 
 ## How it runs
 

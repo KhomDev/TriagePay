@@ -110,7 +110,7 @@
     }
   ],
   "falsara": {
-    "url": "https://falsara-near.vercel.app",
+    "url": "https://api.falsara.online",
     "network": "near:mainnet",
     "payTo": "gateway.hlpok1lad.tg",
     "priceAtomic": "250000",

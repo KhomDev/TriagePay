@@ -19,7 +19,7 @@ export const USDC_MAINNET = "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6a
 const ACCOUNT = /^(?=.{2,64}$)[a-z0-9]+([-_.][a-z0-9]+)*$/;
 
 export function falsaraUrl(env = process.env) {
-  return String(env.FALSARA_URL || "https://falsara-near.vercel.app").replace(/\/$/, "");
+  return String(env.FALSARA_URL || "https://api.falsara.online").replace(/\/$/, "");
 }
 
 /** Sample findings the button can buy a check for. */
