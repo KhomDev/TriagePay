@@ -35,15 +35,19 @@
         <p class="hint">Circle native USDC on NEAR is <code>17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1</code> (6 decimals). Wrapped NEAR is <code>wrap.near</code>. The beta deposit ceiling is 100 USDC and 10 wNEAR. You can set a lower ceiling. You cannot raise it past that.</p>
         <p class="hint">Each wallet gets its own copy of the code. There is no global contract on this deploy. The factory account itself locks about 2.5 NEAR for its code, and that stays until the factory account is deleted.</p>
       </details>
-      <p><a class="primary" href="/">Back to the sandbox</a></p>
+      <p><a class="text-btn ghost" href="/">Back to the sandbox</a></p>
     </div>
   </section>
 
   <section class="panel" aria-labelledby="h-topup">
     <p class="eyebrow">Top up</p>
     <h2 id="h-topup">Deposit any listed token. The wallet receives USDC.</h2>
-    <p class="lead">This asks the NEAR Intents 1Click API for a quote that settles as Circle USDC on the policy wallet. The token list, the quote, the deposit notice, and the status check are the published <code>/v0</code> routes on <code>1click.chaindefuser.com</code>. A preview uses <code>dry: true</code> and does not create a deposit address. A live quote does.</p>
-    <p class="hint">You sign the deposit in your own wallet. This page has no wallet connection, so it cannot open MyNearWallet, Meteor, HERE, Intear, or HOT for you, and it never asks for a key. For a NEAR token it prints the <code>ft_transfer</code> to sign, with 1 yoctoNEAR attached. For any other chain it prints the deposit address and stops there: I do not invent that chain's transfer. Quotes from this page are unauthenticated, so 1Click adds its public fee. I do not send a JWT.</p>
+    <p class="lead">This asks the NEAR Intents 1Click API for a quote that settles as Circle USDC on the policy wallet. You sign the deposit in your own wallet. This page never asks for a key.</p>
+    <details class="create-details">
+      <summary>How the quote and deposit work</summary>
+      <p class="lead">The token list, the quote, the deposit notice, and the status check are the published <code>/v0</code> routes on <code>1click.chaindefuser.com</code>. A preview uses <code>dry: true</code> and does not create a deposit address. A live quote does.</p>
+      <p class="hint">This page has no wallet connection, so it cannot open MyNearWallet, Meteor, HERE, Intear, or HOT for you. For a NEAR token it prints the <code>ft_transfer</code> to sign, with 1 yoctoNEAR attached. For any other chain it prints the deposit address and stops there: I do not invent that chain's transfer. Quotes from this page are unauthenticated, so 1Click adds its public fee. I do not send a JWT.</p>
+    </details>
     <form id="topup" class="field">
       <label for="wallet">Policy wallet that should receive the USDC</label>
       <input id="wallet" type="text" autocomplete="off" spellcheck="false" placeholder="name.triagepay.hlpok1lad.tg">

@@ -145,8 +145,10 @@ code { font-family: var(--mono); font-size: 0.9em; overflow-wrap: anywhere; }
   font-size: 1.08rem;
 }
 .brand img { border-radius: 7px; }
-/* Geist's light, antialiased "i" on this dark ground loses its tittle, so "Mainnet" reads as "Malnnet". */
+/* Geist's light, antialiased "i" on this dark ground loses its tittle, so "Mainnet" reads as "Malnnet".
+   IBM Plex Mono keeps a visible tittle at this size. */
 .tag, .live-badge, .net-toggle button {
+  font-family: var(--mono);
   font-weight: 600;
   letter-spacing: 0.02em;
   -webkit-font-smoothing: auto;
@@ -265,8 +267,9 @@ button.is-busy::after {
 }
 .hero-copy { min-width: 0; }
 .hero .lead { margin-top: var(--space-4); }
-.hero-app { grid-template-columns: minmax(0, 1fr); padding: var(--space-4) 0 var(--space-4); }
-.hero-app .lead { margin-top: var(--space-2); }
+.hero-app { grid-template-columns: minmax(0, 1fr); padding: var(--space-3) 0 var(--space-3); }
+.hero-app h1 { font-size: clamp(2rem, 3.6vw, 2.8rem); }
+.hero-app .lead { margin-top: var(--space-2); max-width: 62ch; }
 .create-details { margin: var(--space-3) 0; max-width: 58ch; }
 .create-details > summary { color: var(--paper); font-size: 0.98rem; font-weight: 600; }
 .create-details[open] > summary { margin-bottom: var(--space-2); }
