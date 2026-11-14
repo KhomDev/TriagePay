@@ -1,0 +1,144 @@
+{
+  "run": "TriagePay x402 on NEAR mainnet",
+  "network": "near:mainnet",
+  "rpc": "https://free.rpc.fastnear.com",
+  "started_at": "2026-11-14T00:22:42.923Z",
+  "wallet": "e2e044e80.triagepay.hlpok1lad.tg",
+  "gateway": "gateway.hlpok1lad.tg",
+  "asset": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+  "steps": [
+    {
+      "at": "2026-11-14T00:22:43.433Z",
+      "step": "quote",
+      "pass": true,
+      "requirement": {
+        "amount": "1000",
+        "asset": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+        "extra": {
+          "assetTransferMethod": "near-tx-proof",
+          "expiresAt": 1794616663,
+          "intentId": "aps2_6af7a9d3_00003_7e6f99f0696491feba525c577ae29c84",
+          "memo": "aps2_6af7a9d3_00003_7e6f99f0696491feba525c577ae29c84",
+          "paymentFlow": "upfront",
+          "sku": "scan.v1"
+        },
+        "maxTimeoutSeconds": 900,
+        "network": "near:mainnet",
+        "payTo": "gateway.hlpok1lad.tg",
+        "scheme": "exact"
+      },
+      "wallet_usdc_before": "1000",
+      "agent_budget": {
+        "token": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+        "per_call_max": "1000",
+        "daily_max": "2000",
+        "spent_in_window": "0",
+        "remaining": "2000",
+        "window_index": "20771"
+      },
+      "summary": "402: 1000 atomic USDC to gateway.hlpok1lad.tg, memo aps2_6af7a9d3_00003_7e6f99f0696491feba525c577ae29c84; wallet holds 1000, budget remaining 2000"
+    },
+    {
+      "at": "2026-11-14T00:22:48.374Z",
+      "step": "wallet_pay",
+      "pass": true,
+      "tx_hash": "CwLaJmaX8K2jYaTBvM1kyYfMumiUwFTfx49Pra5uPEgG",
+      "explorer": "https://nearblocks.io/txns/CwLaJmaX8K2jYaTBvM1kyYfMumiUwFTfx49Pra5uPEgG",
+      "events": [
+        "aps_policy_wallet:pay_requested",
+        "nep141:ft_transfer",
+        "aps_policy_wallet:pay_settled"
+      ],
+      "nep141_transfer": [
+        {
+          "old_owner_id": "e2e044e80.triagepay.hlpok1lad.tg",
+          "new_owner_id": "gateway.hlpok1lad.tg",
+          "amount": "1000",
+          "memo": "aps2_6af7a9d3_00003_7e6f99f0696491feba525c577ae29c84"
+        }
+      ],
+      "summary": "the agent's pay-only key called pay; the wallet sent 1000 atomic USDC to gateway.hlpok1lad.tg (https://nearblocks.io/txns/CwLaJmaX8K2jYaTBvM1kyYfMumiUwFTfx49Pra5uPEgG)"
+    },
+    {
+      "at": "2026-11-14T00:22:50.981Z",
+      "step": "paid_scan",
+      "pass": true,
+      "http_status": 200,
+      "payment_response": {
+        "amount": "1000",
+        "extensions": {
+          "aps-ledger": {
+            "intentId": "aps2_6af7a9d3_00003_7e6f99f0696491feba525c577ae29c84",
+            "jobId": "job_0000000000000001",
+            "reportHash": "3e54d0350e579c51419e1cbe94a85835ddaa52921187bf5acd935d9c46a977d7"
+          }
+        },
+        "network": "near:mainnet",
+        "payer": "e2e044e80.triagepay.hlpok1lad.tg",
+        "success": true,
+        "transaction": "CwLaJmaX8K2jYaTBvM1kyYfMumiUwFTfx49Pra5uPEgG"
+      },
+      "decision": "supported",
+      "content_hash": "3e54d0350e579c51419e1cbe94a85835ddaa52921187bf5acd935d9c46a977d7",
+      "settlement": {
+        "balances": {
+          "available": {
+            "atomic": "0",
+            "decimal": "0.000000"
+          },
+          "deposited_total": {
+            "atomic": "1000",
+            "decimal": "0.001000"
+          },
+          "refunded_total": {
+            "atomic": "0",
+            "decimal": "0.000000"
+          },
+          "reserved": {
+            "atomic": "0",
+            "decimal": "0.000000"
+          },
+          "settled_total": {
+            "atomic": "1000",
+            "decimal": "0.001000"
+          }
+        },
+        "charged": {
+          "atomic": "1000",
+          "decimal": "0.001000"
+        },
+        "job_id": "job_0000000000000001",
+        "replayed": false,
+        "report_hash_hex": "3e54d0350e579c51419e1cbe94a85835ddaa52921187bf5acd935d9c46a977d7"
+      },
+      "summary": "the server verified the USDC contract's nep141 ft_transfer event and answered 200: verdict supported, payer e2e044e80.triagepay.hlpok1lad.tg"
+    },
+    {
+      "at": "2026-11-14T00:22:50.993Z",
+      "step": "replay_same_request",
+      "pass": true,
+      "http_status": 200,
+      "summary": "the same proof and body replay the stored response; nothing is charged again"
+    },
+    {
+      "at": "2026-11-14T00:22:50.998Z",
+      "step": "reuse_other_request",
+      "pass": true,
+      "http_status": 402,
+      "reason": "proof_already_consumed",
+      "summary": "the same proof with another finding is refused (402 proof_already_consumed)"
+    }
+  ],
+  "balances": {
+    "wallet_usdc": {
+      "before": "1000",
+      "after": "0"
+    },
+    "gateway_usdc": {
+      "before": "101000",
+      "after": "102000"
+    }
+  },
+  "finished_at": "2026-11-14T00:22:51.161Z",
+  "pass": true
+}
