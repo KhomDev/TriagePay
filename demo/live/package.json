@@ -11,7 +11,9 @@
   "scripts": {
     "test": "node --test test/*.test.js",
     "start": "node server.mjs",
-    "setup": "node setup.mjs"
+    "setup": "node setup.mjs",
+    "build": "node scripts/build-client.mjs",
+    "check:build": "node scripts/build-client.mjs --check"
   },
   "dependencies": {
     "@resvg/resvg-wasm": "^2.6.2",

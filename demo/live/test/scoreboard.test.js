@@ -216,7 +216,7 @@ test("the home document takes its numbers from the live board", async () => {
   assert.match(sample, /id="num-paid" class="stat">85</);
   assert.match(sample, /221 testnet attempts left today/);
   assert.match(sample, /as of 07:00 UTC/);
-  assert.match(sample, /REFUSED/);
+  assert.match(sample, /tape-status">Refused</);
   assert.match(sample, /nearblocks\.io\/txns\/5BCGjxC4/);
   const tape = tapeFromRows([{
     network: "testnet",

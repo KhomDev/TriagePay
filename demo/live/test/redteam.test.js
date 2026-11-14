@@ -117,3 +117,30 @@ test("RT-06: the allowance floor parses NEAR amounts", async () => {
   assert.equal(allowanceFloor({ TRIAGEPAY_ALLOWANCE_FLOOR_NEAR: "0.1" }), 100000000000000000000000n);
   assert.equal(allowanceFloor({ TRIAGEPAY_ALLOWANCE_FLOOR_NEAR: "junk" }), 50000000000000000000000n);
 });
+
+test("stale holds: yesterday's and all but the newest two are cleared", async () => {
+  const { staleHolds } = await import("../lib/demo.js");
+  const now = Date.UTC(2026, 10, 14, 12);
+  const today = String(Math.floor(now / 86_400_000));
+  const yesterday = String(Number(today) - 1);
+  const rows = [
+    { payment_id: "20", window_index: yesterday },
+    { payment_id: "30", window_index: today },
+    { payment_id: "31", window_index: today },
+    { payment_id: "32", window_index: today },
+  ];
+  assert.deepEqual(staleHolds(rows, now).sort(), ["20", "30"]);
+  assert.deepEqual(staleHolds([{ payment_id: "5", window_index: today }], now), []);
+  assert.deepEqual(staleHolds([], now), []);
+});
+
+test("the ticker says why, in words, and escapes chain text", async () => {
+  const { tapeHtml, tapeWords } = await import("../lib/tape.js");
+  const refused = tapeWords({ hash: "A".repeat(44), network: "testnet", paid: false, code: "ERR_PAYEE_NOT_ALLOWED", payee: "attacker.testnet" });
+  assert.equal(refused.reason, "Payee not on the allowlist");
+  assert.equal(refused.payee, "attacker.testnet");
+  const html = tapeHtml([{ hash: "B".repeat(44), network: "mainnet", paid: false, code: "<b>", payee: "<script>" }]);
+  assert.equal(/<script>|<b>/.test(html), false);
+  assert.match(html, /Refused by the contract/);
+  assert.match(tapeHtml([{ hash: "C".repeat(44), network: "mainnet", paid: true }]), /Allowlisted payee, inside the caps/);
+});

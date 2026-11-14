@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
-import { restoreIfInactive } from "../lib/demo.js";
+import { clearStaleHolds, restoreIfInactive } from "../lib/demo.js";
+import { chainReady, loadConfig, loadKeys, signingReady } from "../lib/config.js";
 import { fromError, json } from "../lib/http.js";
 import { scoreboard } from "../lib/scoreboard.js";
 
@@ -21,8 +22,13 @@ export async function GET(request) {
       return json(401, { error: { code: "unauthorized", message: "cron secret required" } });
     }
     const restored = await restoreIfInactive(request);
+    const config = loadConfig();
+    const keys = loadKeys();
+    const cleared = chainReady(config) && signingReady(keys)
+      ? await clearStaleHolds(config, keys).catch(() => [])
+      : [];
     const board = await scoreboard().catch(() => null);
-    return json(200, { ...restored, scoreboard: board });
+    return json(200, { ...restored, clearedHolds: cleared, scoreboard: board });
   } catch (error) {
     return fromError(error);
   }

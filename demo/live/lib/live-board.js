@@ -8,6 +8,7 @@ import { readBlobBoard, writeBoard } from "./board-store.js";
 import { fetchIndexerPage } from "./facts.js";
 import { presentScoreboard, raiseScoreboard, readSnapshot, SIDES } from "./scoreboard.js";
 import { fillHome, tapeFromRows } from "./tape.js";
+import { fetchPayTransaction } from "./txread.js";
 
 const PAGE = join(dirname(fileURLToPath(import.meta.url)), "..", "public", "shell.html");
 export const HOME_CACHE = "public, max-age=0, s-maxage=10, stale-while-revalidate=60";
@@ -37,14 +38,41 @@ export async function peekTape(timeoutMs = 900) {
   }
 }
 
+/**
+ * Add the payee and the refusal code to ticker rows that lack them, read
+ * from each transaction. Reads are cached per process and the whole step
+ * is time-boxed, so the page never waits on the chain for its ticker.
+ */
+export async function enrichTape(rows, budgetMs = 1200) {
+  const list = Array.isArray(rows) ? rows : [];
+  const sides = new Map(SIDES.map((side) => [side.network, side]));
+  const jobs = list.map(async (row) => {
+    if (!row || !row.hash || (row.payee && (row.paid || row.code || row.held))) return row;
+    const side = sides.get(row.network === "mainnet" ? "mainnet" : "testnet");
+    if (!side) return row;
+    const pay = await fetchPayTransaction(side.rpcUrl, row.hash, [side.agent]).catch(() => null);
+    if (!pay) return row;
+    return {
+      ...row,
+      payee: row.payee || pay.payee || null,
+      code: row.code || pay.errorCode || null,
+      held: Boolean(row.held || pay.held),
+    };
+  });
+  const timeout = new Promise((resolve) => setTimeout(() => resolve(null), budgetMs));
+  const done = await Promise.race([Promise.all(jobs), timeout]);
+  return Array.isArray(done) ? done : list;
+}
+
 export async function boardPayload() {
   const board = await liveBoard();
   const stale = !board.recent || !board.recent.length;
-  if (!stale) return board;
-  const recent = await peekTape();
-  if (!recent.length) return board;
+  const base = stale ? await peekTape() : board.recent;
+  if (!base.length) return board;
+  const recent = await enrichTape(base);
   const next = { ...board, recent };
-  await writeBoard(next).catch(() => {});
+  const changed = stale || recent.some((row, index) => row !== base[index]);
+  if (changed) await writeBoard(next).catch(() => {});
   return next;
 }
 
@@ -59,6 +87,7 @@ export async function homeResponse() {
     const peeked = await peekTape(400);
     if (peeked.length > recent.length) recent = peeked;
   }
+  recent = await enrichTape(recent, 700);
   return new Response(renderHomeHtml({ ...board, recent }), {
     status: 200,
     headers: {

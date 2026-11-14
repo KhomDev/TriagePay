@@ -87,3 +87,22 @@ test("the page script does not parse chain data as HTML", () => {
   assert.match(html, /Launch the attack/);
   assert.match(script, /approvalThresholdDisplay/);
 });
+
+test("app.min.js is built from the current app.js", async () => {
+  const { bannerHash, sourceHash } = await import("../scripts/build-client.mjs");
+  const bundled = readFileSync(join(ROOT, "public", "app.min.js"), "utf8");
+  assert.equal(bannerHash(bundled), sourceHash(script), "run: node scripts/build-client.mjs");
+});
+
+test("the redesigned page keeps the judge path and drops the stale chrome", () => {
+  assert.match(html, /id="btn-hero-queue"/);
+  assert.match(html, /id="num-drained"/);
+  assert.match(html, /Paid on mainnet in USDC/);
+  assert.match(html, /CwLaJmaX8K2jYaTBvM1kyYfMumiUwFTfx49Pra5uPEgG/);
+  assert.match(html, /Agent key can call <span class="mono">pay<\/span> only/);
+  assert.match(html, /docs\/security\/redteam-2026-11-13\.md/);
+  assert.match(html, /id="btn-policy-apply"[^>]*hidden/);
+  assert.equal(/memo I issued/.test(html), false);
+  assert.equal(/Value protected/.test(html), false);
+  assert.match(html, /id="console"/);
+});

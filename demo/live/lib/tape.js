@@ -51,14 +51,45 @@ function esc(value) {
   }[ch]));
 }
 
+// Plain words for the contract's refusal codes, as a reader would say them.
+export const REASON = {
+  ERR_PAYEE_NOT_ALLOWED: "Payee not on the allowlist",
+  ERR_PER_CALL_LIMIT: "Over the per-call cap",
+  ERR_DAILY_LIMIT: "Over the daily cap",
+  ERR_AGENT_INACTIVE: "Agent revoked",
+  ERR_PAUSED: "Wallet paused",
+  ERR_TOKEN_NOT_ALLOWED: "Token not allowed",
+  ERR_QUEUE_FULL: "Review queue full",
+};
+const ACCOUNT = /^[a-z0-9._-]{2,64}$/;
+
+/** The words one ticker row shows. Codes and payees come from the chain. */
+export function tapeWords(item) {
+  const held = Boolean(item && item.held);
+  const status = held ? "Held" : item && item.paid ? "Paid" : "Refused";
+  const kind = held ? "held" : item && item.paid ? "paid" : "refused";
+  const code = item && /^ERR_[A-Z_]+$/.test(String(item.code || "")) ? String(item.code) : null;
+  const reason = held
+    ? "Waiting for the owner"
+    : item && item.paid
+      ? "Allowlisted payee, inside the caps"
+      : (code && (REASON[code] || code)) || "Refused by the contract";
+  const payee = item && ACCOUNT.test(String(item.payee || "")) ? String(item.payee) : null;
+  const network = item && item.network === "mainnet" ? "Mainnet" : "Testnet";
+  return { status, kind, code, reason, payee, network };
+}
+
 export function tapeHtml(rows) {
   return (rows || []).map((item) => {
     const href = txHref(item);
     if (!href) return "";
-    const word = item.paid ? "PAID" : "REFUSED";
-    const kind = item.paid ? "paid" : "refused";
-    const net = item.network === "mainnet" ? "mainnet" : "testnet";
-    return `<li><a href="${esc(href)}" rel="noopener" target="_blank"><span class="${kind}">${word}</span> ${esc(item.hash.slice(0, 8))} · ${net}</a></li>`;
+    const w = tapeWords(item);
+    const payee = w.payee ? `<span class="tape-payee">${esc(w.payee)}</span>` : "";
+    return `<li class="is-${w.kind}"><a href="${esc(href)}" rel="noopener" target="_blank">`
+      + `<span class="tape-status">${w.status}</span>`
+      + `<span class="tape-reason">${esc(w.reason)}</span>`
+      + payee
+      + `<span class="tape-net">${w.network}</span></a></li>`;
   }).join("");
 }
 

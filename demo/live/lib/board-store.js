@@ -75,6 +75,9 @@ function sanitizeRecent(rows) {
       network: row.network === "mainnet" ? "mainnet" : "testnet",
       paid: Boolean(row.paid),
       atMs: Number.isFinite(row.atMs) ? row.atMs : 0,
+      payee: /^[a-z0-9._-]{2,64}$/.test(String(row.payee || "")) ? String(row.payee) : null,
+      code: /^ERR_[A-Z_]{3,40}$/.test(String(row.code || "")) ? String(row.code) : null,
+      held: Boolean(row.held),
     });
   }
   items.sort((a, b) => b.atMs - a.atMs);

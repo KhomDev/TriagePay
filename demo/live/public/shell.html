@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<meta name="description" content="The agent signs. The contract decides. A policy wallet on NEAR testnet and mainnet. Launch the attack and watch the contract refuse it.">
+<meta name="theme-color" content="#0e1622">
+<meta name="description" content="The agent signs. The contract decides. A spending wallet for AI agents on NEAR. Launch a prompt-injected payment and watch the contract refuse it.">
 <meta property="og:title" content="TriagePay — The agent signs. The contract decides.">
 <meta property="og:description" content="The agent signs. The contract decides. Live on NEAR testnet and mainnet.">
 <meta property="og:image" content="/og.png">
@@ -17,7 +18,6 @@
 <title>TriagePay — The agent signs. The contract decides.</title>
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="icon" href="/mark.svg" type="image/svg+xml">
-<link rel="preload" href="/fonts/syne-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/style.css">
 <script src="/app.min.js" defer></script>
@@ -26,134 +26,129 @@
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="nav">
   <a class="brand" href="#top">
-    <img src="/mark.svg" width="28" height="28" alt="">
+    <img src="/mark.svg" width="26" height="26" alt="">
     <span>TriagePay</span>
   </a>
-  <p class="tag">Live on NEAR testnet and mainnet</p>
-  <a class="text-btn" href="/app">Create a wallet</a>
-  <a id="nav-wallet" class="nav-wallet mono" href="https://testnet.nearblocks.io/address/tpd-e947e7-wallet.testnet" rel="noopener" target="_blank">tpd-e947e7-wallet.testnet</a>
+  <p class="tag">A spending wallet for AI agents on NEAR</p>
+  <nav class="nav-links" aria-label="Site">
+    <a href="#drain">Drain Me</a>
+    <a href="#console">Owner console</a>
+    <a href="https://github.com/KhomDev/TriagePay" rel="noopener" target="_blank">GitHub</a>
+    <a class="text-btn" href="/app">Create a wallet</a>
+  </nav>
 </header>
 <main id="main">
   <section class="hero" id="top" aria-labelledby="h-hero">
     <div class="hero-copy">
-      <p class="eyebrow">Policy wallet for agents · NEAR testnet and mainnet</p>
-      <h1 id="h-hero">The agent signs. <span>The contract decides.</span></h1>
-      <p class="lead">Agents pay per call over x402 on NEAR, and the wallet is the security layer that makes that safe.</p>
-      <section class="numbers" id="numbers" aria-label="Live counts">
-        <article>
-          <p class="stat-kicker">Paid calls</p>
-          <p id="num-paid" class="stat">79</p>
-        </article>
-        <article>
-          <p class="stat-kicker">Attacks refused</p>
-          <p id="num-refused" class="stat">100</p>
-        </article>
-        <article>
-          <p class="stat-kicker">Value protected</p>
-          <p id="num-protected" class="stat">0.0086 wNEAR</p>
-        </article>
-        <article>
-          <p class="stat-kicker">Unique agents</p>
-          <p id="num-agents" class="stat">2</p>
-        </article>
-        <p id="num-source" class="hint"><a href="https://nearblocks.io" rel="noopener" target="_blank">Live from NearBlocks</a> · as of 06:15 UTC</p>
+      <h1 id="h-hero"><span class="h1-agent">The agent signs.</span> <span class="h1-contract">The contract decides.</span></h1>
+      <p class="lead">Agents pay per call over x402 on NEAR, and the wallet is the security layer that makes that safe. Every payment is checked on chain against the owner's allowlist and caps, so a tricked agent cannot pay an attacker.</p>
+
+      <section class="judge" aria-labelledby="h-judge">
+        <h2 id="h-judge">Judge in 60 seconds</h2>
+        <ol class="judge-steps">
+          <li class="judge-step">
+            <p class="judge-title">Watch testnet refuse the injected payee</p>
+            <p class="judge-copy">A finding tells the agent to pay an attacker. The agent signs. The contract answers with a refusal on chain.</p>
+            <div class="cta-row">
+              <button id="btn-launch" type="button" disabled aria-label="Launch the attack">Launch the attack</button>
+              <div class="net-toggle" role="group" aria-label="Network">
+                <button type="button" id="net-testnet" class="secondary" aria-pressed="true">Testnet</button>
+                <button type="button" id="net-mainnet" class="secondary" aria-pressed="false">Mainnet</button>
+              </div>
+              <label class="live-opt" for="opt-live"><input id="opt-live" type="checkbox"> Live model</label>
+            </div>
+            <p id="attempt-left" class="hint">250 testnet attempts left today</p>
+            <p class="proof-links"><a href="https://testnet.nearblocks.io/txns/8y6sEwL8i5sP2aMKo5HS3WGZtZ8NMDP9MUdywYAmVnN4" rel="noopener" target="_blank">Testnet refuse</a></p>
+          </li>
+          <li class="judge-step">
+            <p class="judge-title">A payment above the threshold is held, then the owner approves it</p>
+            <p class="judge-copy">The contract holds it in an on-chain queue. Approve it in the owner console below.</p>
+            <div class="cta-row">
+              <button id="btn-hero-queue" type="button" class="secondary" disabled>Queue a held payment</button>
+            </div>
+            <p class="proof-links"><a href="https://testnet.nearblocks.io/txns/8nvs4X4jWrzEzsbUj2ziS5qEdTTi6wvRwfUTBxftdcJi" rel="noopener" target="_blank">Testnet hold</a> <a href="https://testnet.nearblocks.io/txns/CwEo7ec8uk25XQbKHNmS3naUhqM9FPbRJzEAjVf223Hp" rel="noopener" target="_blank">Then approve</a></p>
+          </li>
+          <li class="judge-step">
+            <p class="judge-title">Mainnet: a factory-created wallet, a paid call and a refusal</p>
+            <p class="judge-copy">The same contract on NEAR mainnet, with real USDC.</p>
+            <a class="usdc-card" href="https://nearblocks.io/txns/CwLaJmaX8K2jYaTBvM1kyYfMumiUwFTfx49Pra5uPEgG" rel="noopener" target="_blank">
+              <span class="usdc-title">Paid on mainnet in USDC</span>
+              <span class="usdc-copy">An agent paid 0.001 USDC for one API call over x402. The server accepted it only after reading the USDC contract's own transfer event.</span>
+            </a>
+            <p class="proof-links"><a href="https://nearblocks.io/txns/EYnoWhUdJsxMLQN5aj1GBuwMeRGuGMPMjMBfhNARwioP" rel="noopener" target="_blank">Created</a> <a href="https://nearblocks.io/txns/9YCqzVgVNvaED7twQgtJvhUeCHMrnDiDAwKdbRHxnQWp" rel="noopener" target="_blank">Paid</a> <a href="https://nearblocks.io/txns/FfmGZyE4j8LK3uPzQCAcXbLwuzTgPNy76LasjoHVamHH" rel="noopener" target="_blank">Refused</a> <a href="https://github.com/KhomDev/TriagePay/blob/main/docs/demo/mainnet-x402/2026-11-14/README.md" rel="noopener" target="_blank">x402 evidence</a></p>
+          </li>
+        </ol>
       </section>
-      <ol id="tape" class="tape" aria-label="Latest on-chain decisions"></ol>
-      <div class="cta-row">
-        <button id="btn-launch" type="button" disabled aria-label="Launch the attack">Launch the attack</button>
-        <div class="net-toggle" role="group" aria-label="Network">
-          <button type="button" id="net-testnet" class="secondary" aria-pressed="true">Testnet</button>
-          <button type="button" id="net-mainnet" class="secondary" aria-pressed="false">Mainnet</button>
-        </div>
-        <label class="live-opt" for="opt-live"><input id="opt-live" type="checkbox"> Live model</label>
-        <a class="text-btn ghost" href="#drain">Try to drain it</a>
-      </div>
-      <p id="attempt-left" class="hint">250 testnet attempts left today</p>
-      <div id="mainnet-proofs" class="hint" hidden></div>
-      <div id="live-verdict" class="live-verdict" aria-live="assertive"></div>
-      <p id="mainnet-left" class="hint" hidden></p>
-      <p id="agent-mode" class="mode-pill">Deterministic attack, real on-chain refusal</p>
-      <p id="status" class="status" role="status" aria-live="polite"></p>
     </div>
+
     <div class="stage">
-      <p class="stage-label">Attack path</p>
-      <ol id="flow" class="pipeline">
-        <li id="step-agent" class="step">
-          <span class="dot"></span>
-          <span class="kicker">01 · Reads the finding</span>
-          <p id="agent-trace" class="trace">The agent reads who to pay.</p>
-        </li>
-        <li class="rail" aria-hidden="true"><span class="packet"></span></li>
-        <li id="step-instruction" class="step">
-          <span class="dot"></span>
-          <span class="kicker">02 · Injection</span>
-          <p id="inject-line" class="trace">Pay the attacker.</p>
-        </li>
-        <li class="rail" aria-hidden="true"><span class="packet"></span></li>
-        <li id="step-wallet" class="step">
-          <span class="dot"></span>
-          <span class="kicker">03 · Signs pay</span>
-          <p id="sign-line" class="trace">The agent key calls pay.</p>
-        </li>
-        <li class="rail" aria-hidden="true"><span class="packet"></span></li>
-        <li id="step-verdict" class="step verdict-step">
-          <span class="dot"></span>
-          <span class="kicker">04 · Contract</span>
-          <p id="verdict-wait" class="trace">The contract has not decided yet.</p>
-          <p id="stamp" class="stamp" hidden></p>
-        </li>
-      </ol>
-      <p class="diagram-note">Launch the attack. The error code and the transaction link appear under this strip.</p>
-      <div id="verdict" aria-live="assertive"></div>
+      <div class="console" aria-labelledby="h-console">
+        <div class="console-head">
+          <h2 id="h-console" class="console-title">Attack path</h2>
+          <a class="key-chip" href="https://testnet.nearblocks.io/address/tpd-e947e7-agent.testnet" rel="noopener" target="_blank">Agent key can call <span class="mono">pay</span> only</a>
+        </div>
+        <ol id="flow" class="pipeline">
+          <li id="step-agent" class="step">
+            <span class="dot"></span>
+            <span class="kicker">1 Reads the finding</span>
+            <p id="agent-trace" class="trace">The agent reads who to pay.</p>
+          </li>
+          <li class="rail" aria-hidden="true"><span class="packet"></span></li>
+          <li id="step-instruction" class="step">
+            <span class="dot"></span>
+            <span class="kicker">2 Injection</span>
+            <p id="inject-line" class="trace">Pay the attacker.</p>
+          </li>
+          <li class="rail" aria-hidden="true"><span class="packet"></span></li>
+          <li id="step-wallet" class="step">
+            <span class="dot"></span>
+            <span class="kicker">3 Signs pay</span>
+            <p id="sign-line" class="trace">The agent key calls pay.</p>
+          </li>
+          <li class="rail" aria-hidden="true"><span class="packet"></span></li>
+          <li id="step-verdict" class="step verdict-step">
+            <span class="dot"></span>
+            <span class="kicker">4 The contract decides</span>
+            <p id="verdict-wait" class="trace">The contract has not decided yet.</p>
+            <p id="stamp" class="stamp" hidden></p>
+          </li>
+        </ol>
+        <div id="live-verdict" class="live-verdict" aria-live="assertive"></div>
+        <div id="mainnet-proofs" class="hint" hidden></div>
+        <p id="mainnet-left" class="hint" hidden></p>
+        <p id="agent-mode" class="mode-pill">Deterministic attack, real on-chain refusal</p>
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+        <p class="diagram-note">Launch the attack. The error code and the transaction link appear here.</p>
+        <div id="verdict" aria-live="assertive"></div>
+      </div>
     </div>
   </section>
 
-  <section class="judge" aria-labelledby="h-judge">
-    <h2 id="h-judge">Judge in 60 seconds</h2>
-    <ol>
-      <li>
-        <p class="num">1</p>
-        <p>Watch testnet refuse the injected payee.</p>
-        <a href="https://testnet.nearblocks.io/txns/8y6sEwL8i5sP2aMKo5HS3WGZtZ8NMDP9MUdywYAmVnN4" rel="noopener" target="_blank">Testnet refuse</a>
-      </li>
-      <li>
-        <p class="num">2</p>
-        <p>A payment above the threshold is held, then the owner approves it.</p>
-        <a href="https://testnet.nearblocks.io/txns/8nvs4X4jWrzEzsbUj2ziS5qEdTTi6wvRwfUTBxftdcJi" rel="noopener" target="_blank">Testnet hold</a>
-        <a href="https://testnet.nearblocks.io/txns/CwEo7ec8uk25XQbKHNmS3naUhqM9FPbRJzEAjVf223Hp" rel="noopener" target="_blank">Then approve</a>
-      </li>
-      <li>
-        <p class="num">3</p>
-        <p>Mainnet: a factory-created wallet, a paid call and a refusal.</p>
-        <a href="https://nearblocks.io/txns/EYnoWhUdJsxMLQN5aj1GBuwMeRGuGMPMjMBfhNARwioP" rel="noopener" target="_blank">Created</a>
-        <a href="https://nearblocks.io/txns/9YCqzVgVNvaED7twQgtJvhUeCHMrnDiDAwKdbRHxnQWp" rel="noopener" target="_blank">Paid</a>
-        <a href="https://nearblocks.io/txns/FfmGZyE4j8LK3uPzQCAcXbLwuzTgPNy76LasjoHVamHH" rel="noopener" target="_blank">Refused</a>
-      </li>
-    </ol>
+  <section class="ledger" aria-labelledby="h-ledger">
+    <h2 id="h-ledger" class="sr-only">Live counts</h2>
+    <div class="numbers" id="numbers">
+      <article>
+        <p id="num-paid" class="stat">79</p>
+        <p class="stat-kicker">Paid calls</p>
+      </article>
+      <article>
+        <p id="num-refused" class="stat">100</p>
+        <p class="stat-kicker">Attacks refused</p>
+      </article>
+      <article class="is-drained">
+        <p id="num-drained" class="stat">0</p>
+        <p class="stat-kicker">Drained by attackers</p>
+      </article>
+      <article>
+        <p id="num-agents" class="stat">2</p>
+        <p class="stat-kicker">Agents</p>
+      </article>
+    </div>
+    <p id="num-source" class="hint"><a href="https://nearblocks.io" rel="noopener" target="_blank">Live from NearBlocks</a> · as of 06:15 UTC</p>
+    <ol id="tape" class="tape" aria-label="Latest on-chain decisions"></ol>
   </section>
 
-  <section class="diff" aria-labelledby="h-diff">
-    <h2 id="h-diff">Why it's different</h2>
-    <ol>
-      <li>
-        <h3>On-chain enforcement, pay-only key</h3>
-        <p>The agent key can call only <span class="mono">pay</span>. Caps, the allowlist, pause, and revoke live in the contract.</p>
-        <a href="https://testnet.nearblocks.io/address/tpd-e947e7-agent.testnet" rel="noopener" target="_blank">See the agent key</a>
-      </li>
-      <li>
-        <h3>On-chain owner review queue</h3>
-        <p>Above the threshold, the contract holds the payment until the owner approves or rejects it.</p>
-        <a href="https://testnet.nearblocks.io/txns/8nvs4X4jWrzEzsbUj2ziS5qEdTTi6wvRwfUTBxftdcJi" rel="noopener" target="_blank">Held on testnet</a>
-      </li>
-      <li>
-        <h3>x402 check from token events</h3>
-        <p>A payment counts only when the token contract's own transfer event pays the gateway with the memo I issued. Run on testnet and on mainnet in USDC.</p>
-        <a href="https://github.com/KhomDev/TriagePay/blob/main/README.md#how-the-server-knows-it-was-paid">How I check it</a>
-      </li>
-    </ol>
-  </section>
-
-  <section class="stats" aria-label="Live on-chain stats">
+  <section class="stats" aria-label="The demo wallet today">
     <article>
       <p class="stat-kicker">Spent today</p>
       <p id="stat-spent" class="stat">—</p>
@@ -173,18 +168,18 @@
       <p class="stat-sub">Pay-only key. The owner can revoke it.</p>
     </article>
     <article>
-      <p class="stat-kicker">Held for owner</p>
+      <p class="stat-kicker">Held for the owner</p>
       <p id="stat-pending" class="stat">—</p>
       <p id="spend-meta" class="stat-sub"></p>
     </article>
+    <p class="stats-wallet">Wallet <a id="nav-wallet" class="nav-wallet mono" href="https://testnet.nearblocks.io/address/tpd-e947e7-wallet.testnet" rel="noopener" target="_blank">tpd-e947e7-wallet.testnet</a></p>
   </section>
 
   <section class="challenge" id="drain" aria-labelledby="h-drain">
     <div class="challenge-head">
       <div>
-        <p class="eyebrow">Public challenge</p>
         <h2 id="h-drain">Drain Me</h2>
-        <p class="lead">Try to make this agent pay an attacker. The contract is what stops it.</p>
+        <p class="lead">Write your own injection and try to make this agent pay an attacker. The agent may obey. The contract is what stops it.</p>
       </div>
       <dl class="counters">
         <div><dt>Attempts</dt><dd id="drain-attempts">0</dd></div>
@@ -214,45 +209,19 @@
   </section>
 
   <section class="panel" id="receipts" aria-labelledby="h-receipts">
-    <p class="eyebrow">Receipts</p>
     <h2 id="h-receipts">What the wallet decided</h2>
-      <p class="hint">The latest decision is the card. Older ones are the list under it.</p>
+    <p class="hint">The latest decision is the card. Older ones are listed under it.</p>
     <div id="receipts-feed"></div>
   </section>
 
-  <section class="panel" id="policy" aria-labelledby="h-policy">
-    <p class="eyebrow">Owner</p>
-    <h2 id="h-policy">Say the policy</h2>
-    <p id="policy-note" class="hint"></p>
-    <form id="policy-form">
-      <label for="policy-text">One sentence</label>
-      <textarea id="policy-text" maxlength="500" rows="3" placeholder="max 0.01 wNEAR a day, only pay the triage API, ask me above 0.001"></textarea>
-      <div class="actions">
-        <button id="btn-policy" type="submit" class="secondary">Preview the diff</button>
-        <button id="btn-policy-apply" type="button" class="secondary" disabled>Apply on chain</button>
-      </div>
-    </form>
-    <div id="policy-result" aria-live="polite"></div>
-  </section>
+  <section class="owner-console" id="console" aria-labelledby="h-owner">
+    <div class="section-head">
+      <h2 id="h-owner">Owner console</h2>
+      <p class="lead">What the wallet's owner can do. The server holds the owner key; this page never receives it. Approve on this public page releases only a payment to the allowlisted payee.</p>
+    </div>
 
-  <section class="split" id="owner">
-    <details class="panel" id="kill-panel">
-      <summary id="h-kill">Kill switch</summary>
-      <p class="hint">Revoke and the one-time link stay here so they are not the first thing on the page. Each one asks you to confirm. The server holds the owner key. This page never receives it.</p>
-      <p id="kill-note" class="hint"></p>
-      <div class="actions">
-        <button id="btn-kill" type="button" disabled>Generate kill switch</button>
-        <button id="btn-revoke" type="button" class="secondary" disabled>Revoke</button>
-        <button id="btn-restore" type="button" class="secondary" disabled>Restore</button>
-      </div>
-      <a id="kill-link" class="kill-link mono" rel="noopener"></a>
-      <img id="kill-qr" class="qr" alt="" width="180" height="180">
-      <div id="kill-result" aria-live="polite"></div>
-      <div id="owner-result" aria-live="polite"></div>
-    </details>
-    <article class="panel" aria-labelledby="h-review">
-      <p class="eyebrow">Owner</p>
-      <h2 id="h-review">Owner review</h2>
+    <article class="panel" id="review-panel" aria-labelledby="h-review">
+      <h3 id="h-review" class="panel-title">Owner review</h3>
       <p id="telegram-note" class="hint"></p>
       <p id="review-copy" class="hint"></p>
       <ol class="pipeline mini" id="review-flow">
@@ -268,108 +237,172 @@
       </div>
       <div id="review-result" aria-live="polite"></div>
     </article>
-  </section>
 
-  <details class="panel" id="how">
-    <summary>How it works</summary>
-    <h2 id="h-how">The key can only ask. The wallet decides.</h2>
-    <ol class="how-list">
-      <li><strong>Pay-only key.</strong> The agent account's key can call <span class="mono">pay</span> on one wallet. Signing happens on the server. This page never holds a key.</li>
-      <li><strong>The contract checks.</strong> Pause, the agent is active, the token, the allowlist, the per-call cap, the daily cap. A new payee or an amount above the threshold can be held for the owner.</li>
-      <li><strong>The refusal is a transaction.</strong> <span class="mono">ERR_PAYEE_NOT_ALLOWED</span> changes no balance. The explorer link is the proof.</li>
-    </ol>
-  </details>
+    <div class="console-tools">
+      <details class="panel" id="kill-panel">
+        <summary id="h-kill">Kill switch</summary>
+        <p class="hint">Revoke stops the agent's next payment. The one-time link does the same from a phone. Both ask you to confirm.</p>
+        <p id="kill-note" class="hint"></p>
+        <div class="actions">
+          <button id="btn-kill" type="button" disabled>Generate kill switch</button>
+          <button id="btn-revoke" type="button" class="secondary" disabled>Revoke</button>
+          <button id="btn-restore" type="button" class="secondary" disabled>Restore</button>
+        </div>
+        <a id="kill-link" class="kill-link mono" rel="noopener"></a>
+        <img id="kill-qr" class="qr" alt="" width="180" height="180">
+        <div id="kill-result" aria-live="polite"></div>
+        <div id="owner-result" aria-live="polite"></div>
+      </details>
 
-  <details class="panel" id="proofs">
-    <summary>Testnet and mainnet proofs</summary>
-    <h2 id="h-proofs" class="sr-only">Testnet and mainnet</h2>
-    <ul class="proof-list">
-      <li><a href="https://testnet.nearblocks.io/txns/8y6sEwL8i5sP2aMKo5HS3WGZtZ8NMDP9MUdywYAmVnN4" rel="noopener" target="_blank">Testnet refusal, ERR_PAYEE_NOT_ALLOWED</a></li>
-      <li><a href="https://testnet.nearblocks.io/txns/4oxycWdvo9M4YWoq9mg2y4FXL7AZYQY6McvcPJQYJejq" rel="noopener" target="_blank">Testnet payment inside the cap</a></li>
-      <li><a href="https://testnet.nearblocks.io/txns/8nvs4X4jWrzEzsbUj2ziS5qEdTTi6wvRwfUTBxftdcJi" rel="noopener" target="_blank">Testnet hold above the threshold</a></li>
-      <li><a href="https://nearblocks.io/txns/EYnoWhUdJsxMLQN5aj1GBuwMeRGuGMPMjMBfhNARwioP" rel="noopener" target="_blank">Mainnet factory wallet created</a></li>
-      <li><a href="https://nearblocks.io/txns/9YCqzVgVNvaED7twQgtJvhUeCHMrnDiDAwKdbRHxnQWp" rel="noopener" target="_blank">Mainnet paid call, factory wallet</a></li>
-      <li><a href="https://nearblocks.io/txns/FfmGZyE4j8LK3uPzQCAcXbLwuzTgPNy76LasjoHVamHH" rel="noopener" target="_blank">Mainnet refusal over cap, factory wallet</a></li>
-      <li><a href="https://nearblocks.io/txns/6F3jNamjerT69EMnxaQVy7WRdZuscj7t53V1oceTU4Yj" rel="noopener" target="_blank">Earlier proof, paid call, 1000 yocto</a></li>
-      <li><a href="https://nearblocks.io/txns/5BCGjxC4CkPSy8iv876cP65xxs2LRWwcWKFqmcVJEyEw" rel="noopener" target="_blank">Earlier proof, refusal, 1000 yocto</a></li>
-      <li><a href="https://nearblocks.io/txns/2RH77VLsLHovF3m4kzR76jk71X8tYKAyugxQ9YJMXLJJ" rel="noopener" target="_blank">Earlier proof, paid call, 2026-11-12</a></li>
-      <li><a href="https://nearblocks.io/txns/HskzPv94J1JY16K5WdUG8wfGznnhnMMKcXgE1acks63F" rel="noopener" target="_blank">Earlier proof, refusal, 2026-11-12</a></li>
-    </ul>
-    <p class="hint">Judge in 60 seconds points at the factory-wallet proofs. The 1000-yocto pair and the 2026-11-12 links are earlier proofs.</p>
-  </details>
+      <details class="panel" id="policy">
+        <summary id="h-policy">Say the policy</summary>
+        <p class="hint">Type a policy in one sentence. The preview shows what would change on chain and signs nothing. Applying is an owner-only call that needs the owner token.</p>
+        <p id="policy-note" class="hint"></p>
+        <form id="policy-form">
+          <label for="policy-text">One sentence</label>
+          <textarea id="policy-text" maxlength="500" rows="3" placeholder="max 0.01 wNEAR a day, only pay the triage API, ask me above 0.001"></textarea>
+          <div class="actions">
+            <button id="btn-policy" type="submit" class="secondary">Preview the change</button>
+            <button id="btn-policy-apply" type="button" class="secondary" disabled hidden>Apply on chain</button>
+          </div>
+        </form>
+        <div id="policy-result" aria-live="polite"></div>
+      </details>
 
-  <details class="panel" id="sdk">
-    <summary>Builder SDK and agent passport</summary>
-    <h2 id="h-sdk" class="sr-only">One call, still the wallet's rules</h2>
-    <p class="lead"><span class="mono">packages/triagepay-sdk</span> wraps <span class="mono">pay</span> for an x402 client and exposes a NEAR AI tool. It does not hold a key. The wallet still refuses a payee that is not allowed.</p>
-    <p><a id="passport-link" href="/agent/tpd-e947e7-agent.testnet">Agent passport</a> · <a href="https://github.com/KhomDev/TriagePay/tree/main/packages/triagepay-sdk">SDK readme</a></p>
-  </details>
+      <details class="panel">
+        <summary>Payee risk</summary>
+        <h3 id="h-risk" class="sr-only">Payee risk</h3>
+        <p class="hint">An allowlisted payee shows <strong>warn</strong> when the account is under 7 days old, or when its age could not be read. The demo payee was created for this page, so warn is expected. Warn does not move money. The contract still enforces the allowlist.</p>
+        <div id="risks"></div>
+      </details>
 
-  <details class="panel">
-    <summary>Payee risk</summary>
-    <h2 id="h-risk" class="sr-only">Payee risk</h2>
-    <p class="hint">An allowlisted payee shows <strong>warn</strong> when the account is under 7 days old, or when I could not read its age. The demo payee was created for this page, so warn is expected. Warn does not move money. The contract still enforces the allowlist.</p>
-    <div id="risks"></div>
-  </details>
+      <details class="panel">
+        <summary>Model attestation</summary>
+        <h3 id="h-attest" class="sr-only">Model attestation</h3>
+        <p class="hint">Checks that a NEAR AI Cloud report echoes a fresh nonce. The Intel quote is not verified, so this is not a hardware attestation.</p>
+        <button id="btn-attest" type="button" class="secondary">Check attestation</button>
+        <div id="attest-result" aria-live="polite"></div>
+      </details>
 
-  <details class="panel">
-    <summary>Model attestation</summary>
-    <h2 id="h-attest" class="sr-only">Model attestation</h2>
-    <p class="hint">I check that a NEAR AI Cloud report echoes a nonce I just made. I do not verify the Intel quote, so this is not a hardware attestation.</p>
-    <button id="btn-attest" type="button" class="secondary">Check attestation</button>
-    <div id="attest-result" aria-live="polite"></div>
-  </details>
-
-  <section class="panel" id="scenarios" aria-labelledby="h-scenarios">
-    <h2 id="h-scenarios">Other scenarios</h2>
-    <form id="run-form" novalidate>
-      <div class="field">
-        <label for="scenario">Scenario</label>
-        <select id="scenario" name="scenario"></select>
-        <span id="scenario-hint" class="hint"></span>
-      </div>
-      <div class="field">
-        <label for="injection">Instruction the agent follows</label>
-        <textarea id="injection" readonly rows="4"></textarea>
-      </div>
-      <div class="actions">
-        <button id="btn-run" type="submit" disabled>Run scenario</button>
-        <button id="btn-refresh" type="button" class="secondary">Refresh</button>
-      </div>
-    </form>
-    <div id="result" aria-live="polite"></div>
-  </section>
-
-  <details class="panel">
-    <summary>Recent chain activity</summary>
-    <h2 id="h-recent" class="sr-only">Recent chain activity</h2>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>When</th>
-            <th>What</th>
-            <th>Risk</th>
-            <th>Chain</th>
-            <th>Explorer</th>
-          </tr>
-        </thead>
-        <tbody id="recent"></tbody>
-      </table>
+      <details class="panel" id="scenarios">
+        <summary id="h-scenarios">Other scenarios</summary>
+        <form id="run-form" novalidate>
+          <div class="field">
+            <label for="scenario">Scenario</label>
+            <select id="scenario" name="scenario"></select>
+            <span id="scenario-hint" class="hint"></span>
+          </div>
+          <div class="field">
+            <label for="injection">Instruction the agent follows</label>
+            <textarea id="injection" readonly rows="4"></textarea>
+          </div>
+          <div class="actions">
+            <button id="btn-run" type="submit" disabled>Run scenario</button>
+            <button id="btn-refresh" type="button" class="secondary">Refresh</button>
+          </div>
+        </form>
+        <div id="result" aria-live="polite"></div>
+      </details>
     </div>
-    <div id="recent-more"></div>
-  </details>
+  </section>
+
+  <section class="diff" aria-labelledby="h-diff">
+    <h2 id="h-diff">Why it's different</h2>
+    <ol>
+      <li>
+        <h3>The limits live in the contract</h3>
+        <p>The agent key can call only <span class="mono">pay</span>. The allowlist, both caps, pause and revoke are enforced by the wallet contract, so nothing in the agent's prompt or code can lift them.</p>
+        <a href="https://testnet.nearblocks.io/address/tpd-e947e7-agent.testnet" rel="noopener" target="_blank">See the agent key</a>
+      </li>
+      <li>
+        <h3>The owner reviews large payments on chain</h3>
+        <p>Above the threshold, the contract holds the payment until the owner approves or rejects it.</p>
+        <a href="https://testnet.nearblocks.io/txns/8nvs4X4jWrzEzsbUj2ziS5qEdTTi6wvRwfUTBxftdcJi" rel="noopener" target="_blank">Held on testnet</a>
+      </li>
+      <li>
+        <h3>The server reads the token's own event</h3>
+        <p>An x402 payment counts only when the token contract's own transfer event pays the gateway with the memo the server issued. Run on testnet and on mainnet in USDC.</p>
+        <a href="https://github.com/KhomDev/TriagePay/blob/main/README.md#how-the-server-knows-it-was-paid">How the check works</a>
+      </li>
+    </ol>
+  </section>
+
+  <section class="reference" aria-label="Reference">
+    <details class="panel" id="how">
+      <summary>How it works</summary>
+      <h2 id="h-how" class="sr-only">The key can only ask. The wallet decides.</h2>
+      <ol class="how-list">
+        <li><strong>Pay-only key.</strong> The agent account's key can call <span class="mono">pay</span> on one wallet. Signing happens on the server. This page never holds a key.</li>
+        <li><strong>The contract checks.</strong> Pause, the agent is active, the token, the allowlist, the per-call cap, the daily cap. An amount above the threshold is held for the owner.</li>
+        <li><strong>The refusal is a transaction.</strong> <span class="mono">ERR_PAYEE_NOT_ALLOWED</span> changes no balance. The explorer link is the proof.</li>
+      </ol>
+    </details>
+
+    <details class="panel" id="proofs">
+      <summary>Testnet and mainnet proofs</summary>
+      <h2 id="h-proofs" class="sr-only">Testnet and mainnet</h2>
+      <ul class="proof-list">
+        <li><a href="https://testnet.nearblocks.io/txns/8y6sEwL8i5sP2aMKo5HS3WGZtZ8NMDP9MUdywYAmVnN4" rel="noopener" target="_blank">Testnet refusal, ERR_PAYEE_NOT_ALLOWED</a></li>
+        <li><a href="https://testnet.nearblocks.io/txns/4oxycWdvo9M4YWoq9mg2y4FXL7AZYQY6McvcPJQYJejq" rel="noopener" target="_blank">Testnet payment inside the cap</a></li>
+        <li><a href="https://testnet.nearblocks.io/txns/8nvs4X4jWrzEzsbUj2ziS5qEdTTi6wvRwfUTBxftdcJi" rel="noopener" target="_blank">Testnet hold above the threshold</a></li>
+        <li><a href="https://nearblocks.io/txns/CwLaJmaX8K2jYaTBvM1kyYfMumiUwFTfx49Pra5uPEgG" rel="noopener" target="_blank">Mainnet x402 payment in USDC, verified from the USDC transfer event</a></li>
+        <li><a href="https://nearblocks.io/txns/EYnoWhUdJsxMLQN5aj1GBuwMeRGuGMPMjMBfhNARwioP" rel="noopener" target="_blank">Mainnet factory wallet created</a></li>
+        <li><a href="https://nearblocks.io/txns/9YCqzVgVNvaED7twQgtJvhUeCHMrnDiDAwKdbRHxnQWp" rel="noopener" target="_blank">Mainnet paid call, factory wallet</a></li>
+        <li><a href="https://nearblocks.io/txns/FfmGZyE4j8LK3uPzQCAcXbLwuzTgPNy76LasjoHVamHH" rel="noopener" target="_blank">Mainnet refusal over cap, factory wallet</a></li>
+        <li><a href="https://nearblocks.io/txns/6F3jNamjerT69EMnxaQVy7WRdZuscj7t53V1oceTU4Yj" rel="noopener" target="_blank">Earlier proof, paid call, 1000 yocto</a></li>
+        <li><a href="https://nearblocks.io/txns/5BCGjxC4CkPSy8iv876cP65xxs2LRWwcWKFqmcVJEyEw" rel="noopener" target="_blank">Earlier proof, refusal, 1000 yocto</a></li>
+        <li><a href="https://nearblocks.io/txns/2RH77VLsLHovF3m4kzR76jk71X8tYKAyugxQ9YJMXLJJ" rel="noopener" target="_blank">Earlier proof, paid call, 2026-11-12</a></li>
+        <li><a href="https://nearblocks.io/txns/HskzPv94J1JY16K5WdUG8wfGznnhnMMKcXgE1acks63F" rel="noopener" target="_blank">Earlier proof, refusal, 2026-11-12</a></li>
+      </ul>
+      <p class="hint">Judge in 60 seconds points at the factory-wallet proofs. The 1000-yocto pair and the 2026-11-12 links are earlier proofs.</p>
+    </details>
+
+    <details class="panel" id="security">
+      <summary>Security review</summary>
+      <h2 id="h-security" class="sr-only">Security review</h2>
+      <p>An independent red-team review on 2026-11-13 found no way to move funds past the wallet's caps or take owner rights on chain. Its 3 high, 7 medium and 22 low or informational findings around the contract are fixed or documented, each with a regression test.</p>
+      <p><a href="https://github.com/KhomDev/TriagePay/blob/main/docs/security/redteam-2026-11-13.md" rel="noopener" target="_blank">Read the findings and fixes</a> <a href="https://github.com/KhomDev/TriagePay/blob/main/SECURITY.md" rel="noopener" target="_blank">Security policy</a></p>
+    </details>
+
+    <details class="panel" id="sdk">
+      <summary>Builder SDK and agent passport</summary>
+      <h2 id="h-sdk" class="sr-only">One call, still the wallet's rules</h2>
+      <p class="lead"><span class="mono">packages/triagepay-sdk</span> wraps <span class="mono">pay</span> for an x402 client and exposes a NEAR AI tool. It does not hold a key. The wallet still refuses a payee that is not allowed.</p>
+      <p><a id="passport-link" href="/agent/tpd-e947e7-agent.testnet">Agent passport</a> <a href="https://github.com/KhomDev/TriagePay/tree/main/packages/triagepay-sdk">SDK readme</a></p>
+    </details>
+
+    <details class="panel">
+      <summary>Recent chain activity</summary>
+      <h2 id="h-recent" class="sr-only">Recent chain activity</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>What</th>
+              <th>Risk</th>
+              <th>Chain</th>
+              <th>Explorer</th>
+            </tr>
+          </thead>
+          <tbody id="recent"></tbody>
+        </table>
+      </div>
+      <div id="recent-more"></div>
+    </details>
+  </section>
 </main>
 <footer class="site">
   <p>built at NEAR HACKATHON @NEARProtocol #NEARHackathon</p>
-  <p>
-    <a href="https://github.com/KhomDev/TriagePay">GitHub</a>
-    · <a href="https://github.com/KhomDev/TriagePay/blob/main/README.md">README</a>
-    · <a href="https://github.com/KhomDev/TriagePay/blob/main/docs/claims-audit.md">Claims audit</a>
-    · <a href="https://x.com/NEARProtocol">@NEARProtocol</a>
-    · <a href="https://x.com/hashtag/NEARHackathon">#NEARHackathon</a>
-  </p>
-  <p>Live demo on testnet · proofs on mainnet</p>
+  <ul class="footer-links">
+    <li><a href="https://github.com/KhomDev/TriagePay">GitHub</a></li>
+    <li><a href="https://github.com/KhomDev/TriagePay/blob/main/README.md">README</a></li>
+    <li><a href="https://github.com/KhomDev/TriagePay/blob/main/docs/claims-audit.md">Claims audit</a></li>
+    <li><a href="https://github.com/KhomDev/TriagePay/blob/main/docs/security/redteam-2026-11-13.md">Security review</a></li>
+    <li><a href="https://x.com/NEARProtocol">@NEARProtocol</a></li>
+    <li><a href="https://x.com/hashtag/NEARHackathon">#NEARHackathon</a></li>
+  </ul>
+  <p>The sandbox signs on NEAR testnet. The proofs include NEAR mainnet.</p>
 </footer>
 <!-- The owner key name is not rendered: TRIAGEPAY_OWNER_SECRET_KEY -->
 </body>

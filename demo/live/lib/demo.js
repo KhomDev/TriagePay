@@ -622,6 +622,12 @@ export async function runScenario(id, request) {
   let decision = null;
   try {
     decision = await gate(config, request);
+    // Before a new hold, clear yesterday's and all but the newest two, so
+    // the 8-slot review queue is never full for the next visitor.
+    let cleared = [];
+    if (attack.kind === "review" || attack.id === "above-threshold") {
+      cleared = await clearStaleHolds(config, keys).catch(() => []);
+    }
     let agent = await viewCall(config.rpcUrl, config.accounts.wallet, "get_agent", {
       agent_id: config.accounts.agent,
     });
@@ -724,6 +730,7 @@ export async function runScenario(id, request) {
       amountCheck,
       chain,
       restored,
+      clearedHolds: cleared,
       receipt: receiptFromRun({
         scenario: attack,
         chain,
@@ -906,6 +913,54 @@ export function assertPublicApproval(config, row, request, env = process.env) {
       403,
     );
   }
+}
+
+/** Holds the page keeps waiting, newest first. Older ones are rejected. */
+export const KEEP_HOLDS = 2;
+
+/**
+ * Which held payments to reject so the review queue never fills up for the
+ * next visitor: every hold from an earlier UTC day, and every hold beyond
+ * the newest KEEP_HOLDS. Pending rows carry no timestamp, only an id (which
+ * grows) and the UTC day index. Rejecting moves no funds.
+ */
+export function staleHolds(pending, nowMs = Date.now(), keep = KEEP_HOLDS) {
+  const today = Math.floor(nowMs / 86_400_000);
+  const rows = (pending || [])
+    .filter((row) => row && /^\d+$/.test(String(row.payment_id)))
+    .slice()
+    .sort((a, b) => Number(b.payment_id) - Number(a.payment_id));
+  return rows
+    .filter((row, index) => index >= keep || Number(row.window_index) < today)
+    .map((row) => String(row.payment_id));
+}
+
+/** Reject stale holds in one owner transaction. Returns the ids rejected. */
+export async function clearStaleHolds(config, keys, nowMs = Date.now()) {
+  const review = await readReview(config);
+  if (!review.supported) return [];
+  const ids = staleHolds(review.pending, nowMs).slice(0, 8);
+  if (!ids.length) return [];
+  const actions = [];
+  for (const id of ids) {
+    actions.push(await functionCall("reject_payment", { payment_id: id }, 30, ONE_YOCTO));
+  }
+  const signed = await signCall({
+    rpcUrl: config.rpcUrl,
+    signerId: config.accounts.owner,
+    secretKey: keys.owner,
+    receiverId: config.accounts.wallet,
+    actions,
+  });
+  remember({
+    atMs: Date.now(),
+    kind: "reject",
+    title: `Cleared ${ids.length} stale held payment${ids.length === 1 ? "" : "s"}`,
+    outcome: signed.outcome,
+    errorCode: signed.errorCode,
+    txHash: signed.txHash,
+  });
+  return signed.outcome === "success" ? ids : [];
 }
 
 export async function restoreIfInactive(request) {
