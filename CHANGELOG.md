@@ -5,6 +5,17 @@ follows Keep a Changelog; the project has not shipped a tagged release.
 
 ## [Unreleased]
 
+### Changed
+- Hosted demo redesign: a midnight palette with colour only for paid,
+  refused and held; Geist throughout, monospace only for chain strings;
+  "Judge in 60 seconds" is a numbered sequence in the hero with the live
+  controls; the attack path is one console with the contract's decision
+  set large; the ticker says why each payment was refused and to whom;
+  "Drained by attackers" replaces the value-protected figure; a mainnet
+  USDC x402 card; owner tools grouped in an owner console; stale review
+  holds are cleared automatically. `app.min.js` is built by
+  `npm run build` and a test fails when it is stale.
+
 ### Security
 - Remediated the red-team review of 2026-11-13 (record:
   `docs/security/redteam-2026-11-13.md`). Paid API: reservations are

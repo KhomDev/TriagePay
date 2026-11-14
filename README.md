@@ -300,7 +300,7 @@ Counts are from runs on 2026-11-14 on `main`, except the contracts row (2026-11-
 | OpenAPI and Python client | `python -m pytest tests -q` | 14 passed |
 | UI | `python -m pytest ui/tests -q` | 17 passed |
 | TypeScript client | `cd clients/typescript && npm ci && npm test` | 7 passed |
-| Hosted demo | `cd demo/live && npm test` | 115 passed |
+| Hosted demo | `cd demo/live && npm test` | 119 passed (`npm run build` rebuilds `app.min.js`; a test fails when it is stale) |
 | Policy-wallet SDK | `cd packages/triagepay-sdk && npm test` | 13 passed |
 | Mainnet watch | `node scripts/mainnet/live-check.mjs` | read-only; the local run on 2026-11-14 passed |
 | Mainnet scripts | `node --test scripts/mainnet/*.test.mjs` | 9 passed |

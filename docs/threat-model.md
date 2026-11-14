@@ -1,5 +1,10 @@
 # Threat Model
 
+> Controls marked here were re-checked by the red-team review of 2026-11-13; the rows it changed
+> (state exhaustion, log leakage, prompt injection, mainnet key handling) are updated below, and
+> every finding is in [security/redteam-2026-11-13.md](security/redteam-2026-11-13.md).
+
+
 Assets: the tokens in an agent's policy wallet, prepaid credit, payment
 receipts, and the privacy of the compiled knowledge behind the scanner.
 

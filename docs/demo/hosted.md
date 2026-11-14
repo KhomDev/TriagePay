@@ -16,6 +16,10 @@ use the owner account's full-access key, which is held on the server as
 - Restore re-activates the agent with the caps and payees already on chain,
   never looser than `config.json`, so it cannot undo an owner's tightening.
 - Revoke and Reject move no funds.
+- The review queue has 8 slots. Before a new hold is queued, and on the
+  daily cron, the server rejects holds from earlier UTC days and all but
+  the newest two, in one owner transaction, so the queue is never full for
+  the next visitor. The page shows the newest hold and folds the rest.
 - Every signing request must come from this site's own page (`Origin` and
   `Sec-Fetch-Site` are checked) with an `application/json` body, so another
   site cannot fire these buttons from a visitor's browser.

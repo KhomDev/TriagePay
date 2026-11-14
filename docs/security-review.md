@@ -1,5 +1,10 @@
 # Security Review
 
+> The latest review is the red-team review of 2026-11-13. Its findings, fixes and regression
+> tests are in [security/redteam-2026-11-13.md](security/redteam-2026-11-13.md). The tables below
+> are the earlier internal reviews.
+
+
 Adversarial QA record: threats from docs/threat-model.md mapped to their
 control, the test that verifies it, the residual risk, and the owner. The
 table below was written on 2026-10-21 for the prepaid routes; the

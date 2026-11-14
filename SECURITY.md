@@ -8,26 +8,55 @@ commits. Do not open public issues for vulnerabilities.
 
 ## Scope
 
-Everything in this repository: the ledger core, the payment provider
-abstraction, the HTTP API, and the scan engine.
+Everything in this repository: the policy-wallet and wallet-factory
+contracts, the ledger core, the payment provider abstraction, the HTTP
+API, the scan engine, the SDK, and the hosted demo (`demo/live`).
+
+## Reviews
+
+- **Red-team review, 2026-11-13.** Five independent reviewers plus a lead
+  verification pass, static, on the tree at `27e9d2c`. No critical finding
+  and no way for an unprivileged actor to move funds out of the policy
+  wallet, bypass its caps, or take owner authority on chain. The 3 high,
+  7 medium and 22 low or informational findings were in the paid API, the
+  hosted demo, the engine, the SDK, CI and the docs. Every one is fixed or
+  documented, each with a regression test:
+  [docs/security/redteam-2026-11-13.md](docs/security/redteam-2026-11-13.md).
+- **Earlier internal reviews:** [docs/security-review.md](docs/security-review.md).
+- **Threat model and accepted residual risks:**
+  [docs/threat-model.md](docs/threat-model.md).
+
+The contracts have not had a professional audit.
 
 ## Security posture (honest statement)
 
-- This is a hackathon demonstrator. The ledger is in-memory and
-  process-local: a restart loses state.
-- A single dev caller (`dev-agent`) acts for every request; there is no
-  real authentication or authorization boundary yet.
-- The default payment provider is a deterministic mock. The optional
-  NEAR adapter (APS_PROVIDER=near) reads mainnet or testnet over public
-  JSON-RPC and is verification-only: the codebase holds no keys and has
-  no signing or broadcast path. Real funds moved in one operator-approved
-  mainnet deposit run (2026-10-21, 0.1 USDC); the payer-side transfer was
-  signed outside the adapter, which only verified it on chain.
+- The policy wallet and the wallet factory are deployed on NEAR mainnet
+  with no access keys and no upgrade path. A contract fix ships as a new
+  factory and new wallets, never as an upgrade. They are unaudited beta
+  contracts: use small amounts. A wallet accepts at most 100 USDC and
+  10 wNEAR through `ft_transfer_call`; a plain `ft_transfer` is not checked.
+- The agent never holds a key that can move tokens: its function-call key
+  can call only `pay` on its wallet, and every `pay` is checked on chain
+  against the payee allowlist, the per-call cap and the per-day cap.
+- The paid HTTP API is a demonstrator. Its ledger is in memory and
+  process-local, it binds loopback, and one development caller acts for
+  every request; there is no real authentication boundary yet. Jobs and
+  accounts are bound to the caller that created them, so the boundary is in
+  place for when authentication lands.
+- The NEAR payment adapter is verification-only: it reads the chain over
+  JSON-RPC and holds no keys. A payment counts only when the token
+  contract's own NEP-141 event, in a finalized receipt, pays the gateway
+  with the server-issued memo.
+- The mainnet scripts in `scripts/mainnet/` sign transactions from key
+  files outside the repository that the operator names on the command
+  line. The repository contains no keys.
+- The hosted demo holds a testnet owner key and testnet and mainnet
+  pay-only agent keys as server environment variables. The public page can
+  approve only a held payment to the allowlisted payee, cannot apply a
+  policy, and accepts only same-origin JSON requests. The agent key stops
+  signing at an on-chain gas-allowance floor.
 - The scanner runs as a subprocess with a hard timeout; its input is
   treated as hostile data and never interpreted.
-- Known abuse cases and their controls are tracked in
-  [docs/threat-model.md](docs/threat-model.md), including the accepted
-  residual risks.
 
 ## Non-goals and guarantees
 
