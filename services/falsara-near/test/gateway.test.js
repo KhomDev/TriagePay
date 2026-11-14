@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { loadConfig, USDC_MAINNET } from "../lib/config.js";
+import { EXPECTED_CORE_PINS, loadConfig, USDC_MAINNET } from "../lib/config.js";
 import { handle, resetLimits } from "../lib/handler.js";
 import { bodyHash, canonical, checkMemo, decodeHeader, encodeHeader, issueMemo } from "../lib/x402.js";
 import { matchTransaction, nep141Transfers } from "../lib/verify.js";
@@ -127,13 +127,13 @@ test("the JS verifier agrees with the Rust fixtures", () => {
 
 // ---- the handler, with a fake core and a fake chain --------------------------------
 
-function fakeFetch({ verdict = "NO_REFUSAL", chain = null, blockTimeSec = Math.floor(NOW / 1000) } = {}) {
+function fakeFetch({ verdict = "NO_REFUSAL", chain = null, blockTimeSec = Math.floor(NOW / 1000), pins = EXPECTED_CORE_PINS } = {}) {
   const calls = { core: 0 };
   async function impl(url, init = {}) {
     const href = String(url);
     if (href.startsWith("https://core.test")) {
       calls.core += 1;
-      if (href.endsWith("/health")) return new Response(JSON.stringify({ status: "ok", pins: { "viability-gate": "0.7.0" } }));
+      if (href.endsWith("/health")) return new Response(JSON.stringify({ status: "ok", pins }));
       assert.equal(init.headers["x-ail-internal-token"], "t".repeat(40));
       return new Response(JSON.stringify({
         schema_version: "1.0.0",
@@ -279,6 +279,7 @@ test("GET routes describe the service; unconfigured POSTs answer 503", async () 
   assert.equal(body.network, "near:mainnet");
   const health = await handle(new Request("https://api.falsara.online/health"), { config, fetchImpl: fakeFetch() });
   assert.equal(health.status, 200);
+  assert.equal((await health.json()).core.pinsMatch, true);
   const bare = loadConfig({});
   const res = await handle(post(finding), { config: bare, fetchImpl: fakeFetch() });
   assert.equal(res.status, 503);
@@ -289,4 +290,21 @@ test("unpaid checks are rate limited per address", async () => {
   let last;
   for (let i = 0; i < 13; i++) last = await handle(post(finding), { config, fetchImpl: fakeFetch(), nowMs: NOW + i });
   assert.equal(last.status, 429);
+});
+
+test("a core whose self-reported pins drift is not healthy (ToB C-VA-6)", async () => {
+  const drifted = await handle(new Request("https://api.falsara.online/health"), {
+    config,
+    fetchImpl: fakeFetch({ pins: { ...EXPECTED_CORE_PINS, "realism-gate": "9.9.9" } }),
+  });
+  assert.equal(drifted.status, 503);
+  const body = await drifted.json();
+  assert.equal(body.ok, false);
+  assert.equal(body.core.pinsMatch, false);
+  assert.deepEqual(body.core.drift, ["realism-gate"]);
+  assert.deepEqual(body.core.expectedPins, EXPECTED_CORE_PINS);
+  const missing = await handle(new Request("https://api.falsara.online/health"), { config, fetchImpl: fakeFetch({ pins: {} }) });
+  assert.equal(missing.status, 503);
+  const override = loadConfig({ FALSARA_EXPECTED_PINS: "not json" });
+  assert.ok(!("viability-gate" in override.expectedPins));
 });

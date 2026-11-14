@@ -30,13 +30,29 @@ export async function runCore(config, route, body, fetchImpl = fetch) {
   return { status: 503, body: { error: "CORE_UNAVAILABLE" } };
 }
 
+/** Names whose reported pin differs from the expected one (missing counts). */
+export function pinDrift(expected, reported) {
+  const got = reported && typeof reported === "object" ? reported : {};
+  return Object.keys(expected).filter((name) => String(got[name]) !== expected[name]);
+}
+
 export async function coreHealth(config, fetchImpl = fetch) {
-  if (!config.coreUrl) return { ok: false };
+  const expected = config.expectedPins || {};
+  if (!config.coreUrl) return { ok: false, pinsMatch: false, expectedPins: expected };
   try {
     const response = await fetchImpl(config.coreUrl + "/health", { signal: AbortSignal.timeout(8_000) });
     const body = await response.json();
-    return { ok: response.ok && body && body.status === "ok", pins: body && body.pins, gates: body && body.gates };
+    const pins = body && body.pins;
+    const drift = pinDrift(expected, pins);
+    return {
+      ok: Boolean(response.ok && body && body.status === "ok"),
+      pins,
+      pinsMatch: drift.length === 0,
+      drift,
+      expectedPins: expected,
+      gates: body && body.gates,
+    };
   } catch {
-    return { ok: false };
+    return { ok: false, pinsMatch: false, expectedPins: expected };
   }
 }

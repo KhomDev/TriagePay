@@ -125,12 +125,21 @@ export async function handle(request, { config, fetchImpl = fetch, nowMs = Date.
   if (request.method === "GET") {
     if (path === "/health") {
       const core = await coreHealth(config, fetchImpl);
-      return json(core.ok && ready(config) ? 200 : 503, {
-        ok: core.ok && ready(config),
+      // The core's pins are its own claim; healthy means they equal the
+      // pins this gateway expects (ToB C-VA-6).
+      const ok = core.ok && core.pinsMatch && ready(config);
+      return json(ok ? 200 : 503, {
+        ok,
         service: "falsara-near",
         network: config.network,
         payTo: config.payTo,
-        core: { ok: core.ok, pins: core.pins || null },
+        core: {
+          ok: core.ok,
+          pins: core.pins || null,
+          expectedPins: core.expectedPins,
+          pinsMatch: core.pinsMatch,
+          ...(core.drift && core.drift.length ? { drift: core.drift } : {}),
+        },
       });
     }
     if (path === "/pricing") return json(200, pricing(config));

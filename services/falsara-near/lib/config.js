@@ -3,6 +3,29 @@
 
 export const USDC_MAINNET = "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1";
 
+// The gate versions this gateway was reviewed against, pinned here and not
+// read from the core: /health compares the core's self-report to these, so
+// a core that drifts is reported, never re-certified by its own word
+// (ToB C-VA-6). FALSARA_EXPECTED_PINS (JSON) overrides them out of band.
+export const EXPECTED_CORE_PINS = Object.freeze({
+  "viability-gate": "0.7.0",
+  "realism-gate": "0.6.0",
+  "rejection-taxonomy": "0.6.0",
+});
+
+function expectedPins(raw) {
+  if (!raw) return EXPECTED_CORE_PINS;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && Object.keys(parsed).length > 0) {
+      return Object.freeze(Object.fromEntries(Object.entries(parsed).map(([k, v]) => [k, String(v)])));
+    }
+  } catch {
+    // fall through: an unreadable override never widens what is accepted
+  }
+  return Object.freeze({ "(invalid FALSARA_EXPECTED_PINS)": "unset" });
+}
+
 export function loadConfig(env = process.env) {
   const network = env.FALSARA_NETWORK === "near:testnet" ? "near:testnet" : "near:mainnet";
   const payTo = String(env.FALSARA_PAY_TO || "gateway.hlpok1lad.tg").trim();
@@ -17,6 +40,7 @@ export function loadConfig(env = process.env) {
     coreUrl: String(env.FALSARA_CORE_URL || "").replace(/\/$/, ""),
     coreToken: String(env.FALSARA_CORE_TOKEN || ""),
     memoSecret: String(env.FALSARA_MEMO_SECRET || ""),
+    expectedPins: expectedPins(env.FALSARA_EXPECTED_PINS),
     endpoints: network === "near:mainnet"
       ? [env.NEAR_RPC_URL || "https://free.rpc.fastnear.com", "https://archival-rpc.mainnet.fastnear.com"]
       : [env.NEAR_RPC_URL || "https://test.rpc.fastnear.com", "https://archival-rpc.testnet.fastnear.com"],
